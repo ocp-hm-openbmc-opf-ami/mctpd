@@ -316,4 +316,5 @@ class MctpBinding
     void clearRegisteredDevice(const mctp_eid_t eid);
     bool isEIDMappedToUUID(mctp_eid_t& eid, std::string& destUUID);
     bool isEIDRegistered(mctp_eid_t eid);
+    MctpStatus sendMctpRawPayload(const std::vector<uint8_t>& data);
 };

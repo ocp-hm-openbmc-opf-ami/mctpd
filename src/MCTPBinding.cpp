@@ -502,6 +502,11 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
         mctpInterface->register_method("TriggerDeviceDiscovery",
                                        [this]() { triggerDeviceDiscovery(); });
 
+        mctpInterface->register_method(
+            "SendMctpRawPayload", [this](const std::vector<uint8_t>& data) {
+                return static_cast<int>(this->sendMctpRawPayload(data));
+            });
+
         if (mctpInterface->initialize() == false)
         {
             throw std::system_error(
@@ -2232,4 +2237,45 @@ void MctpBinding::clearRegisteredDevice(const mctp_eid_t eid)
 void MctpBinding::addUnknownEIDToDeviceTable(const mctp_eid_t, void*)
 {
     // Do nothing
+}
+
+MctpStatus MctpBinding::sendMctpRawPayload(const std::vector<uint8_t>& payload)
+{
+    static constexpr size_t minMctpMessageSize = 5;
+    if (payload.size() < minMctpMessageSize)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "SendMctpRawPayload: Expects atleast 5 bytes in mctp message");
+        return mctpInternalError;
+    }
+
+    // Destination EID is in byte 1.
+    mctp_eid_t dstEid = payload[1];
+    if (rsvBWActive && dstEid != reservedEID)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            (("SendMctpRawPayload is not allowed. "
+              "ReserveBandwidth is active "
+              "for EID: ") +
+             std::to_string(reservedEID))
+                .c_str());
+        return mctpErrorOperationNotAllowed;
+    }
+
+    std::optional<std::vector<uint8_t>> pvtData = getBindingPrivateData(dstEid);
+    if (!pvtData)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "SendMctpRawPayload: Invalid destination EID");
+        return mctpInternalError;
+    }
+
+    if (mctp_message_raw_tx(mctp, payload.data(), payload.size(),
+                            pvtData->data()) < 0)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Error while doing mctp raw tx");
+        return mctpInternalError;
+    }
+    return mctpSuccess;
 }
