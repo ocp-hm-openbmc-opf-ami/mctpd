@@ -122,7 +122,6 @@ static bool getField(const json& configuration, const std::string& fieldName,
     }
 }
 
-template <typename T>
 std::set<std::string> getAllowedBuses(const T& map)
 {
     std::vector<std::string> allowedBuses;
@@ -137,6 +136,20 @@ std::set<std::string> getAllowedBuses(const T& map)
          std::to_string(allowedBuses.size()))
             .c_str());
     return std::set<std::string>(allowedBuses.begin(), allowedBuses.end());
+}
+
+template <typename T>
+uint32_t getNetworkID(const T& map)
+{
+    uint64_t networkId = 0;
+    if (!getField(map, "NetworkID", networkId))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Network ID not found in MCTP configuration. Assuming EIDs wont "
+            "overlap");
+        networkId = 0;
+    }
+    return static_cast<uint32_t>(networkId);
 }
 
 template <typename T>
@@ -254,6 +267,7 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
     config.reqRetryCount = static_cast<uint8_t>(reqRetryCount);
     config.scanInterval = scanInterval;
     config.allowedBuses = getAllowedBuses(map);
+    config.networkId = getNetworkID(map);
 
     return config;
 }
@@ -368,6 +382,7 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
     config.requiredEIDPoolSizeFromBO =
         static_cast<uint8_t>(requiredEIDPoolSizeFromBO);
     config.requiredEIDPoolSize = static_cast<uint8_t>(requiredEIDPoolSize);
+    config.networkId = getNetworkID(map);
 
     return config;
 }
@@ -430,6 +445,7 @@ static std::optional<PcieConfiguration> getPcieConfiguration(const T& map)
     {
         config.getRoutingInterval = static_cast<uint8_t>(getRoutingInterval);
     }
+    config.networkId = getNetworkID(map);
 
     return config;
 }

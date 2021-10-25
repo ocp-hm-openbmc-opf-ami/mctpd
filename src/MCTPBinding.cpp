@@ -194,6 +194,7 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                     mctpd::convertToPhysicalMediumIdentifier(bindingMediumID));
             routingTable.updateEntry(ownEid, entry);
         }
+        registerProperty(mctpInterface, "NetworkID", conf.networkId);
 
         /*
          * msgTag and tagOwner are not currently used, but can't be removed
