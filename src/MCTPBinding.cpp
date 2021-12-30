@@ -1087,6 +1087,17 @@ bool MctpBinding::getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
                                      std::forward<Args>(reqParam)...);
         return true;
     }
+    else if constexpr (cmd == MCTP_CTRL_CMD_ALLOCATE_ENDPOINT_IDS)
+    {
+        req.resize(sizeof(mctp_ctrl_cmd_allocate_eids));
+        mctp_ctrl_cmd_allocate_eids* allocateEidsCmd =
+            reinterpret_cast<mctp_ctrl_cmd_allocate_eids*>(req.data());
+
+        mctp_encode_ctrl_cmd_allocate_eids(allocateEidsCmd, getRqDgramInst(),
+                                           std::forward<Args>(reqParam)...);
+        return true;
+    }
+
     else if constexpr (cmd == MCTP_CTRL_CMD_GET_ENDPOINT_UUID)
     {
         req.resize(sizeof(mctp_ctrl_cmd_get_uuid));
@@ -1244,6 +1255,42 @@ bool MctpBinding::setEidCtrlCmd(boost::asio::yield_context& yield,
     }
 
     phosphor::logging::log<phosphor::logging::level::DEBUG>("Set EID success");
+    return true;
+}
+bool MctpBinding::allocateEIDsCtrlCmd(
+    boost::asio::yield_context& yield,
+    const std::vector<uint8_t>& bindingPrivate, const mctp_eid_t destEid,
+    const mctp_ctrl_cmd_allocate_eids_op operation, uint8_t pool_size,
+    const mctp_eid_t startingEID, std::vector<uint8_t>& resp)
+{
+
+    std::vector<uint8_t> req = {};
+
+    if (!getFormattedReq<MCTP_CTRL_CMD_ALLOCATE_ENDPOINT_IDS>(req, operation,
+                                                              pool_size, startingEID))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Allocate EIDs: Request formatting failed");
+        return false;
+    }
+
+    if (PacketState::receivedResponse !=
+        sendAndRcvMctpCtrl(yield, req, destEid, bindingPrivate, resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Allocate EIDs: Unable to get response");
+        return false;
+    }
+
+    if (!checkRespSizeAndCompletionCode<mctp_ctrl_resp_allocate_eids>(resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Allocate EIDs failed");
+        return false;
+    }
+
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "Allocate EIDs success");
     return true;
 }
 
@@ -2015,7 +2062,6 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     }
 
     // TODO: Routing table construction
-    // TODO: Assigne pool of EID if the endpoint is a bridge
     // TODO: Take care of EIDs(Static EID) which are not owned by us
 
     // Set EID
@@ -2039,6 +2085,9 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
         return std::nullopt;
     }
     eidPool.updateEidStatus(eid, true);
+
+    // Allocate EID Pool
+    handleAllocateEID(yield, bindingPrivate,setEidRespPtr->eid_pool_size,eid);
 
     // Get Message Type Support
     MsgTypeSupportCtrlResp msgTypeSupportResp;
@@ -2082,6 +2131,52 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     return eid;
 }
 
+std::optional<mctp_eid_t> MctpBinding::handleAllocateEID(
+    boost::asio::yield_context& yield,
+    const std::vector<uint8_t>& bindingPrivate, uint8_t setEIDPoolSize, mctp_eid_t eid)
+{
+    if (setEIDPoolSize > 0)
+    {
+        std::vector<uint8_t> allocateEIDsResp  = {};
+
+        //TODO: validate the the requested range of EIDs and allocate based on the availability.
+        if (setEIDPoolSize > eidPool.getCountOfAvailableEidFromPool())
+        {
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "Allocate EIDs failed:Requested pool size greater than available pool size");
+            return std::nullopt;
+        }
+        
+        if (!(allocateEIDsCtrlCmd(yield, bindingPrivate, eid, allocate_eids,
+                                  setEIDPoolSize, eid + 1,
+                                  allocateEIDsResp )))
+        {
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "Allocate EIDs failed");
+            return std::nullopt;
+        }
+        mctp_ctrl_resp_allocate_eids* allocateEidsRespPtr =
+            reinterpret_cast<mctp_ctrl_resp_allocate_eids*>(
+                allocateEIDsResp.data());
+        if (allocateEidsRespPtr->operation == allocation_accepted && 
+            eid + 1 == allocateEidsRespPtr->first_eid)
+        {
+            for (uint8_t eid_num = 0;
+                 eid_num < allocateEidsRespPtr->eid_pool_size; eid_num++)
+            {
+                eidPool.updateEidStatus(
+                    allocateEidsRespPtr->first_eid + eid_num, true);
+            }
+        }
+    }
+    else
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "Allocate EIDs failed:EID Pool size is zero");
+        return std::nullopt;
+    }
+    return eid;
+}
 void MctpBinding::getVendorDefinedMessageTypes(
     boost::asio::yield_context yield,
     const std::vector<uint8_t>& bindingPrivate, mctp_eid_t destEid,

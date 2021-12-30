@@ -91,4 +91,17 @@ mctp_eid_t EidPool::getAvailableEidFromPool()
         std::make_error_code(std::errc::address_not_available));
 }
 
+int EidPool::getCountOfAvailableEidFromPool()
+{
+    int countOfAvailEids = 0;
+    for (auto& [eid, eidAssignedStatus] : eidPool)
+    {
+        if (!eidAssignedStatus)
+        {
+            countOfAvailEids++;
+        }
+    }
+    return countOfAvailEids;
+}
+
 } // namespace mctpd

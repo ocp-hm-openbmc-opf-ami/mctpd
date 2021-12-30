@@ -29,6 +29,7 @@ class EidPool
     void initializeEidPool(const std::set<mctp_eid_t>& pool);
     void updateEidStatus(const mctp_eid_t endpointId, const bool assigned);
     mctp_eid_t getAvailableEidFromPool();
+    int getCountOfAvailableEidFromPool();
 
   private:
     std::vector<std::pair<mctp_eid_t, bool>> eidPool;
