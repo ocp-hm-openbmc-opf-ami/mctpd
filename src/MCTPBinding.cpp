@@ -2245,7 +2245,7 @@ MctpStatus MctpBinding::sendMctpRawPayload(const std::vector<uint8_t>& payload)
     if (payload.size() < minMctpMessageSize)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "SendMctpRawPayload: Expects atleast 5 bytes in mctp message");
+            "SendMctpRawPayload: Expects at least 5 bytes in mctp message");
         return mctpInternalError;
     }
 
@@ -2278,4 +2278,20 @@ MctpStatus MctpBinding::sendMctpRawPayload(const std::vector<uint8_t>& payload)
         return mctpInternalError;
     }
     return mctpSuccess;
+}
+
+void MctpBinding::onRawMessage(void* data, void* /*msg*/, size_t len,
+                               void* /*msgBindingPrivate*/)
+{
+    static constexpr size_t minMctpMessageSize = 5;
+    if (len < minMctpMessageSize)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Expects at least 5 bytes in mctp message");
+    }
+
+    uint8_t* mctpData = static_cast<uint8_t*>(data);
+    std::vector<uint8_t> payload(mctpData, mctpData + len);
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "Received raw message", phosphor::logging::entry("EID=%d", payload[2]));
 }

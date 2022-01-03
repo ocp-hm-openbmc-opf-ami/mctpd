@@ -599,6 +599,7 @@ std::string SMBusBinding::SMBusInit()
 
     mctp_set_rx_all(mctp, &MctpBinding::rxMessage,
                     static_cast<MctpBinding*>(this));
+    mctp_set_rx_raw(mctp, &MctpBinding::onRawMessage);
     mctp_set_rx_ctrl(mctp, &MctpBinding::handleMCTPControlRequests,
                      static_cast<MctpBinding*>(this));
     std::string rootPort;
