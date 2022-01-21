@@ -1,0 +1,53 @@
+name: PACT ReviewApp
+on:
+  pull_request:
+    branches:
+    - main
+    tags:
+    - "*"
+    types:
+    - opened
+    - synchronize
+    - reopened
+    - review_requested
+  pull_request_review:
+    branches:
+    - main
+    tags:
+    - "*"
+
+jobs:
+  review-app:
+    runs-on: [self-hosted, Linux, division_pact]
+    container:
+      image: harbor.pact.intel.com/common/review-app-env:2.0
+
+    if: |
+      (github.event_name == 'pull_request_review' && github.event.review.state != 'commented') ||
+      (github.event_name == 'pull_request')
+    steps:
+    - name: Checkout main repository
+      uses: actions/checkout@v2
+        
+    - name: Checkout ReviewApp
+      uses: actions/checkout@v2
+      with:
+        repository: intel-innersource/frameworks.devops.process-automation.review-app
+        ref: master
+        token: ${{ secrets.REVIEW_BOT_TOKEN }}
+        
+    - name: Checkout action repository
+      uses: actions/checkout@v2
+      with:
+        repository: intel-innersource/frameworks.devops.process-automation.github-actions
+        ref: main
+        token: ${{ secrets.REVIEW_BOT_TOKEN }}
+        path: ./.actions
+    
+    - name: Call ReviewApp
+      uses: ./.actions/review-app/
+      with: 
+        review_bot_token: ${{ secrets.REVIEW_BOT_TOKEN }}
+        pull_request_id: ${{ github.event.pull_request.number }}
+        repository: ${{ github.event.repository.full_name }}
+        checkout_token: ${{ secrets.REVIEW_BOT_TOKEN }}
