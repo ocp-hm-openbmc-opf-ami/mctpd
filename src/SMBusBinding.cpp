@@ -18,6 +18,7 @@ extern "C" {
 #include <xyz/openbmc_project/MCTP/Binding/SMBus/server.hpp>
 
 #include "libmctp-msgtypes.h"
+#include "libmctp-smbus.h"
 
 using smbus_server =
     sdbusplus::xyz::openbmc_project::MCTP::Binding::server::SMBus;
@@ -1196,4 +1197,19 @@ void SMBusBinding::processRoutingTableChanges(
                              mctp_server::BindingModeTypes::Endpoint);
         }
     }
+}
+
+void SMBusBinding::updateRoutingTableEntry(
+    mctpd::RoutingTable::Entry entry, const std::vector<uint8_t>& privateData)
+{
+    constexpr uint8_t transportIdSmbus = 0x01;
+    entry.routeEntry.routing_info.phys_transport_binding_id = transportIdSmbus;
+
+    auto smbusData =
+        reinterpret_cast<const mctp_smbus_pkt_private*>(privateData.data());
+    entry.routeEntry.phys_address[0] = smbusData->slave_addr; // 8bit address
+    entry.routeEntry.routing_info.phys_address_size =
+        sizeof(smbusData->slave_addr);
+
+    routingTable.updateEntry(entry.routeEntry.routing_info.starting_eid, entry);
 }

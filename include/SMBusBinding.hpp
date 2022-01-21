@@ -46,6 +46,9 @@ class SMBusBinding : public MctpBinding
                              std::vector<uint8_t>& response) override;
     void addUnknownEIDToDeviceTable(const mctp_eid_t eid,
                                     void* bindingPrivate) override;
+    void updateRoutingTableEntry(
+        mctpd::RoutingTable::Entry entry,
+        const std::vector<uint8_t>& privateData) override;
 
   private:
     using DeviceTableEntry_t =

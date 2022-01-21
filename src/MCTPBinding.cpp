@@ -329,6 +329,17 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
             mctpInterface, "BindingMode",
             mctp_server::convertBindingModeTypesToString(bindingModeType));
 
+        if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
+        {
+            // TODO. Add own service name here.
+            mctpd::RoutingTable::Entry entry(ownEid, "",
+                                             mctpd::EndPointType::BridgeOnly);
+            entry.routeEntry.routing_info.phys_media_type_id =
+                static_cast<uint8_t>(
+                    mctpd::convertToPhysicalMediumIdentifier(bindingMediumID));
+            routingTable.updateEntry(ownEid, entry);
+        }
+
         /*
          * msgTag and tagOwner are not currently used, but can't be removed
          * since they are defined for SendMctpMessagePayload() in the current
@@ -2073,6 +2084,13 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
         return std::nullopt;
     }
 
+    // TODO. Add own service name here.
+    mctpd::RoutingTable::Entry entry(
+        eid, "", mctpd::convertToEndpointType(epProperties.mode));
+    entry.routeEntry.routing_info.phys_media_type_id = static_cast<uint8_t>(
+        mctpd::convertToPhysicalMediumIdentifier(bindingMediumID));
+    updateRoutingTableEntry(entry, bindingPrivate);
+
     // Update the uuidTable with eid and the uuid of the endpoint registered.
     if (destUUID != nullUUID && eid != MCTP_EID_NULL)
     {
@@ -2174,6 +2192,11 @@ std::optional<mctp_eid_t>
     {
         return std::nullopt;
     }
+
+    // TODO. Add own service name here.
+    mctpd::RoutingTable::Entry entry(eid, "",
+                                     mctpd::convertToEndpointType(bindingMode));
+    updateRoutingTableEntry(entry, bindingPrivate);
     return eid;
 }
 
@@ -2294,4 +2317,10 @@ void MctpBinding::onRawMessage(void* data, void* /*msg*/, size_t len,
     std::vector<uint8_t> payload(mctpData, mctpData + len);
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
         "Received raw message", phosphor::logging::entry("EID=%d", payload[2]));
+}
+
+void MctpBinding::updateRoutingTableEntry(mctpd::RoutingTable::Entry,
+                                          const std::vector<uint8_t>&)
+{
+    // Do nothing
 }

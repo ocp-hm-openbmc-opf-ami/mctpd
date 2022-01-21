@@ -1,5 +1,6 @@
 #pragma once
 
+#include "routing_table.hpp"
 #include "utils/Configuration.hpp"
 #include "utils/device_watcher.hpp"
 #include "utils/eid_pool.hpp"
@@ -138,6 +139,7 @@ class MctpBinding
     mctpd::MctpTransmissionQueue transmissionQueue;
     mctpd::DeviceWatcher deviceWatcher{};
     mctpd::EidPool eidPool;
+    mctpd::RoutingTable routingTable;
 
     std::unordered_map<uint8_t, version_entry>
         versionNumbersForUpperLayerResponder;
@@ -256,6 +258,9 @@ class MctpBinding
     void logUnsupportedMCTPVersion(
         const std::vector<struct MCTPVersionFields> versionsData,
         const mctp_eid_t eid);
+    virtual void
+        updateRoutingTableEntry(mctpd::RoutingTable::Entry entry,
+                                const std::vector<uint8_t>& privateData);
 
     // Register MCTP responder for upper layer
     std::vector<InternalVdmSetDatabase> vdmSetDatabase;
