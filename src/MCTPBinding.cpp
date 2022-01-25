@@ -851,6 +851,11 @@ void MctpBinding::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
                                                    request, response);
             break;
         }
+        case MCTP_CTRL_CMD_GET_NETWORK_ID: {
+            sendResponse = handleGetNetworkId(destEid, bindingPrivate,
+                                                   request, response);
+            break;
+        }
         case MCTP_CTRL_CMD_GET_VENDOR_MESSAGE_SUPPORT: {
             sendResponse =
                 handleGetVdmSupport(destEid, bindingPrivate, request, response);
@@ -926,6 +931,18 @@ bool MctpBinding::handleSetEndpointId(mctp_eid_t destEid, void*,
     }
     return true;
 }
+
+
+bool MctpBinding::handleGetNetworkId([[maybe_unused]] mctp_eid_t destEid, void*,
+                                      [[maybe_unused]] std::vector<uint8_t>& request,
+                                      std::vector<uint8_t>& response)
+{
+    response.resize(sizeof(mctp_ctrl_resp_set_eid));
+    auto resp = reinterpret_cast<mctp_ctrl_resp_get_networkid*>(response.data());
+    mctp_ctrl_cmd_get_network_id(mctp,resp);
+    return true; 
+}
+
 
 bool MctpBinding::handleGetVersionSupport(mctp_eid_t, void*,
                                           std::vector<uint8_t>& request,
@@ -1107,6 +1124,17 @@ bool MctpBinding::getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
         mctp_encode_ctrl_cmd_get_uuid(getUuid, getRqDgramInst());
         return true;
     }
+    
+    else if constexpr (cmd == MCTP_CTRL_CMD_GET_NETWORK_ID)
+    {
+        req.resize(sizeof(mctp_ctrl_cmd_get_networkid));
+        mctp_ctrl_cmd_get_networkid* getnetworkid =
+            reinterpret_cast<mctp_ctrl_cmd_get_networkid*>(req.data());
+
+        mctp_encode_ctrl_cmd_get_networkid(getnetworkid, getRqDgramInst());
+        return true;
+    } 
+    
     else if constexpr (cmd == MCTP_CTRL_CMD_GET_VERSION_SUPPORT)
     {
         req.resize(sizeof(mctp_ctrl_cmd_get_mctp_ver_support));
@@ -1315,6 +1343,51 @@ bool MctpBinding::getUuidCtrlCmd(boost::asio::yield_context& yield,
 
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
         ("Get UUID success: " + uuidResp).c_str());
+    return true;
+}
+
+bool MctpBinding::getNetworkidCtrlCmd(boost::asio::yield_context& yield,
+                                 const std::vector<uint8_t>& bindingPrivate,
+                                 const mctp_eid_t destEid,
+                                 std::vector<uint8_t>& resp)
+{
+    std::vector<uint8_t> req = {};
+
+    if (!getFormattedReq<MCTP_CTRL_CMD_GET_NETWORK_ID>(req))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get NETWORKID: Request formatting failed");
+        return false;
+    }
+
+    if (PacketState::receivedResponse !=
+        sendAndRcvMctpCtrl(yield, req, destEid, bindingPrivate, resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get NETWORKID: Unable to get response");
+        return false;
+    }
+
+    if (!checkRespSizeAndCompletionCode<mctp_ctrl_resp_get_networkid>(resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get NETWORKID failed");
+        return false;
+    }
+
+    const std::string nilUUID = "00000000-0000-0000-0000-000000000000";
+    mctp_ctrl_resp_get_networkid* getnetworkIDRespPtr =
+        reinterpret_cast<mctp_ctrl_resp_get_networkid*>(resp.data());
+    std::string networkidResp = formatUUID(getnetworkIDRespPtr->networkid);
+    if (nilUUID == networkidResp)
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "Get networkID: Device returned Nil networkID");
+        return false;
+    }
+
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        ("Get networkID success: " + networkidResp).c_str());
     return true;
 }
 
@@ -2179,11 +2252,29 @@ std::optional<mctp_eid_t>
             reinterpret_cast<mctp_ctrl_resp_get_uuid*>(getUuidResp.data());
         epProperties.uuid = formatUUID(getUuidRespPtr->uuid);
     }
+    
+    std::vector<uint8_t> getnetworkidResp;
 
+    if (!(getNetworkidCtrlCmd(yield, bindingPrivate, eid, getnetworkidResp)))
+    {
+        /* In case EP doesn't support Get NetworkID set to all 0 */
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get NetworkID failed");
+        epProperties.networkId = 0x00;
+    }
+    else
+    {
+        mctp_ctrl_resp_get_networkid* getnetworkidRespPtr =
+            reinterpret_cast<mctp_ctrl_resp_get_networkid*>(getnetworkidResp.data());
+        
+     std::memcpy(reinterpret_cast<void*>(epProperties.networkId),
+                        reinterpret_cast<const void*>(getnetworkidRespPtr->networkid.raw),sizeof(uint16_t));
+    }
+    
     epProperties.endpointEid = eid;
     epProperties.mode = bindingMode;
-    // TODO:get Network ID, now set it to 0
-    epProperties.networkId = 0x00;
+    // removed after implementation
+    //epProperties.networkId = 0x00;
     epProperties.endpointMsgTypes = getMsgTypes(msgTypeSupportResp.msgType);
 
     getVendorDefinedMessageTypes(yield, bindingPrivate, eid, epProperties);

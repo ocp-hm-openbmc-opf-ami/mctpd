@@ -168,6 +168,10 @@ class MctpBinding
     virtual bool handleGetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
                                      std::vector<uint8_t>& request,
                                      std::vector<uint8_t>& response);
+    virtual bool handleGetNetworkId(mctp_eid_t destEid, void* bindingPrivate,
+                                     std::vector<uint8_t>& request,
+                                     std::vector<uint8_t>& response);
+    
     virtual bool handleGetVersionSupport(mctp_eid_t destEid,
                                          void* bindingPrivate,
                                          std::vector<uint8_t>& request,
@@ -193,6 +197,11 @@ class MctpBinding
     bool getUuidCtrlCmd(boost::asio::yield_context& yield,
                         const std::vector<uint8_t>& bindingPrivate,
                         const mctp_eid_t destEid, std::vector<uint8_t>& resp);
+						
+    bool getNetworkidCtrlCmd(boost::asio::yield_context& yield,
+                        const std::vector<uint8_t>& bindingPrivate,
+                        const mctp_eid_t destEid, std::vector<uint8_t>& resp);
+						
     bool getMsgTypeSupportCtrlCmd(boost::asio::yield_context& yield,
                                   const std::vector<uint8_t>& bindingPrivate,
                                   const mctp_eid_t destEid,
