@@ -288,9 +288,49 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                          boost::asio::io_context& ioc,
                          const mctp_server::BindingTypes bindingType) :
     connection(conn),
-    io(ioc), objectServer(objServer), bindingID(bindingType), ctrlTxTimer(io)
+    io(ioc), objectServer(objServer), mctpServiceScanner(connection),
+    bindingID(bindingType), ctrlTxTimer(io)
 {
     objServer->add_manager(objPath);
+
+    mctpServiceScanner.setCallback(
+        [this](bridging::MCTPServiceScanner::EndPoint ep, bool isHotplugged) {
+            if (routingTable.contains(ep.eid))
+            {
+                // Entry detcted from this process itself. Ignore
+                return;
+            }
+
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                ("NewEID " + std::to_string(ep.eid) + " of type " +
+                 ep.endpointType +
+                 (isHotplugged ? " hotplugged" : " existing") + " on " +
+                 ep.service.name)
+                    .c_str());
+
+            // TODO. Get physical medium specific details
+            auto entryType = mctpd::convertToEndpointType(ep.endpointType);
+            mctpd::RoutingTable::Entry entry(ep.eid, ep.service.name,
+                                             entryType);
+            entry.isUpstream = true;
+            routingTable.updateEntry(ep.eid, entry);
+        });
+    mctpServiceScanner.setEidRemovedCallback(
+        [this](bridging::MCTPServiceScanner::EndPoint ep) {
+            if (this->routingTable.removeEntry(ep.eid))
+            {
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    (std::to_string(ep.eid) + " removed from routing table")
+                        .c_str());
+            }
+            else
+            {
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    (std::to_string(ep.eid) + " was not in routing table")
+                        .c_str());
+            }
+        });
+
     mctpInterface = objServer->add_interface(objPath, mctp_server::interface);
 
     /*initialize the map*/
@@ -674,6 +714,7 @@ void MctpBinding::initializeMctp()
         throw std::system_error(
             std::make_error_code(std::errc::not_enough_memory));
     }
+    mctpServiceScanner.scan();
 }
 
 void MctpBinding::initializeLogging(void)
@@ -2226,6 +2267,7 @@ void MctpBinding::unregisterEndpoint(mctp_eid_t eid)
         phosphor::logging::log<phosphor::logging::level::WARNING>(
             ("Device Unregistered: EID = " + std::to_string(eid)).c_str());
     }
+    routingTable.removeEntry(eid);
 }
 
 std::optional<mctp_eid_t> MctpBinding::getEIDFromUUID(std::string& uuidStr)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "routing_table.hpp"
+#include "service_scanner.hpp"
 #include "utils/Configuration.hpp"
 #include "utils/device_watcher.hpp"
 #include "utils/eid_pool.hpp"
@@ -140,6 +141,7 @@ class MctpBinding
     mctpd::DeviceWatcher deviceWatcher{};
     mctpd::EidPool eidPool;
     mctpd::RoutingTable routingTable;
+    bridging::MCTPServiceScanner mctpServiceScanner;
 
     std::unordered_map<uint8_t, version_entry>
         versionNumbersForUpperLayerResponder;
