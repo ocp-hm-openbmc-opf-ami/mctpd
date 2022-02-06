@@ -236,6 +236,7 @@ class MctpBinding
     bool handleCtrlResp(void* msg, const size_t len);
     static void rxMessage(uint8_t srcEid, void* data, void* msg, size_t len,
                           bool tagOwner, uint8_t msgTag, void* bindingPrivate);
+    // Handler for bridging packets.
     static void onRawMessage(void* data, void* msg, size_t len,
                              void* msgBindingPrivate);
     static void handleMCTPControlRequests(uint8_t srcEid, void* data, void* msg,

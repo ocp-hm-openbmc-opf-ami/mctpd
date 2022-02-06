@@ -2304,6 +2304,7 @@ void MctpBinding::addUnknownEIDToDeviceTable(const mctp_eid_t, void*)
     // Do nothing
 }
 
+// Send raw payload starting from MCTP header.
 MctpStatus MctpBinding::sendMctpRawPayload(const std::vector<uint8_t>& payload)
 {
     static constexpr size_t minMctpMessageSize = 5;
@@ -2313,52 +2314,101 @@ MctpStatus MctpBinding::sendMctpRawPayload(const std::vector<uint8_t>& payload)
             "SendMctpRawPayload: Expects at least 5 bytes in mctp message");
         return mctpInternalError;
     }
+    else
+    {
+        std::stringstream ss;
+        ss << "Bridging packet: [";
+        for (int byte : payload)
+        {
+            ss << byte << ',';
+        }
+        ss << ']';
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            ss.str().c_str());
+    }
 
     // Destination EID is in byte 1.
     mctp_eid_t dstEid = payload[1];
-    if (rsvBWActive && dstEid != reservedEID)
+    MctpStatus status = mctpInternalError;
+    try
     {
-        phosphor::logging::log<phosphor::logging::level::WARNING>(
-            (("SendMctpRawPayload is not allowed. "
-              "ReserveBandwidth is active "
-              "for EID: ") +
-             std::to_string(reservedEID))
-                .c_str());
-        return mctpErrorOperationNotAllowed;
-    }
+        auto& entry = routingTable.getEntry(dstEid);
 
-    std::optional<std::vector<uint8_t>> pvtData = getBindingPrivateData(dstEid);
-    if (!pvtData)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "SendMctpRawPayload: Invalid destination EID");
-        return mctpInternalError;
-    }
+        // If downstream device then do the physical transmission
+        if (!entry.isUpstream)
+        {
+            if (rsvBWActive && dstEid != reservedEID)
+            {
+                status = mctpErrorOperationNotAllowed;
+                throw std::runtime_error(
+                    (("Send is not allowed. ReserveBandwidth is active "
+                      "for ") +
+                     std::to_string(reservedEID))
+                        .c_str());
+            }
 
-    if (mctp_message_raw_tx(mctp, payload.data(), payload.size(),
-                            pvtData->data()) < 0)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Error while doing mctp raw tx");
-        return mctpInternalError;
+            std::optional<std::vector<uint8_t>> pvtData =
+                getBindingPrivateData(dstEid);
+            if (!pvtData)
+            {
+                status = mctpInternalError;
+                throw std::runtime_error(
+                    "SendMctpRawPayload: Invalid destination EID");
+            }
+
+            if (mctp_message_raw_tx(mctp, payload.data(), payload.size(),
+                                    pvtData->data()) < 0)
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Error while doing mctp raw tx");
+                status = mctpInternalError;
+            }
+            else
+            {
+                status = mctpSuccess;
+            }
+        }
+        else
+        {
+            // Upstream device. Pass the payload to destination mctpd service.
+            auto sendCB = [dstEid](boost::system::error_code ec,
+                                   int sendStatus) {
+                if (ec || sendStatus != 0)
+                {
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "Error bridging raw message",
+                        phosphor::logging::entry("EID=%d", dstEid));
+                }
+            };
+            connection->async_method_call(
+                sendCB, entry.serviceName, "/xyz/openbmc_project/mctp",
+                "xyz.openbmc_project.MCTP.Base", "SendMctpRawPayload", payload);
+            status = mctpSuccess;
+        }
     }
-    return mctpSuccess;
+    catch (const std::exception& e)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
+    }
+    return status;
 }
 
-void MctpBinding::onRawMessage(void* data, void* /*msg*/, size_t len,
+// Bridging packets destined to other mctpd services will reach this function
+void MctpBinding::onRawMessage(void* data, void* msg, size_t len,
                                void* /*msgBindingPrivate*/)
 {
-    static constexpr size_t minMctpMessageSize = 5;
-    if (len < minMctpMessageSize)
+    if (nullptr == data || nullptr == msg)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Expects at least 5 bytes in mctp message");
+            "Bridging packet or binding private is null while doing bridging");
+        return;
     }
-
-    uint8_t* mctpData = static_cast<uint8_t*>(data);
+    uint8_t* mctpData = static_cast<uint8_t*>(msg);
     std::vector<uint8_t> payload(mctpData, mctpData + len);
-    phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        "Received raw message", phosphor::logging::entry("EID=%d", payload[2]));
+    auto binding = static_cast<MctpBinding*>(data);
+
+    // sendMctpRawPayload will find the destination and do the transfer
+    binding->sendMctpRawPayload(payload);
 }
 
 void MctpBinding::updateRoutingTableEntry(mctpd::RoutingTable::Entry,
