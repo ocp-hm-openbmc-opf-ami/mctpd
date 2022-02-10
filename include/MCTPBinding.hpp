@@ -182,6 +182,8 @@ class MctpBinding
                                      void* bindingPrivate,
                                      std::vector<uint8_t>& request,
                                      std::vector<uint8_t>& response);
+    virtual bool handleGetRoutingTable(const std::vector<uint8_t>& request,
+                                       std::vector<uint8_t>& response);
     virtual void addUnknownEIDToDeviceTable(const mctp_eid_t eid,
                                             void* bindingPrivate);
     bool getEidCtrlCmd(boost::asio::yield_context& yield,
@@ -327,4 +329,13 @@ class MctpBinding
     bool isEIDMappedToUUID(mctp_eid_t& eid, std::string& destUUID);
     bool isEIDRegistered(mctp_eid_t eid);
     MctpStatus sendMctpRawPayload(const std::vector<uint8_t>& data);
+
+    void sendRoutingTableEntries(
+        const std::vector<mctpd::RoutingTable::Entry::MCTPLibData>& entries,
+        std::optional<std::vector<uint8_t>> bindingPrivateData,
+        const mctp_eid_t eid = 0);
+    void sendNewRoutingTableEntryToAllBridges(
+        const mctpd::RoutingTable::Entry& entry);
+    void sendRoutingTableEntriesToBridge(
+        const mctp_eid_t bridge, const std::vector<uint8_t>& bindingPrivate);
 };

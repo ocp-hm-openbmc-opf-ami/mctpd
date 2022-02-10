@@ -75,12 +75,14 @@ class RoutingTable
     struct Entry
     {
         using MCTPLibData = get_routing_table_entry_with_address;
-        inline Entry(mctp_eid_t eid, std::string service, EndPointType type) :
+        inline Entry(mctp_eid_t eid, std::string service, EndPointType type,
+                     uint8_t addrSize = 1) :
             serviceName(std::move(service))
         {
             routeEntry.routing_info.eid_range_size = 1; // Fixed for now
             routeEntry.routing_info.entry_type = static_cast<uint8_t>(type);
             routeEntry.routing_info.starting_eid = eid;
+            routeEntry.routing_info.phys_address_size = addrSize;
         }
         constexpr bool isBridge() const
         {

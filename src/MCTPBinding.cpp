@@ -2,6 +2,7 @@
 
 #include "PCIeBinding.hpp"
 #include "SMBusBinding.hpp"
+#include "utils/dbus_helper.hpp"
 
 #include <systemd/sd-id128.h>
 
@@ -20,6 +21,8 @@ constexpr sd_id128_t mctpdAppId = SD_ID128_MAKE(c4, e4, d9, 4a, 88, 43, 4d, f0,
 constexpr unsigned int ctrlTxPollInterval = 5;
 constexpr size_t minCmdRespSize = 4;
 constexpr int completionCodeIndex = 3;
+
+using RoutingTableEntry = mctpd::RoutingTable::Entry;
 
 /* According DSP0239(Version: 1.7.0) */
 static const std::unordered_map<uint8_t,
@@ -314,6 +317,7 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                                              entryType);
             entry.isUpstream = true;
             routingTable.updateEntry(ep.eid, entry);
+            sendNewRoutingTableEntryToAllBridges(entry);
         });
     mctpServiceScanner.setEidRemovedCallback(
         [this](bridging::MCTPServiceScanner::EndPoint ep) {
@@ -897,6 +901,10 @@ void MctpBinding::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
                 handleGetVdmSupport(destEid, bindingPrivate, request, response);
             break;
         }
+        case MCTP_CTRL_CMD_GET_ROUTING_TABLE_ENTRIES: {
+            sendResponse = handleGetRoutingTable(request, response);
+            break;
+        }
         default: {
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "Message not supported");
@@ -1030,6 +1038,58 @@ bool MctpBinding::handleGetVdmSupport(
     phosphor::logging::log<phosphor::logging::level::ERR>(
         "Message not supported");
     return false;
+}
+
+bool MctpBinding::handleGetRoutingTable(const std::vector<uint8_t>& request,
+                                        std::vector<uint8_t>& response)
+{
+    static constexpr size_t errRespSize = 3;
+    if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
+    {
+        // Command is not supported for endpoints. No response will be sent
+        return false;
+    }
+    auto getRoutingTableRequest =
+        reinterpret_cast<const mctp_ctrl_cmd_get_routing_table*>(
+            request.data());
+    auto dest =
+        reinterpret_cast<mctp_ctrl_resp_get_routing_table*>(response.data());
+    if (getRoutingTableRequest->entry_handle != 0x00)
+    {
+        response.resize(errRespSize);
+        dest->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
+        dest->number_of_entries = 0;
+        // Return true so that a response will be sent with error code
+        return true;
+    }
+
+    bool status = false;
+    auto& entries = this->routingTable.getAllEntries();
+    std::vector<RoutingTableEntry::MCTPLibData> entriesLibFormat;
+    // TODO. Combine EIDs in a range.
+    for (const auto& [eid, data] : entries)
+    {
+        entriesLibFormat.emplace_back(data.routeEntry);
+    }
+
+    size_t estSize =
+        sizeof(mctp_ctrl_resp_get_routing_table) +
+        entries.size() * sizeof(get_routing_table_entry_with_address);
+    response.resize(estSize);
+
+    size_t formattedRespSize = 0;
+    // TODO. Split if entries > 255
+    if (!mctp_encode_ctrl_cmd_rsp_get_routing_table(
+            dest, entriesLibFormat.data(),
+            static_cast<uint8_t>(entriesLibFormat.size()), &formattedRespSize))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Error formatting get routing table");
+        formattedRespSize = 0;
+    }
+    response.resize(formattedRespSize);
+    status = true;
+    return status;
 }
 
 void MctpBinding::pushToCtrlTxQueue(
@@ -2126,11 +2186,15 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     }
 
     // TODO. Add own service name here.
-    mctpd::RoutingTable::Entry entry(
-        eid, "", mctpd::convertToEndpointType(epProperties.mode));
+    auto endpointType = mctpd::convertToEndpointType(epProperties.mode);
+    mctpd::RoutingTable::Entry entry(eid, "", endpointType);
     entry.routeEntry.routing_info.phys_media_type_id = static_cast<uint8_t>(
         mctpd::convertToPhysicalMediumIdentifier(bindingMediumID));
     updateRoutingTableEntry(entry, bindingPrivate);
+    if (mctpd::isBridge(endpointType))
+    {
+        sendRoutingTableEntriesToBridge(eid, bindingPrivate);
+    }
 
     // Update the uuidTable with eid and the uuid of the endpoint registered.
     if (destUUID != nullUUID && eid != MCTP_EID_NULL)
@@ -2235,9 +2299,20 @@ std::optional<mctp_eid_t>
     }
 
     // TODO. Add own service name here.
-    mctpd::RoutingTable::Entry entry(eid, "",
-                                     mctpd::convertToEndpointType(bindingMode));
+    auto endpointType = mctpd::convertToEndpointType(bindingMode);
+    mctpd::RoutingTable::Entry entry(eid, "", endpointType);
     updateRoutingTableEntry(entry, bindingPrivate);
+
+    if (bindingModeType != mctp_server::BindingModeTypes::Endpoint)
+    {
+        // Inform all downstream bridges about the new device
+        sendNewRoutingTableEntryToAllBridges(entry);
+        if (mctpd::isBridge(endpointType))
+        {
+            // Newly added device is a bridge. Send current routing table to it.
+            sendRoutingTableEntriesToBridge(eid, bindingPrivate);
+        }
+    }
     return eid;
 }
 
@@ -2409,6 +2484,103 @@ void MctpBinding::onRawMessage(void* data, void* msg, size_t len,
 
     // sendMctpRawPayload will find the destination and do the transfer
     binding->sendMctpRawPayload(payload);
+}
+
+static std::vector<uint8_t> formatRoutingInfoUpdateCommand(
+    std::vector<RoutingTableEntry::MCTPLibData>& entries)
+{
+    std::vector<uint8_t> req;
+    req.resize(sizeof(mctp_ctrl_cmd_routing_info_update) +
+               sizeof(get_routing_table_entry_with_address) * entries.size());
+
+    auto routingInfoUpdate =
+        reinterpret_cast<mctp_ctrl_cmd_routing_info_update*>(req.data());
+
+    size_t formattedSize = 0;
+    if (!mctp_encode_ctrl_cmd_routing_information_update(
+            routingInfoUpdate, getRqDgramInst(), entries.data(),
+            static_cast<uint8_t>(entries.size()), &formattedSize))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Routing info update. Encode error from lib");
+        formattedSize = 0;
+    }
+    req.resize(formattedSize);
+
+    return req;
+}
+
+void MctpBinding::sendRoutingTableEntries(
+    const std::vector<RoutingTableEntry::MCTPLibData>& entries,
+    std::optional<std::vector<uint8_t>> bindingPrivateData,
+    const mctp_eid_t eid)
+{
+    boost::asio::spawn([entries = entries, eid, bindingPrivateData,
+                        this](boost::asio::yield_context yield) mutable {
+        std::vector<uint8_t> req = formatRoutingInfoUpdateCommand(entries);
+        std::vector<uint8_t> resp;
+
+        if (!bindingPrivateData)
+        {
+            // TODO Introduce a helper to check if a given binding requires
+            // binding private data or not, and call getBindingPrivateData only
+            // if the binding requires
+            bindingPrivateData = getBindingPrivateData(eid);
+            if (!bindingPrivateData)
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "RoutingInfoUpdate: Unable to find EID");
+                return;
+            }
+        }
+
+        if (PacketState::receivedResponse !=
+            sendAndRcvMctpCtrl(yield, req, eid, bindingPrivateData.value(),
+                               resp))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "RoutingInfoUpdate: Unable to get response");
+            return;
+        }
+
+        if (!checkRespSizeAndCompletionCode<mctp_ctrl_resp_routing_info_update>(
+                resp))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "RoutingInfoUpdate: Unsuccesful response received");
+        }
+    });
+}
+
+void MctpBinding::sendNewRoutingTableEntryToAllBridges(
+    const mctpd::RoutingTable::Entry& entry)
+{
+    std::vector<RoutingTableEntry::MCTPLibData> libmctpEntries{
+        entry.routeEntry};
+
+    auto& entries = this->routingTable.getAllEntries();
+    for (const auto& [eid, val] : entries)
+    {
+        // Send only to downstream bridges
+        if (val.isBridge() &&
+            (eid != entry.routeEntry.routing_info.starting_eid) &&
+            !val.isUpstream)
+        {
+            sendRoutingTableEntries(libmctpEntries, std::nullopt, eid);
+        }
+    }
+}
+
+void MctpBinding::sendRoutingTableEntriesToBridge(
+    const mctp_eid_t bridge, const std::vector<uint8_t>& bindingPrivate)
+{
+    auto& routingTableEntries = this->routingTable.getAllEntries();
+    std::vector<RoutingTableEntry::MCTPLibData> libmctpEntries;
+    for (const auto& entry : routingTableEntries)
+    {
+        libmctpEntries.emplace_back(entry.second.routeEntry);
+    }
+    sendRoutingTableEntries(libmctpEntries, bindingPrivate, bridge);
 }
 
 void MctpBinding::updateRoutingTableEntry(mctpd::RoutingTable::Entry,

@@ -14,6 +14,8 @@
 // limitations under the License.
 */
 
+#include <phosphor-logging/log.hpp>
+
 #pragma once
 
 template <typename Handler>
@@ -52,4 +54,23 @@ inline Property
                                  ec.message());
     }
     return std::get<Property>(value);
+}
+
+template <typename... Args>
+inline void logLine(Args... args)
+{
+    std::stringstream ss;
+    (ss << ... << args);
+    phosphor::logging::log<phosphor::logging::level::INFO>(ss.str().c_str());
+}
+
+template <typename Arr>
+inline std::string arrToString(Arr&& arr)
+{
+    std::stringstream ss;
+    for (int n : arr)
+    {
+        ss << n << ' ';
+    }
+    return ss.str();
 }
