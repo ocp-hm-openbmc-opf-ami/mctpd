@@ -932,6 +932,7 @@ bool MctpBinding::handleSetEndpointId(mctp_eid_t destEid, void*,
     return true;
 }
 
+<<<<<<< HEAD
 bool MctpBinding::handleGetNetworkId([[maybe_unused]] mctp_eid_t destEid, void*,
                                      std::vector<uint8_t>& response)
 {
@@ -945,6 +946,20 @@ bool MctpBinding::handleGetNetworkId([[maybe_unused]] mctp_eid_t destEid, void*,
     return true;
 }
 
+=======
+
+bool MctpBinding::handleGetNetworkId([[maybe_unused]] mctp_eid_t destEid, void*,
+                                      [[maybe_unused]] std::vector<uint8_t>& request,
+                                      std::vector<uint8_t>& response)
+{
+    response.resize(sizeof(mctp_ctrl_resp_set_eid));
+    auto resp = reinterpret_cast<mctp_ctrl_resp_get_networkid*>(response.data());
+    mctp_ctrl_cmd_get_network_id(mctp,resp);
+    return true; 
+}
+
+
+>>>>>>> d90582b5a153c84000c9e5f8a78dd796b69c89ca
 bool MctpBinding::handleGetVersionSupport(mctp_eid_t, void*,
                                           std::vector<uint8_t>& request,
                                           std::vector<uint8_t>& response)
@@ -1125,7 +1140,11 @@ bool MctpBinding::getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
         mctp_encode_ctrl_cmd_get_uuid(getUuid, getRqDgramInst());
         return true;
     }
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> d90582b5a153c84000c9e5f8a78dd796b69c89ca
     else if constexpr (cmd == MCTP_CTRL_CMD_GET_NETWORK_ID)
     {
         req.resize(sizeof(mctp_ctrl_cmd_get_networkid));
@@ -1134,8 +1153,13 @@ bool MctpBinding::getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
 
         mctp_encode_ctrl_cmd_get_networkid(getnetworkid, getRqDgramInst());
         return true;
+<<<<<<< HEAD
     }
 
+=======
+    } 
+    
+>>>>>>> d90582b5a153c84000c9e5f8a78dd796b69c89ca
     else if constexpr (cmd == MCTP_CTRL_CMD_GET_VERSION_SUPPORT)
     {
         req.resize(sizeof(mctp_ctrl_cmd_get_mctp_ver_support));
@@ -1347,10 +1371,17 @@ bool MctpBinding::getUuidCtrlCmd(boost::asio::yield_context& yield,
     return true;
 }
 
+<<<<<<< HEAD
 bool MctpBinding::getNetworkidCtrlCmd(
     boost::asio::yield_context& yield,
     const std::vector<uint8_t>& bindingPrivate, const mctp_eid_t destEid,
     std::vector<uint8_t>& resp)
+=======
+bool MctpBinding::getNetworkidCtrlCmd(boost::asio::yield_context& yield,
+                                 const std::vector<uint8_t>& bindingPrivate,
+                                 const mctp_eid_t destEid,
+                                 std::vector<uint8_t>& resp)
+>>>>>>> d90582b5a153c84000c9e5f8a78dd796b69c89ca
 {
     std::vector<uint8_t> req = {};
 
@@ -2253,9 +2284,14 @@ std::optional<mctp_eid_t>
             reinterpret_cast<mctp_ctrl_resp_get_uuid*>(getUuidResp.data());
         epProperties.uuid = formatUUID(getUuidRespPtr->uuid);
     }
-
+    
     std::vector<uint8_t> getnetworkidResp;
 
+<<<<<<< HEAD
+    std::vector<uint8_t> getnetworkidResp;
+
+=======
+>>>>>>> d90582b5a153c84000c9e5f8a78dd796b69c89ca
     if (!(getNetworkidCtrlCmd(yield, bindingPrivate, eid, getnetworkidResp)))
     {
         /* In case EP doesn't support Get NetworkID set to all 0 */
@@ -2266,6 +2302,7 @@ std::optional<mctp_eid_t>
     else
     {
         mctp_ctrl_resp_get_networkid* getnetworkidRespPtr =
+<<<<<<< HEAD
             reinterpret_cast<mctp_ctrl_resp_get_networkid*>(
                 getnetworkidResp.data());
 
@@ -2277,6 +2314,18 @@ std::optional<mctp_eid_t>
 
     epProperties.endpointEid = eid;
     epProperties.mode = bindingMode;
+=======
+            reinterpret_cast<mctp_ctrl_resp_get_networkid*>(getnetworkidResp.data());
+        
+     std::memcpy(reinterpret_cast<void*>(epProperties.networkId),
+                        reinterpret_cast<const void*>(getnetworkidRespPtr->networkid.raw),sizeof(uint16_t));
+    }
+    
+    epProperties.endpointEid = eid;
+    epProperties.mode = bindingMode;
+    // removed after implementation
+    //epProperties.networkId = 0x00;
+>>>>>>> d90582b5a153c84000c9e5f8a78dd796b69c89ca
     epProperties.endpointMsgTypes = getMsgTypes(msgTypeSupportResp.msgType);
 
     getVendorDefinedMessageTypes(yield, bindingPrivate, eid, epProperties);

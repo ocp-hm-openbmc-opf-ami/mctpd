@@ -196,12 +196,20 @@ class MctpBinding
     bool getUuidCtrlCmd(boost::asio::yield_context& yield,
                         const std::vector<uint8_t>& bindingPrivate,
                         const mctp_eid_t destEid, std::vector<uint8_t>& resp);
+<<<<<<< HEAD
 
     bool getNetworkidCtrlCmd(boost::asio::yield_context& yield,
                              const std::vector<uint8_t>& bindingPrivate,
                              const mctp_eid_t destEid,
                              std::vector<uint8_t>& resp);
 
+=======
+						
+    bool getNetworkidCtrlCmd(boost::asio::yield_context& yield,
+                        const std::vector<uint8_t>& bindingPrivate,
+                        const mctp_eid_t destEid, std::vector<uint8_t>& resp);
+						
+>>>>>>> d90582b5a153c84000c9e5f8a78dd796b69c89ca
     bool getMsgTypeSupportCtrlCmd(boost::asio::yield_context& yield,
                                   const std::vector<uint8_t>& bindingPrivate,
                                   const mctp_eid_t destEid,
