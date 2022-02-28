@@ -1125,14 +1125,6 @@ bool MctpBinding::getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
         mctp_encode_ctrl_cmd_get_uuid(getUuid, getRqDgramInst());
         return true;
     }
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-
-=======
-    
->>>>>>> d90582b5a153c84000c9e5f8a78dd796b69c89ca
->>>>>>> fbf6723efcb3d6504f779d1e64fbd39ed2973267
     else if constexpr (cmd == MCTP_CTRL_CMD_GET_NETWORK_ID)
     {
         req.resize(sizeof(mctp_ctrl_cmd_get_networkid));
@@ -1141,18 +1133,8 @@ bool MctpBinding::getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
 
         mctp_encode_ctrl_cmd_get_networkid(getnetworkid, getRqDgramInst());
         return true;
-<<<<<<< HEAD
     }
 
-=======
-<<<<<<< HEAD
-    }
-
-=======
-    } 
-    
->>>>>>> d90582b5a153c84000c9e5f8a78dd796b69c89ca
->>>>>>> fbf6723efcb3d6504f779d1e64fbd39ed2973267
     else if constexpr (cmd == MCTP_CTRL_CMD_GET_VERSION_SUPPORT)
     {
         req.resize(sizeof(mctp_ctrl_cmd_get_mctp_ver_support));
