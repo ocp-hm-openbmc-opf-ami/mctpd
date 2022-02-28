@@ -123,8 +123,8 @@ void MCTPServiceScanner::scanForEIDs(const std::string& serviceName,
 {
     try
     {
-        // TODO. Implement service whitelisting
-        if (isSelfProcess(*connection, yield, serviceName))
+        if (isSelfProcess(*connection, yield, serviceName) ||
+            !isAllowedBus(serviceName, yield))
         {
             return;
         }
@@ -184,6 +184,38 @@ void MCTPServiceScanner::scanForEIDs(const std::string& serviceName,
     }
 }
 
+std::vector<std::string>
+    MCTPServiceScanner::getMCTPServices(boost::asio::yield_context yield)
+{
+    std::vector<std::string> requiredInterfaces = {
+        "xyz.openbmc_project.MCTP.Base"};
+    boost::system::error_code ec;
+    DictType<std::string, std::vector<std::string>> services;
+
+    // Get all available MCTP service names
+    services = connection->yield_method_call<decltype(services)>(
+        yield, ec, "xyz.openbmc_project.ObjectMapper",
+        "/xyz/openbmc_project/object_mapper",
+        "xyz.openbmc_project.ObjectMapper", "GetObject",
+        "/xyz/openbmc_project/mctp", requiredInterfaces);
+
+    std::vector<std::string> serviceNames;
+    if (ec)
+    {
+        std::string errMsg =
+            std::string("EidScanner: Error getting mctp services or no other "
+                        "mctp service is present") +
+            ec.message();
+        phosphor::logging::log<phosphor::logging::level::ERR>(errMsg.c_str());
+        return serviceNames;
+    }
+    for (const auto& [serviceName, interfaces] : services)
+    {
+        serviceNames.emplace_back(serviceName);
+    }
+    return serviceNames;
+}
+
 void MCTPServiceScanner::scan()
 {
     auto scanTask = [this](boost::asio::yield_context yield) {
@@ -216,32 +248,9 @@ void MCTPServiceScanner::scan()
                 "org.freedesktop.DBus.ObjectManager", "InterfacesRemoved",
                 "/xyz/openbmc_project/mctp"));
 
-            std::vector<std::string> requiredInterfaces = {
-                "xyz.openbmc_project.MCTP.Base"};
-            boost::system::error_code ec;
-            DictType<std::string, std::vector<std::string>> services;
-
             // Get all available MCTP service names
-            services = connection->yield_method_call<decltype(services)>(
-                yield, ec, "xyz.openbmc_project.ObjectMapper",
-                "/xyz/openbmc_project/object_mapper",
-                "xyz.openbmc_project.ObjectMapper", "GetObject",
-                "/xyz/openbmc_project/mctp", requiredInterfaces);
-
-            if (ec)
-            {
-                std::string errMsg =
-                    std::string(
-                        "MCTPServiceScanner. Error getting mctp services "
-                        "or no other "
-                        "mctp service is present") +
-                    ec.message();
-                phosphor::logging::log<phosphor::logging::level::WARNING>(
-                    errMsg.c_str());
-                return;
-            }
-
-            for (const auto& [service, intfs] : services)
+            auto mctpServices = getMCTPServices(yield);
+            for (const auto& service : mctpServices)
             {
                 scanForEIDs(service, yield);
             }
@@ -254,6 +263,64 @@ void MCTPServiceScanner::scan()
     };
 
     boost::asio::spawn(connection->get_io_context(), scanTask);
+}
+
+bool MCTPServiceScanner::isAllowedBus(const std::string& bus,
+                                      boost::asio::yield_context yield)
+{
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        ("Checking if bridging is allowed on bus " + bus).c_str());
+    if (bus.empty() || disallowedDestBuses.count(bus) > 0)
+    {
+        return false;
+    }
+
+    // If allowed bus list is empty then all services bridging to all the
+    // services is enabled by default
+    if (allowedDestBuses.size() == 0 || allowedDestBuses.count(bus) > 0)
+    {
+        return true;
+    }
+
+    auto mctpServices = getMCTPServices(yield);
+    for (const auto& service : allowedDestBuses)
+    {
+        if (!service.empty() && service.front() == ':')
+        {
+            // Unique name already
+            continue;
+        }
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            ("Checkig if " + bus + " is " + service).c_str());
+        boost::system::error_code ec;
+        std::string uniqueName = connection->yield_method_call<std::string>(
+            yield, ec, "org.freedesktop.DBus", "/org/freedesktop/DBus",
+            "org.freedesktop.DBus", "GetNameOwner", service.c_str());
+
+        if (ec)
+        {
+            std::string errMsg = std::string("GetUniqueName unsuccesful for ") +
+                                 service + ". " + ec.message();
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                errMsg.c_str());
+            continue;
+        }
+
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("Unique name of " + service + " is " + uniqueName + ". Target " +
+             bus)
+                .c_str());
+
+        if (uniqueName == bus)
+        {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                ("Adding " + bus + " into allowed list").c_str());
+            allowedDestBuses.insert(bus);
+            return true;
+        }
+    }
+    disallowedDestBuses.insert(bus);
+    return false;
 }
 
 void MCTPServiceScanner::onHotPluggedEid(sdbusplus::message::message& message)
@@ -283,8 +350,16 @@ void MCTPServiceScanner::onHotPluggedEid(sdbusplus::message::message& message)
             [this, ep, message](boost::asio::yield_context yield) mutable {
                 try
                 {
-                    if (isSelfProcess(*connection, yield, message.get_sender()))
+                    std::string serviceName = message.get_sender();
+                    if (isSelfProcess(*connection, yield, serviceName))
                     {
+                        return;
+                    }
+                    if (!isAllowedBus(serviceName, yield))
+                    {
+                        phosphor::logging::log<phosphor::logging::level::INFO>(
+                            (serviceName + " is not in allowed service list")
+                                .c_str());
                         return;
                     }
                     ep.service = this->getMctpServiceDetails(
@@ -323,13 +398,20 @@ void MCTPServiceScanner::onEidRemoved(sdbusplus::message::message& message)
                                   "xyz.openbmc_project.MCTP.Base");
         if (baseIntf != interfaces.end())
         {
+            std::string serviceName = message.get_sender();
             // An MCTP service is going down.
-            if (this->cachedServices.erase(message.get_sender()) > 0)
+            if (this->cachedServices.erase(serviceName) > 0)
             {
                 phosphor::logging::log<phosphor::logging::level::INFO>(
                     (message.get_sender() +
                      std::string(" removed from cached services"))
                         .c_str());
+            }
+            if (!serviceName.empty() && serviceName.front() == ':')
+            {
+                // Remove unique name if it is in allow or deny list
+                this->allowedDestBuses.erase(serviceName);
+                this->disallowedDestBuses.erase(serviceName);
             }
         }
 

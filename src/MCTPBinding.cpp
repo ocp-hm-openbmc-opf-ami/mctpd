@@ -295,6 +295,8 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
     bindingID(bindingType), ctrlTxTimer(io)
 {
     objServer->add_manager(objPath);
+    mctpServiceScanner.setAllowedBuses(conf.allowedBuses.begin(),
+                                       conf.allowedBuses.end());
 
     mctpServiceScanner.setCallback(
         [this](bridging::MCTPServiceScanner::EndPoint ep, bool isHotplugged) {
@@ -1076,8 +1078,8 @@ bool MctpBinding::handleGetRoutingTable(const std::vector<uint8_t>& request,
         sizeof(mctp_ctrl_resp_get_routing_table) +
         entries.size() * sizeof(get_routing_table_entry_with_address);
     response.resize(estSize);
-
     size_t formattedRespSize = 0;
+    dest = reinterpret_cast<mctp_ctrl_resp_get_routing_table*>(response.data());
     // TODO. Split if entries > 255
     if (!mctp_encode_ctrl_cmd_rsp_get_routing_table(
             dest, entriesLibFormat.data(),

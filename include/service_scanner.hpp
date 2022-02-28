@@ -21,6 +21,7 @@
 #include <sdbusplus/bus/match.hpp>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <variant>
 #include <vector>
 
@@ -57,6 +58,11 @@ class MCTPServiceScanner
     {
         onEidRemovedHandler = std::move(handler);
     }
+    template <typename It>
+    inline void setAllowedBuses(It begin, It end)
+    {
+        allowedDestBuses.insert(begin, end);
+    }
     void scan();
 
   private:
@@ -67,10 +73,14 @@ class MCTPServiceScanner
     void scanForEIDs(const std::string& serviceName,
                      boost::asio::yield_context yield);
 
+    std::vector<std::string> getMCTPServices(boost::asio::yield_context yield);
+    bool isAllowedBus(const std::string& bus, boost::asio::yield_context yield);
     Callback onNewEid;
     EidRemovedCallback onEidRemovedHandler;
     std::shared_ptr<sdbusplus::asio::connection> connection;
     std::vector<sdbusplus::bus::match::match> signalMatches;
     std::unordered_map<std::string, MCTPService> cachedServices;
+    std::unordered_set<std::string> allowedDestBuses;
+    std::unordered_set<std::string> disallowedDestBuses;
 };
 } // namespace bridging
