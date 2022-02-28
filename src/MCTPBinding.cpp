@@ -1125,6 +1125,14 @@ bool MctpBinding::getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
         mctp_encode_ctrl_cmd_get_uuid(getUuid, getRqDgramInst());
         return true;
     }
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+
+=======
+    
+>>>>>>> d90582b5a153c84000c9e5f8a78dd796b69c89ca
+>>>>>>> fbf6723efcb3d6504f779d1e64fbd39ed2973267
     else if constexpr (cmd == MCTP_CTRL_CMD_GET_NETWORK_ID)
     {
         req.resize(sizeof(mctp_ctrl_cmd_get_networkid));
@@ -1133,8 +1141,18 @@ bool MctpBinding::getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
 
         mctp_encode_ctrl_cmd_get_networkid(getnetworkid, getRqDgramInst());
         return true;
+<<<<<<< HEAD
     }
 
+=======
+<<<<<<< HEAD
+    }
+
+=======
+    } 
+    
+>>>>>>> d90582b5a153c84000c9e5f8a78dd796b69c89ca
+>>>>>>> fbf6723efcb3d6504f779d1e64fbd39ed2973267
     else if constexpr (cmd == MCTP_CTRL_CMD_GET_VERSION_SUPPORT)
     {
         req.resize(sizeof(mctp_ctrl_cmd_get_mctp_ver_support));
@@ -1346,10 +1364,12 @@ bool MctpBinding::getUuidCtrlCmd(boost::asio::yield_context& yield,
     return true;
 }
 
+
 bool MctpBinding::getNetworkidCtrlCmd(boost::asio::yield_context yield,
                                  const std::vector<uint8_t>& bindingPrivate,
                                  const mctp_eid_t destEid,
                                  std::vector<uint8_t>& resp)
+
 {
     std::vector<uint8_t> req = {};
 
@@ -2274,15 +2294,6 @@ std::optional<mctp_eid_t>
             sizeof(uint16_t));
     }
 
-    epProperties.endpointEid = eid;
-    epProperties.mode = bindingMode;
-            reinterpret_cast<mctp_ctrl_resp_get_networkid*>(getnetworkidResp.data());
-        
-     std::memcpy(reinterpret_cast<void*>(epProperties.networkId),
-                        reinterpret_cast<const void*>(getnetworkidRespPtr->networkid.raw),
-			sizeof(uint16_t));
-    }
-    
     epProperties.endpointEid = eid;
     epProperties.mode = bindingMode;
 
