@@ -206,6 +206,7 @@ class MctpBinding
                                   const std::vector<uint8_t>& bindingPrivate,
                                   const mctp_eid_t destEid,
                                   MsgTypeSupportCtrlResp* msgTypeSupportResp);
+    
     bool getMctpVersionSupportCtrlCmd(
         boost::asio::yield_context& yield,
         const std::vector<uint8_t>& bindingPrivate, const mctp_eid_t destEid,
