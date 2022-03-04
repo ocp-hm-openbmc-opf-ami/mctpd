@@ -77,5 +77,3 @@ To build the package do the following
 3. cmake -DBUILD_STANDALONE=ON -DMCTPD_BUILD_UT=ON ../
 4. make
 
-## TODO Items
-1. MCTP bridging
