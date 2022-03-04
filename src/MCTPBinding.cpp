@@ -905,6 +905,11 @@ void MctpBinding::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
             sendResponse = handleGetRoutingTable(request, response);
             break;
         }
+        case MCTP_CTRL_CMD_RESOLVE_ENDPOINT_ID:{
+            sendResponse =
+                handleResolveEndpointId(destEid, bindingPrivate, request, response);
+            break;
+        }
         default: {
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "Message not supported");
@@ -1022,6 +1027,17 @@ bool MctpBinding::handleGetMsgTypeSupport(mctp_eid_t, void*,
     return true;
 }
 
+bool MctpBinding::handleResolveEndpointId(mctp_eid_t destEid, void*, 
+                [[maybe_unused]]std::vector<uint8_t>& request, 
+                std::vector<uint8_t>& response)
+{
+    response.resize(sizeof(mctp_ctrl_resp_resolve_eid));
+    auto resp = reinterpret_cast<mctp_ctrl_resp_resolve_eid*>(response.data());
+    
+    mctp_ctrl_cmd_resolve_endpoint_id(mctp, destEid, resp);
+
+    return true;
+}
 std::vector<uint8_t> MctpBinding::getBindingMsgTypes()
 {
     // TODO: endpoints should expose info about message types
@@ -1256,6 +1272,18 @@ bool MctpBinding::getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
 
         mctp_encode_ctrl_cmd_get_routing_table(
             getRoutingTable, getRqDgramInst(), std::forward<Args>(reqParam)...);
+        return true;
+    }
+    else if constexpr (cmd == MCTP_CTRL_CMD_RESOLVE_ENDPOINT_ID)
+    {
+        req.resize(sizeof(mctp_ctrl_cmd_resolve_eid));
+        mctp_ctrl_cmd_resolve_eid* resEid = 
+                reinterpret_cast<mctp_ctrl_cmd_resolve_eid*>(req.data());
+        mctp_encode_ctrl_cmd_resolve_eid(resEid, getRqDgramInst(), 
+                std::forward<Args>(reqParam)...);
+        
+        return true;
+    }
         return true;
     }
     else
