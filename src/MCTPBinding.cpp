@@ -2488,6 +2488,26 @@ void MctpBinding::onRawMessage(void* data, void* msg, size_t len,
     binding->sendMctpRawPayload(payload);
 }
 
+// Bridging packets destined to other mctpd services will reach this function
+
+void MctpBinding::onBridging(void* data, void* msg, size_t len,
+                               void* /*msgBindingPrivate*/)
+{
+     if (nullptr == data || nullptr == msg)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Bridging packet or binding private is null while doing bridging");
+        return;
+    }
+     uint8_t* mctpData = static_cast<uint8_t*>(msg);
+    std::vector<uint8_t> payload(mctpData, mctpData + len);
+    auto binding = static_cast<MctpBinding*>(data);
+
+    // sendMctpRawPayload will find the destination and do the transfer
+    binding->sendMctpRawPayload(payload);
+}
+
+
 static std::vector<uint8_t> formatRoutingInfoUpdateCommand(
     std::vector<RoutingTableEntry::MCTPLibData>& entries)
 {
