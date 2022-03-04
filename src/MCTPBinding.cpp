@@ -905,6 +905,11 @@ void MctpBinding::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
             sendResponse = handleGetRoutingTable(request, response);
             break;
         }
+        case MCTP_CTRL_CMD_RESOLVE_ENDPOINT_ID: {
+            sendResponse = handleResolveEndpointId(destEid, bindingPrivate,
+                                                   request, response);
+            break;
+        }
         default: {
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "Message not supported");
@@ -1019,6 +1024,18 @@ bool MctpBinding::handleGetMsgTypeSupport(mctp_eid_t, void*,
     resp->msg_type_count = static_cast<uint8_t>(supportedMsgTypes.size());
     std::copy(supportedMsgTypes.begin(), supportedMsgTypes.end(),
               std::back_inserter(response));
+    return true;
+}
+
+bool MctpBinding::handleResolveEndpointId(
+    mctp_eid_t destEid, void*, [[maybe_unused]] std::vector<uint8_t>& request,
+    std::vector<uint8_t>& response)
+{
+    response.resize(sizeof(mctp_ctrl_resp_resolve_eid));
+    auto resp = reinterpret_cast<mctp_ctrl_resp_resolve_eid*>(response.data());
+
+    mctp_ctrl_cmd_encode_resolve_eid_resp(mctp, destEid, resp);
+
     return true;
 }
 
@@ -1258,12 +1275,24 @@ bool MctpBinding::getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
             getRoutingTable, getRqDgramInst(), std::forward<Args>(reqParam)...);
         return true;
     }
-    else
+    else if constexpr (cmd == MCTP_CTRL_CMD_RESOLVE_ENDPOINT_ID)
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Control command not defined");
-        return false;
+        req.resize(sizeof(mctp_ctrl_cmd_resolve_eid));
+        mctp_ctrl_cmd_resolve_eid* resEid =
+            reinterpret_cast<mctp_ctrl_cmd_resolve_eid*>(req.data());
+        mctp_encode_ctrl_cmd_resolve_eid(resEid, getRqDgramInst(),
+                                         std::forward<Args>(reqParam)...);
+
+        return true;
     }
+    return true;
+}
+else
+{
+    phosphor::logging::log<phosphor::logging::level::ERR>(
+        "Control command not defined");
+    return false;
+}
 }
 
 static bool checkMinRespSize(const std::vector<uint8_t>& resp)

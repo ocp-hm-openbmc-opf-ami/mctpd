@@ -582,6 +582,44 @@ bool PCIeBinding::handleGetVdmSupport(mctp_eid_t destEid, void* bindingPrivate,
     return true;
 }
 
+bool PCIeBinding::handleResolveEndpointId(mctp_eid_t destEid,
+                                          void* bindingPrivate,
+                                          std::vector<uint8_t>& request,
+                                          std::vector<uint8_t>& response)
+{
+    if (!MctpBinding::handleResolveEndpointId(destEid, bindingPrivate, request,
+                                              response))
+    {
+        return false;
+    }
+
+    /*response.resize(sizeof(mctp_ctrl_resp_resolve_eid));*/
+    auto resp = reinterpret_cast<mctp_ctrl_resp_resolve_eid*>(response.data());
+
+    if (resp->bridge_eid == destEid)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "Eid's Are same! Not a Bridge, Target Device On Same Bus");
+    }
+
+    /* physical address for the returned EID has to added to the
+     * response
+     * The size of physical address is 16 byte for PCIe.
+     */
+    for (const routingTableEntry_t& item : routingTable)
+    {
+        uint8_t eid = std::get<0>(item);
+        if (eid == resp->bridge_eid)
+        {
+
+            std::memcpy(resp->phy_addr,
+                        reinterpret_cast<const void*>(std::get<1>(item)),
+                        sizeof(uint16_t));
+        }
+    }
+
+    return true;
+}
 void PCIeBinding::initializeBinding()
 {
     int status = 0;
