@@ -91,14 +91,24 @@ mctp_eid_t EidPool::getAvailableEidFromPool()
         std::make_error_code(std::errc::address_not_available));
 }
 
-int EidPool::getCountOfAvailableEidFromPool()
+int EidPool::getCountOfAvailableEidFromPool(const mctp_eid_t startingEID)
 {
     int countOfAvailEids = 0;
+    mctp_eid_t previousEID = 0;
     for (auto& [eid, eidAssignedStatus] : eidPool)
     {
         if (!eidAssignedStatus)
         {
-            countOfAvailEids++;
+            if (startingEID == eid)
+            {
+                countOfAvailEids = 1;
+                previousEID = eid;
+            }
+            if (eid == previousEID + 1)
+            {
+                countOfAvailEids++;
+                previousEID = eid;
+            }
         }
     }
     return countOfAvailEids;

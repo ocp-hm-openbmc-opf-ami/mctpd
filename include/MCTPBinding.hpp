@@ -188,15 +188,16 @@ class MctpBinding
                        const mctp_eid_t destEid,
                        const mctp_ctrl_cmd_set_eid_op operation, mctp_eid_t eid,
                        std::vector<uint8_t>& resp);
-    bool allocateEIDsCtrlCmd(boost::asio::yield_context& yield,
+    bool allocateEIDsCtrlCmd(boost::asio::yield_context yield,
                              const std::vector<uint8_t>& bindingPrivate,
                              const mctp_eid_t destEid,
                              const mctp_ctrl_cmd_allocate_eids_op operation,
-                             uint8_t pool_size, mctp_eid_t eid,
+                             const uint8_t poolSize, const mctp_eid_t eid,
                              std::vector<uint8_t>& resp);
-    std::optional<mctp_eid_t> handleAllocateEID(
-    boost::asio::yield_context& yield,
-    const std::vector<uint8_t>& bindingPrivate, uint8_t setEIDPoolSize,mctp_eid_t eid);
+    std::optional<int>
+        handleAllocateEID(boost::asio::yield_context& yield,
+                          const std::vector<uint8_t>& bindingPrivate,
+                          uint8_t setEIDPoolSize, mctp_eid_t eid);
     bool getUuidCtrlCmd(boost::asio::yield_context& yield,
                         const std::vector<uint8_t>& bindingPrivate,
                         const mctp_eid_t destEid, std::vector<uint8_t>& resp);
