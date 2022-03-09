@@ -91,4 +91,9 @@ mctp_eid_t EidPool::getAvailableEidFromPool()
         std::make_error_code(std::errc::address_not_available));
 }
 
+/*Allocate EID Responder*/
+int EidPool::getEidPoolSize()
+{
+    return eidPool.size();
+}
 } // namespace mctpd

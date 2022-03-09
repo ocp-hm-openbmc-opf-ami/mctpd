@@ -907,6 +907,12 @@ void MctpBinding::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
             sendResponse = handleGetRoutingTable(request, response);
             break;
         }
+        case MCTP_CTRL_CMD_ALLOCATE_ENDPOINT_IDS: {
+            sendResponse =
+                handleAllocateEIDs(destEid, bindingPrivate, request, response);
+            break;
+        }
+
         default: {
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "Message not supported");
@@ -975,6 +981,21 @@ bool MctpBinding::handleSetEndpointId(mctp_eid_t destEid, void*,
         busOwnerEid = destEid;
         ownEid = resp->eid_set;
     }
+    return true;
+}
+
+/*Allocate EID Responder*/
+bool MctpBinding::handleAllocateEIDs(mctp_eid_t destEid, void*,
+                                     std::vector<uint8_t>& request,
+                                     std::vector<uint8_t>& response)
+{
+    response.resize(sizeof(mctp_ctrl_resp_allocate_eids));
+    auto resp =
+        reinterpret_cast<mctp_ctrl_resp_allocate_eids*>(response.data());
+    auto req = reinterpret_cast<mctp_ctrl_cmd_allocate_eids*>(request.data());
+
+    mctp_ctrl_cmd_allocate_endpoint_id(mctp, destEid, req, resp,
+                                       eidPool.getEidPoolSize());
     return true;
 }
 
