@@ -1041,7 +1041,28 @@ bool MctpBinding::handleGetVdmSupport(
         "Message not supported");
     return false;
 }
-
+EidRangeEntry MctpBinding::handleSetEidRange(const mctpd::RoutingTable::EntryMap entry)
+{
+  EidRangeEntry eidRange;
+  mctp_eid_t countInr=0;
+  std::vector<mctp_eid_t> eids;
+  for(const auto& [eid,data]:entry)
+  {
+    eids.push_back(eid);
+  }
+  std::sort(eids.begin(),eids.end()); // applying sorting due to entry type is unordered_map
+  for(mctp_eid_t iter=0;iter<eids.size();iter++)
+  {
+    if((eids[iter]+1) == (eids[iter+1]))
+    {
+      countInr++;
+      continue;
+    }
+    eidRange.insert({eids[iter-countInr],countInr+1});
+     countInr=0;
+  }
+  return eidRange;
+}
 bool MctpBinding::handleGetRoutingTable(const std::vector<uint8_t>& request,
                                         std::vector<uint8_t>& response)
 {
@@ -1066,14 +1087,19 @@ bool MctpBinding::handleGetRoutingTable(const std::vector<uint8_t>& request,
     }
 
     bool status = false;
-    auto& entries = this->routingTable.getAllEntries();
+    auto entries = this->routingTable.getAllEntries();
     std::vector<RoutingTableEntry::MCTPLibData> entriesLibFormat;
-    // TODO. Combine EIDs in a range.
-    for (const auto& [eid, data] : entries)
+    // Combine EIDs in a range.
+    auto eidRangeEntries=handleSetEidRange(entries);
+    for (auto& [eid, data] : entries)
     {
+      auto startEid = eidRangeEntries.find(eid);
+      if(startEid != eidRangeEntries.end())
+      {
+        data.routeEntry.routing_info.eid_range_size=startEid->second;
         entriesLibFormat.emplace_back(data.routeEntry);
+      }
     }
-
     size_t estSize =
         sizeof(mctp_ctrl_resp_get_routing_table) +
         entries.size() * sizeof(get_routing_table_entry_with_address);
