@@ -1041,6 +1041,7 @@ bool MctpBinding::handleGetVdmSupport(
         "Message not supported");
     return false;
 }
+
 EidRangeEntry MctpBinding::handleSetEidRange(const mctpd::RoutingTable::EntryMap entry)
 {
   EidRangeEntry eidRange;
@@ -1063,6 +1064,7 @@ EidRangeEntry MctpBinding::handleSetEidRange(const mctpd::RoutingTable::EntryMap
   }
   return eidRange;
 }
+
 bool MctpBinding::handleGetRoutingTable(const std::vector<uint8_t>& request,
                                         std::vector<uint8_t>& response)
 {

@@ -22,7 +22,8 @@ constexpr uint8_t vendorIdNoMoreSets = 0xff;
 
 using endpointInterfaceMap =
     std::unordered_map<mctp_eid_t, std::shared_ptr<dbus_interface>>;
-
+using EidRangeEntry=
+    std::unordered_map<mctp_eid_t,mctp_eid_t>;
 enum MctpStatus
 {
     mctpErrorOperationNotAllowed = -5,
@@ -119,7 +120,6 @@ class MctpBinding
     MctpBinding() = delete;
     virtual ~MctpBinding();
     virtual void initializeBinding() = 0;
-
     void handleCtrlReq(uint8_t destEid, void* bindingPrivate, const void* req,
                        size_t len, uint8_t msgTag);
 
@@ -184,6 +184,7 @@ class MctpBinding
                                      std::vector<uint8_t>& response);
     virtual bool handleGetRoutingTable(const std::vector<uint8_t>& request,
                                        std::vector<uint8_t>& response);
+    EidRangeEntry handleSetEidRange(const mctpd::RoutingTable::EntryMap entry);
     virtual void addUnknownEIDToDeviceTable(const mctp_eid_t eid,
                                             void* bindingPrivate);
     bool getEidCtrlCmd(boost::asio::yield_context& yield,
