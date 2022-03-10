@@ -2131,10 +2131,11 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     return eid;
 }
 
-std::optional<int>
-    MctpBinding::handleAllocateEID(boost::asio::yield_context& yield,
+std::optional<bool>
+    MctpBinding::handleAllocateEID(boost::asio::yield_context yield,
                                    const std::vector<uint8_t>& bindingPrivate,
-                                   uint8_t setEIDPoolSize, mctp_eid_t eid)
+                                   const uint8_t setEIDPoolSize,
+                                   const mctp_eid_t eid)
 {
     if (!(setEIDPoolSize > 0))
     {
@@ -2144,13 +2145,12 @@ std::optional<int>
     }
     std::vector<uint8_t> allocateEIDsResp = {};
 
-    // TODO: validate the the requested range of EIDs and allocate based on the
-    // availability.
-    if (setEIDPoolSize > eidPool.getCountOfAvailableEidFromPool(eid + 1))
+    std::optional<mctp_eid_t> startingEid =
+        eidPool.isEidPoolAvailable(setEIDPoolSize);
+    if (!startingEid.has_value())
     {
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
-            "Allocate EIDs failed:Requested pool size greater than available "
-            "pool size");
+            "Allocate EIDs failed:Requested pool size not available");
         return std::nullopt;
     }
 
@@ -2174,8 +2174,8 @@ std::optional<int>
                                     true);
         }
     }
-    // we Need to return something as return type is std::optional<int>
-    return 1;
+    // we Need to return something as return type is std::optional<bool>
+    return true;
 }
 void MctpBinding::getVendorDefinedMessageTypes(
     boost::asio::yield_context yield,

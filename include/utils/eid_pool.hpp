@@ -18,6 +18,7 @@
 
 #include <libmctp.h>
 
+#include <optional>
 #include <set>
 #include <vector>
 
@@ -29,7 +30,7 @@ class EidPool
     void initializeEidPool(const std::set<mctp_eid_t>& pool);
     void updateEidStatus(const mctp_eid_t endpointId, const bool assigned);
     mctp_eid_t getAvailableEidFromPool();
-    int getCountOfAvailableEidFromPool(const mctp_eid_t startingEID);
+    std::optional<mctp_eid_t> isEidPoolAvailable(const uint8_t eidPoolSize);
 
   private:
     std::vector<std::pair<mctp_eid_t, bool>> eidPool;

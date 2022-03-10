@@ -16,6 +16,7 @@
 
 #include "utils/eid_pool.hpp"
 
+#include <optional>
 #include <phosphor-logging/log.hpp>
 #include <system_error>
 
@@ -91,27 +92,53 @@ mctp_eid_t EidPool::getAvailableEidFromPool()
         std::make_error_code(std::errc::address_not_available));
 }
 
-int EidPool::getCountOfAvailableEidFromPool(const mctp_eid_t startingEID)
+std::optional<mctp_eid_t> EidPool::isEidPoolAvailable(const uint8_t eidPoolSize)
 {
-    int countOfAvailEids = 0;
+    uint8_t countOfAvailEids = 0;
+    uint8_t countOfTotalAvailEids = 0;
     mctp_eid_t previousEID = 0;
+    mctp_eid_t startingEID = 0;
+
     for (auto& [eid, eidAssignedStatus] : eidPool)
     {
         if (!eidAssignedStatus)
         {
-            if (startingEID == eid)
+            countOfTotalAvailEids++;
+        }
+    }
+    for (int loopCount = 0; loopCount < countOfTotalAvailEids; loopCount++)
+    {
+        for (auto& [eid, eidAssignedStatus] : eidPool)
+        {
+            if (!eidAssignedStatus && eid > startingEID)
             {
-                countOfAvailEids = 1;
-                previousEID = eid;
+                startingEID = eid;
+                break;
             }
-            if (eid == previousEID + 1)
+        }
+
+        for (auto& [eid, eidAssignedStatus] : eidPool)
+        {
+            if (!eidAssignedStatus)
             {
-                countOfAvailEids++;
-                previousEID = eid;
+                if (startingEID == eid)
+                {
+                    countOfAvailEids = 1;
+                    previousEID = eid;
+                }
+                if (eid == previousEID + 1)
+                {
+                    countOfAvailEids++;
+                    previousEID = eid;
+                    if (countOfAvailEids == eidPoolSize)
+                    {
+                        return startingEID;
+                    }
+                }
             }
         }
     }
-    return countOfAvailEids;
+    return std::nullopt;
 }
 
 } // namespace mctpd
