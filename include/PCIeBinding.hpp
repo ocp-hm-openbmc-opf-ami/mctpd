@@ -50,10 +50,6 @@ class PCIeBinding : public MctpBinding,
     bool handleGetVdmSupport(mctp_eid_t endpointEid, void* bindingPrivate,
                              std::vector<uint8_t>& request,
                              std::vector<uint8_t>& response) override;
-    bool handleAllocateEIDs(mctp_eid_t destEid, std::vector<uint8_t>& request,
-                            std::vector<uint8_t>& response,
-                            const void* bindingPrivate) override;
-
     void deviceReadyNotify(bool ready) override;
 
     std::shared_ptr<hw::PCIeDriver> hw;

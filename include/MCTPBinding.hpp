@@ -184,8 +184,7 @@ class MctpBinding
                                      std::vector<uint8_t>& response);
     virtual bool handleAllocateEIDs(mctp_eid_t destEid,
                                     std::vector<uint8_t>& request,
-                                    std::vector<uint8_t>& response,
-                                    const void* bindingPrivate);
+                                    std::vector<uint8_t>& response);
 
     virtual bool handleGetRoutingTable(const std::vector<uint8_t>& request,
                                        std::vector<uint8_t>& response);
