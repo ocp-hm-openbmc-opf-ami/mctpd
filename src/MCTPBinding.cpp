@@ -941,6 +941,7 @@ bool MctpBinding::handleGetNetworkId([[maybe_unused]] mctp_eid_t destEid, void*,
     if (mctp_ctrl_cmd_get_network_id(mctp, resp) < 0)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>("Message failed");
+        return false;
     }
     return true;
 }
