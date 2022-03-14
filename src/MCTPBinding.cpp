@@ -1034,7 +1034,10 @@ bool MctpBinding::handleResolveEndpointId(
     response.resize(sizeof(mctp_ctrl_resp_resolve_eid));
     auto resp = reinterpret_cast<mctp_ctrl_resp_resolve_eid*>(response.data());
 
-    mctp_ctrl_cmd_encode_resolve_eid_resp(mctp, destEid, resp);
+    if (mctp_ctrl_cmd_encode_resolve_eid_resp(mctp, destEid, resp) < 0)
+    {
+        return false;
+    }
 
     return true;
 }
