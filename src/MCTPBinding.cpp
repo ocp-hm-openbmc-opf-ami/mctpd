@@ -1289,7 +1289,7 @@ bool MctpBinding::getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Control command not defined");
-        return false
+        return false;
     }
 }
 
