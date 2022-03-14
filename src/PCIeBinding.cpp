@@ -611,7 +611,7 @@ bool PCIeBinding::handleResolveEndpointId(mctp_eid_t destEid,
         if (eid == resp->bridge_eid)
         {
 
-            std::memcpy(resp->phy_bind_addr,
+            std::memcpy(resp->phy_addr,
                         reinterpret_cast<const void*>(std::get<1>(item)),
                         sizeof(uint16_t));
         }
