@@ -905,9 +905,15 @@ void MctpBinding::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
             sendResponse = handleGetRoutingTable(request, response);
             break;
         }
+<<<<<<< HEAD
         case MCTP_CTRL_CMD_RESOLVE_ENDPOINT_ID: {
             sendResponse = handleResolveEndpointId(destEid, bindingPrivate,
                                                    request, response);
+=======
+        case MCTP_CTRL_CMD_RESOLVE_ENDPOINT_ID: {
+            sendResponse = handleResolveEndpointId(destEid, bindingPrivate,
+                                                   request, response);
+>>>>>>> 5dde2cc6a0848c1529a0d42ad4ca18f49c0767a5
             break;
         }
         default: {
@@ -1285,14 +1291,12 @@ bool MctpBinding::getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
 
         return true;
     }
-    return true;
-}
-else
-{
-    phosphor::logging::log<phosphor::logging::level::ERR>(
-        "Control command not defined");
-    return false;
-}
+    else
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Control command not defined");
+        return false
+    }
 }
 
 static bool checkMinRespSize(const std::vector<uint8_t>& resp)
