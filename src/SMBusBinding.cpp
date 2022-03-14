@@ -863,12 +863,13 @@ bool SMBusBinding::handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
 }
 
 /*Allocate EID Responder*/
-bool SMBusBinding::handleAllocateEIDs(mctp_eid_t destEid, void* bindingPrivate,
+bool SMBusBinding::handleAllocateEIDs(mctp_eid_t destEid,
                                       std::vector<uint8_t>& request,
-                                      std::vector<uint8_t>& response)
+                                      std::vector<uint8_t>& response,
+                                      const void* bindingPrivate)
 {
-    if (!MctpBinding::handleAllocateEIDs(destEid, bindingPrivate, request,
-                                         response))
+    if (!MctpBinding::handleAllocateEIDs(destEid, request, response,
+                                         bindingPrivate))
     {
         return false;
     }

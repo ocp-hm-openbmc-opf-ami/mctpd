@@ -909,7 +909,7 @@ void MctpBinding::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
         }
         case MCTP_CTRL_CMD_ALLOCATE_ENDPOINT_IDS: {
             sendResponse =
-                handleAllocateEIDs(destEid, bindingPrivate, request, response);
+                handleAllocateEIDs(destEid, request, response, bindingPrivate);
             break;
         }
 
@@ -985,9 +985,10 @@ bool MctpBinding::handleSetEndpointId(mctp_eid_t destEid, void*,
 }
 
 /*Allocate EID Responder*/
-bool MctpBinding::handleAllocateEIDs(mctp_eid_t destEid, void*,
+bool MctpBinding::handleAllocateEIDs(mctp_eid_t destEid,
                                      std::vector<uint8_t>& request,
-                                     std::vector<uint8_t>& response)
+                                     std::vector<uint8_t>& response,
+                                     const void*)
 {
     response.resize(sizeof(mctp_ctrl_resp_allocate_eids));
     auto resp =
