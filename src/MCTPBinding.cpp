@@ -1285,14 +1285,12 @@ bool MctpBinding::getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
 
         return true;
     }
-    return true;
-}
-else
-{
-    phosphor::logging::log<phosphor::logging::level::ERR>(
-        "Control command not defined");
-    return false;
-}
+    else
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Control command not defined");
+        return false
+    }
 }
 
 static bool checkMinRespSize(const std::vector<uint8_t>& resp)
