@@ -148,25 +148,29 @@ bool RoutingTable::updateEntry(const mctp_eid_t eid, RoutingTable::Entry entry)
     auto status = entries.insert_or_assign(eid, std::move(entry)).second;
 
     auto& table = getAllEntries();
-    // TODO. Enable printing routing table only in debug mode.
-    for (auto& [i, e] : table)
+    // Enable/Disable printing routing table only in debug mode.
+    if (getRoutingTableLogEnabled())
     {
-        std::stringstream ss;
-        ss << "Entry "
-           << static_cast<int>(e.routeEntry.routing_info.starting_eid)
-           << " Type " << static_cast<int>(e.routeEntry.routing_info.entry_type)
-           << " Medium "
-           << static_cast<int>(e.routeEntry.routing_info.phys_media_type_id)
-           << " Medium ID "
-           << static_cast<int>(
-                  e.routeEntry.routing_info.phys_transport_binding_id)
-           << " Address ";
-        for (int addr : e.routeEntry.phys_address)
+        for (auto& [i, e] : table)
         {
-            ss << addr << ' ';
+            std::stringstream ss;
+            ss << "Entry "
+               << static_cast<int>(e.routeEntry.routing_info.starting_eid)
+               << " Type "
+               << static_cast<int>(e.routeEntry.routing_info.entry_type)
+               << " Medium "
+               << static_cast<int>(e.routeEntry.routing_info.phys_media_type_id)
+               << " Medium ID "
+               << static_cast<int>(
+                      e.routeEntry.routing_info.phys_transport_binding_id)
+               << " Address ";
+            for (int addr : e.routeEntry.phys_address)
+            {
+                ss << addr << ' ';
+            }
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                ss.str().c_str());
         }
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
-            ss.str().c_str());
     }
     return status;
 }

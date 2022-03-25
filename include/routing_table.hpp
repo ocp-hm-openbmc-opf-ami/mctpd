@@ -109,9 +109,20 @@ class RoutingTable
     {
         return entries.count(eid) == 1;
     }
+    // Set for enablisg-disabling routing table logs
+    void setRoutingTableLogEnabled(bool rtLogs)
+    {
+        routingLogs = rtLogs;
+    }
+    // Check for enablisg-disabling routing table logs
+    bool getRoutingTableLogEnabled()
+    {
+        return routingLogs;
+    }
 
   private:
     EntryMap entries;
+    bool routingLogs;
 };
 
 } // namespace mctpd
