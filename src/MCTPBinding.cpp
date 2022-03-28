@@ -730,10 +730,9 @@ void MctpBinding::initializeLogging(void)
 
     if (auto envPtr = std::getenv("MCTP_TRACES"))
     {
-        std::string value(envPtr);
-        if (value == "1")
+        std::string valueTrace(envPtr);
+        if (valueTrace == "1")
         {
-
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 "MCTP traces enabled, expect lower performance");
             mctp_set_log_stdio(MCTP_LOG_DEBUG);
@@ -741,19 +740,17 @@ void MctpBinding::initializeLogging(void)
         }
     }
 
-    // Check Env for Routing Table Logs - and enable logs only value is 3
+    // Check Env for Routing Table Logs - and enable logs only if value is 1
     if (auto envPtrRtable = std::getenv("MCTP_ROUTING_TABLE_LOG"))
     {
         std::string valueRtable(envPtrRtable);
-        if (valueRtable == "3")
+
+        if (valueRtable == "1")
         {
+            // routing table logs enabled
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 "MCTP routing table logs enabled, expect lower performance");
             routingTable.setRoutingTableLogEnabled(true);
-        }
-        else
-        {
-            routingTable.setRoutingTableLogEnabled(false);
         }
     }
 }

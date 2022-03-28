@@ -147,10 +147,10 @@ bool RoutingTable::updateEntry(const mctp_eid_t eid, RoutingTable::Entry entry)
 {
     auto status = entries.insert_or_assign(eid, std::move(entry)).second;
 
-    auto& table = getAllEntries();
-    // Enable/Disable printing routing table only in debug mode.
+    // Print routing table only in debug mode.
     if (getRoutingTableLogEnabled())
     {
+        auto& table = getAllEntries();
         for (auto& [i, e] : table)
         {
             std::stringstream ss;
