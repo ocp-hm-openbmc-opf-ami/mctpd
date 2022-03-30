@@ -115,7 +115,7 @@ class RoutingTable
         isRoutingLogsEnabled = rtLogs;
     }
     // Check for enabling-disabling routing table logs
-    const inline bool& getRoutingTableLogEnabled() const
+    inline bool getRoutingTableLogEnabled() const
     {
         return isRoutingLogsEnabled;
     }
