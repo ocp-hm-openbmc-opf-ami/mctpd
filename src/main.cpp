@@ -102,6 +102,7 @@ int main(int argc, char* argv[])
 
     try
     {
+        bindingPtr->setDbusName(mctpServiceName);
         bindingPtr->initializeBinding();
     }
     catch (const std::exception& e)

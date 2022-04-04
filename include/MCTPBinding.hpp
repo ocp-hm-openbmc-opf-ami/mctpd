@@ -122,6 +122,16 @@ class MctpBinding
 
     void handleCtrlReq(uint8_t destEid, void* bindingPrivate, const void* req,
                        size_t len, uint8_t msgTag);
+    // Get own service name
+    inline const std::string& getDbusName() const
+    {
+        return serviceName;
+    }
+    // Set own service name
+    inline void setDbusName(const std::string& sName)
+    {
+        serviceName = sName;
+    }
 
   protected:
     std::shared_ptr<sdbusplus::asio::connection> connection;
@@ -142,6 +152,7 @@ class MctpBinding
     mctpd::EidPool eidPool;
     mctpd::RoutingTable routingTable;
     bridging::MCTPServiceScanner mctpServiceScanner;
+    std::string serviceName = "xyz.openbmc_project.MCTP";
 
     std::unordered_map<uint8_t, version_entry>
         versionNumbersForUpperLayerResponder;
