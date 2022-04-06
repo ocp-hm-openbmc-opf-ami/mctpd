@@ -984,7 +984,7 @@ bool MctpBinding::handleSetEndpointId(mctp_eid_t destEid, void*,
 }
 
 /*Allocate EID Responder*/
-bool MctpBinding::handleAllocateEIDs(mctp_eid_t destEid,
+bool MctpBinding::handleAllocateEIDs([[maybe_unused]] mctp_eid_t destEid,
                                      std::vector<uint8_t>& request,
                                      std::vector<uint8_t>& response)
 {
@@ -993,8 +993,10 @@ bool MctpBinding::handleAllocateEIDs(mctp_eid_t destEid,
         reinterpret_cast<mctp_ctrl_resp_allocate_eids*>(response.data());
     auto req = reinterpret_cast<mctp_ctrl_cmd_allocate_eids*>(request.data());
 
-    mctp_ctrl_cmd_allocate_endpoint_id(mctp, destEid, req, resp,
-                                       eidPool.getEidPoolSize());
+    mctp_ctrl_cmd_allocate_endpoint_id(
+        resp, &req->ctrl_msg_hdr, MCTP_CTRL_CC_SUCCESS, allocation_accepted,
+        req->eid_pool_size, 0x00);
+
     return true;
 }
 
