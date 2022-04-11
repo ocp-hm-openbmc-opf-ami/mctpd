@@ -7,10 +7,14 @@
 #include <systemd/sd-id128.h>
 
 #include <phosphor-logging/log.hpp>
+#include <xyz/openbmc_project/Inventory/Decorator/LocationCode/server.hpp>
 
 #include "libmctp-cmds.h"
 #include "libmctp-msgtypes.h"
 #include "libmctp.h"
+
+using LocationCodeDecorator =
+    sdbusplus::xyz::openbmc_project::Inventory::Decorator::server::LocationCode;
 
 constexpr int noMoreSet = 0xFF;
 static std::string vendIdFormat = "0x8086";
@@ -681,6 +685,14 @@ MctpBinding::~MctpBinding()
     }
 
     for (auto& iter : vendorIdInterface)
+    {
+        objectServer->remove_interface(iter.second);
+    }
+    for (auto& iter : locationCodeInterface)
+    {
+        objectServer->remove_interface(iter.second);
+    }
+    for (auto& iter : deviceInterface)
     {
         objectServer->remove_interface(iter.second);
     }
@@ -1361,11 +1373,11 @@ bool MctpBinding::setEidCtrlCmd(boost::asio::yield_context& yield,
     return true;
 }
 
-static std::string formatUUID(guid_t& uuid)
+static std::string formatUUID(const guid_t& uuid)
 {
     const size_t safeBufferLength = 50;
     char buf[safeBufferLength] = {0};
-    auto ptr = reinterpret_cast<uint8_t*>(&uuid);
+    auto ptr = reinterpret_cast<const uint8_t*>(&uuid);
 
     snprintf(
         buf, safeBufferLength,
@@ -1800,20 +1812,9 @@ void MctpBinding::registerMsgTypes(std::shared_ptr<dbus_interface>& msgTypeIntf,
     msgTypeIntf->initialize();
 }
 
-bool MctpBinding::populateEndpointProperties(
+void MctpBinding::populateEndpointProperties(
     const EndpointProperties& epProperties)
 {
-    // Taking endpointIntf as a reference to check if EID is already registered
-    auto iter = endpointInterface.find(epProperties.endpointEid);
-    if (iter != endpointInterface.end())
-    {
-        phosphor::logging::log<phosphor::logging::level::WARNING>(
-            ("EID " + std::to_string(epProperties.endpointEid) +
-             " is already registered")
-                .c_str());
-        return false;
-    }
-
     std::string mctpDevObj = "/xyz/openbmc_project/mctp/device/";
     std::shared_ptr<dbus_interface> endpointIntf;
     std::string mctpEpObj =
@@ -1830,13 +1831,6 @@ bool MctpBinding::populateEndpointProperties(
     endpointInterface.emplace(epProperties.endpointEid,
                               std::move(endpointIntf));
 
-    // Message type interface
-    std::shared_ptr<dbus_interface> msgTypeIntf;
-    msgTypeIntf =
-        objectServer->add_interface(mctpEpObj, mctp_msg_types::interface);
-    registerMsgTypes(msgTypeIntf, epProperties.endpointMsgTypes);
-    msgTypeInterface.emplace(epProperties.endpointEid, std::move(msgTypeIntf));
-
     // UUID interface
     std::shared_ptr<dbus_interface> uuidIntf;
     uuidIntf = objectServer->add_interface(mctpEpObj,
@@ -1844,6 +1838,8 @@ bool MctpBinding::populateEndpointProperties(
     uuidIntf->register_property("UUID", epProperties.uuid);
     uuidIntf->initialize();
     uuidInterface.emplace(epProperties.endpointEid, std::move(uuidIntf));
+
+    // Vendor-defined message type interface
     if (epProperties.endpointMsgTypes.vdpci)
     {
         std::shared_ptr<dbus_interface> vendorIdIntf;
@@ -1857,10 +1853,25 @@ bool MctpBinding::populateEndpointProperties(
         vendorIdInterface.emplace(epProperties.endpointEid,
                                   std::move(vendorIdIntf));
     }
-    phosphor::logging::log<phosphor::logging::level::WARNING>(
-        ("Device Registered: EID = " + std::to_string(epProperties.endpointEid))
-            .c_str());
-    return true;
+
+    // Location code interface
+    std::shared_ptr<dbus_interface> locationCodeIntf;
+    locationCodeIntf = objectServer->add_interface(
+        mctpEpObj, LocationCodeDecorator::interface);
+    locationCodeIntf->register_property("LocationCode",
+                                        epProperties.locationCode);
+    locationCodeIntf->initialize();
+    locationCodeInterface.emplace(epProperties.endpointEid,
+                                  std::move(locationCodeIntf));
+
+    // Message type interface
+    // This interface should be added last as adding it will trigger mctpwplus
+    // deviceAdded event
+    std::shared_ptr<dbus_interface> msgTypeIntf;
+    msgTypeIntf =
+        objectServer->add_interface(mctpEpObj, mctp_msg_types::interface);
+    registerMsgTypes(msgTypeIntf, epProperties.endpointMsgTypes);
+    msgTypeInterface.emplace(epProperties.endpointEid, std::move(msgTypeIntf));
 }
 
 mctp_server::BindingModeTypes MctpBinding::getEndpointType(const uint8_t types)
@@ -1982,7 +1993,8 @@ bool MctpBinding::isEIDRegistered(mctp_eid_t eid)
     return false;
 }
 
-bool MctpBinding::isEIDMappedToUUID(mctp_eid_t& eid, std::string& destUUID)
+bool MctpBinding::isEIDMappedToUUID(const mctp_eid_t eid,
+                                    const std::string& destUUID)
 {
     std::optional<mctp_eid_t> eidFromTable = getEIDFromUUID(destUUID);
     if (eidFromTable.has_value())
@@ -1997,12 +2009,24 @@ bool MctpBinding::isEIDMappedToUUID(mctp_eid_t& eid, std::string& destUUID)
             return true;
         }
         phosphor::logging::log<phosphor::logging::level::INFO>(
-            "Endpoint needs re-registration");
-        unregisterEndpoint(eidFromTable.value());
-        // Give priority for EID from UUID table while re-registering
-        eid = eidFromTable.value();
+            ("Endpoint needs re-registration. EID from device:" +
+             std::to_string(eid) +
+             " EID from table:" + std::to_string(eidFromTable.value()))
+                .c_str());
     }
     return false;
+}
+
+std::optional<mctp_eid_t>
+    MctpBinding::getEIDForReregistration(const std::string& destUUID)
+{
+    if (auto eidFromTable = getEIDFromUUID(destUUID))
+    {
+        unregisterEndpoint(eidFromTable.value());
+        // Give priority for EID from UUID table while re-registering
+        return eidFromTable.value();
+    }
+    return std::nullopt;
 }
 
 bool MctpBinding::isMCTPVersionSupported(const MCTPVersionFields& version)
@@ -2071,7 +2095,7 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
             "Get EID failed");
         return std::nullopt;
     }
-    mctp_ctrl_resp_get_eid* getEidRespPtr =
+    const mctp_ctrl_resp_get_eid* getEidRespPtr =
         reinterpret_cast<mctp_ctrl_resp_get_eid*>(getEidResp.data());
     std::optional<mctp_eid_t> destEID =
         checkEIDMismatchAndGetEID(eid, getEidRespPtr->eid);
@@ -2103,12 +2127,16 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
         getUuidResp.resize(sizeof(mctp_ctrl_resp_get_uuid), 0);
     }
 
-    mctp_ctrl_resp_get_uuid* getUuidRespPtr =
+    const mctp_ctrl_resp_get_uuid* getUuidRespPtr =
         reinterpret_cast<mctp_ctrl_resp_get_uuid*>(getUuidResp.data());
     std::string destUUID = formatUUID(getUuidRespPtr->uuid);
     if (isEIDMappedToUUID(getEidRespPtr->eid, destUUID))
     {
         return getEidRespPtr->eid;
+    }
+    if (auto uuidMappedEID = getEIDForReregistration(destUUID))
+    {
+        eid = uuidMappedEID.value();
     }
 
     if (!deviceWatcher.checkDeviceInitThreshold(bindingPrivate))
@@ -2164,6 +2192,14 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
         return std::nullopt;
     }
 
+    // check if EID is already registered
+    if (endpointInterface.find(eid) != endpointInterface.end())
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("EID " + std::to_string(eid) + " is already registered").c_str());
+        return std::nullopt;
+    }
+
     // Expose interface as per the result
     EndpointProperties epProperties;
     epProperties.endpointEid = eid;
@@ -2181,12 +2217,21 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     epProperties.networkId = 0x00;
     epProperties.endpointMsgTypes = getMsgTypes(msgTypeSupportResp.msgType);
     getVendorDefinedMessageTypes(yield, bindingPrivate, eid, epProperties);
+    epProperties.locationCode = getLocationCode(bindingPrivate).value_or("");
 
-    if (!populateEndpointProperties(epProperties))
+    populateDeviceProperties(eid, bindingPrivate);
+    populateEndpointProperties(epProperties);
+
+
+    // Update the uuidTable with eid and the uuid of the endpoint registered.
+    if (destUUID != nullUUID && eid != MCTP_EID_NULL)
     {
-        return std::nullopt;
+        uuidTable.insert_or_assign(eid, destUUID);
     }
 
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        ("Device Registered: EID = " + std::to_string(eid)).c_str());
+    
     // Pass eid, service name & Type.
     auto endpointType = mctpd::convertToEndpointType(epProperties.mode);
     mctpd::RoutingTable::Entry entry(eid, getDbusName(), endpointType);
@@ -2196,12 +2241,6 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     if (mctpd::isBridge(endpointType))
     {
         sendRoutingTableEntriesToBridge(eid, bindingPrivate);
-    }
-
-    // Update the uuidTable with eid and the uuid of the endpoint registered.
-    if (destUUID != nullUUID && eid != MCTP_EID_NULL)
-    {
-        uuidTable.push_back(std::make_pair(eid, destUUID));
     }
 
     return eid;
@@ -2270,6 +2309,14 @@ std::optional<mctp_eid_t>
         return std::nullopt;
     }
 
+    // check if EID is already registered
+    if (endpointInterface.find(eid) != endpointInterface.end())
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("EID " + std::to_string(eid) + " is already registered").c_str());
+        return std::nullopt;
+    }
+
     EndpointProperties epProperties;
     std::vector<uint8_t> getUuidResp;
 
@@ -2295,10 +2342,11 @@ std::optional<mctp_eid_t>
 
     getVendorDefinedMessageTypes(yield, bindingPrivate, eid, epProperties);
 
-    if (!populateEndpointProperties(epProperties))
-    {
-        return std::nullopt;
-    }
+    populateDeviceProperties(eid, bindingPrivate);
+    populateEndpointProperties(epProperties);
+
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        ("Device Registered: EID = " + std::to_string(eid)).c_str());
 
     // Pass eid, service name & Type.
     auto endpointType = mctpd::convertToEndpointType(bindingMode);
@@ -2338,6 +2386,8 @@ void MctpBinding::unregisterEndpoint(mctp_eid_t eid)
     bool uuidIntf = removeInterface(eid, uuidInterface);
     // Vendor ID interface is optional thus not considering return status
     removeInterface(eid, vendorIdInterface);
+    removeInterface(eid, locationCodeInterface);
+    removeInterface(eid, deviceInterface);
 
     if (epIntf && msgTypeIntf && uuidIntf)
     {
@@ -2347,13 +2397,14 @@ void MctpBinding::unregisterEndpoint(mctp_eid_t eid)
     routingTable.removeEntry(eid);
 }
 
-std::optional<mctp_eid_t> MctpBinding::getEIDFromUUID(std::string& uuidStr)
+std::optional<mctp_eid_t>
+    MctpBinding::getEIDFromUUID(const std::string& uuidStr)
 {
-    for (const auto& uuidEntry : uuidTable)
+    for (const auto& [eid, deviceUUID] : uuidTable)
     {
-        if (uuidStr.compare(std::get<1>(uuidEntry)) == 0)
+        if (uuidStr.compare(deviceUUID) == 0)
         {
-            return std::get<0>(uuidEntry);
+            return eid;
         }
     }
     return std::nullopt;
@@ -2361,24 +2412,31 @@ std::optional<mctp_eid_t> MctpBinding::getEIDFromUUID(std::string& uuidStr)
 
 void MctpBinding::clearRegisteredDevice(const mctp_eid_t eid)
 {
-    for (unsigned int tableItr = 0; tableItr < uuidTable.size(); tableItr++)
+    // Remove the entry from uuidTable, unregister the device and return EID to
+    // the pool.
+    auto removed = uuidTable.erase(eid);
+    if (removed == 1)
     {
-        if (std::get<0>(uuidTable[tableItr]) == eid)
-        {
-            // Remove the entry from uuidTable and unregister the device.
-            uuidTable.erase(uuidTable.begin() + static_cast<int32_t>(tableItr));
-            unregisterEndpoint(eid);
-            // Return EID to the pool of EIDs available for assignment
-            // as the Endpoint is non-responsive.
-            eidPool.updateEidStatus(eid, false);
-            break;
-        }
+        unregisterEndpoint(eid);
+        eidPool.updateEidStatus(eid, false);
     }
 }
 
 void MctpBinding::addUnknownEIDToDeviceTable(const mctp_eid_t, void*)
 {
     // Do nothing
+}
+
+void MctpBinding::populateDeviceProperties(const mctp_eid_t,
+                                           const std::vector<uint8_t>&)
+{
+    // Do nothing
+}
+
+std::optional<std::string>
+    MctpBinding::getLocationCode(const std::vector<uint8_t>&)
+{
+    return std::nullopt;
 }
 
 // Send raw payload starting from MCTP header.
