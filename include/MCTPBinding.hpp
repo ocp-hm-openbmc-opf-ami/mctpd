@@ -55,6 +55,7 @@ struct EndpointProperties
     // Vendor PCI ID Support
     std::vector<uint16_t> vendorIdCapabilitySets;
     std::string vendorIdFormat;
+    std::string locationCode;
 };
 
 struct MsgTypeSupportCtrlResp
@@ -159,6 +160,10 @@ class MctpBinding
 
     // vendor PCI Msg Interface
     endpointInterfaceMap vendorIdInterface;
+    // Location code Interface
+    endpointInterfaceMap locationCodeInterface;
+    // binding-specific device property Interface
+    endpointInterfaceMap deviceInterface;
 
     void initializeMctp();
     void initializeLogging(void);
@@ -245,6 +250,12 @@ class MctpBinding
                              mctp_server::BindingModeTypes::Endpoint);
     void unregisterEndpoint(mctp_eid_t eid);
 
+    virtual void
+        populateDeviceProperties(const mctp_eid_t eid,
+                                   const std::vector<uint8_t>& bindingPrivate);
+    virtual std::optional<std::string>
+        getLocationCode(const std::vector<uint8_t>& bindingPrivate);
+
     // MCTP Callbacks
     bool handleCtrlResp(void* msg, const size_t len);
     static void rxMessage(uint8_t srcEid, void* data, void* msg, size_t len,
@@ -300,7 +311,7 @@ class MctpBinding
                    std::function<void(PacketState, std::vector<uint8_t>&)>>>
         ctrlTxQueue;
     // <eid, uuid>
-    std::vector<std::pair<mctp_eid_t, std::string>> uuidTable;
+    std::unordered_map<mctp_eid_t, std::string> uuidTable;
 
     void createUuid();
     bool sendMctpCtrlMessage(mctp_eid_t destEid, std::vector<uint8_t> req,
@@ -325,7 +336,7 @@ class MctpBinding
                                  mctp_eid_t eid);
     void registerMsgTypes(std::shared_ptr<dbus_interface>& msgTypeIntf,
                           const MsgTypes& messageType);
-    bool populateEndpointProperties(const EndpointProperties& epProperties);
+    void populateEndpointProperties(const EndpointProperties& epProperties);
     void
         getVendorDefinedMessageTypes(boost::asio::yield_context yield,
                                      const std::vector<uint8_t>& bindingPrivate,
@@ -335,9 +346,9 @@ class MctpBinding
     MsgTypes getMsgTypes(const std::vector<uint8_t>& msgType);
     std::vector<uint8_t> getBindingMsgTypes();
     bool removeInterface(mctp_eid_t eid, endpointInterfaceMap& interfaces);
-    std::optional<mctp_eid_t> getEIDFromUUID(std::string& uuidStr);
+    std::optional<mctp_eid_t> getEIDFromUUID(const std::string& uuidStr);
     void clearRegisteredDevice(const mctp_eid_t eid);
-    bool isEIDMappedToUUID(mctp_eid_t& eid, std::string& destUUID);
+    bool isEIDMappedToUUID(const mctp_eid_t eid, const std::string& destUUID);
     bool isEIDRegistered(mctp_eid_t eid);
     MctpStatus sendMctpRawPayload(const std::vector<uint8_t>& data);
 
@@ -349,4 +360,6 @@ class MctpBinding
         const mctpd::RoutingTable::Entry& entry);
     void sendRoutingTableEntriesToBridge(
         const mctp_eid_t bridge, const std::vector<uint8_t>& bindingPrivate);
+    std::optional<mctp_eid_t>
+        getEIDForReregistration(const std::string& destUUID);
 };
