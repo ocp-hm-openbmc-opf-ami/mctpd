@@ -1421,10 +1421,9 @@ bool MctpBinding::getUuidCtrlCmd(boost::asio::yield_context& yield,
     return true;
 }
 
-bool MctpBinding::getNetworkIdCtrlCmd(
-    boost::asio::yield_context yield,
-    const std::vector<uint8_t>& bindingPrivate, const mctp_eid_t destEid,
-    std::vector<uint8_t>& resp)
+bool MctpBinding::getNetworkIdCtrlCmd(boost::asio::yield_context yield,
+									  const std::vector<uint8_t>& bindingPrivate, const mctp_eid_t destEid,
+									  std::vector<uint8_t>& resp)
 {
     std::vector<uint8_t> req = {};
 
