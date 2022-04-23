@@ -58,10 +58,13 @@ set(SRC_FILES
     ${PROJECT_SOURCE_DIR}/src/MCTPBinding.cpp
     ${PROJECT_SOURCE_DIR}/src/SMBusBinding.cpp
     ${PROJECT_SOURCE_DIR}/src/PCIeBinding.cpp
+    ${PROJECT_SOURCE_DIR}/src/I3CBinding.cpp
     ${PROJECT_SOURCE_DIR}/src/hw/DeviceMonitor.cpp
     ${PROJECT_SOURCE_DIR}/src/hw/PCIeDriver.cpp
+    ${PROJECT_SOURCE_DIR}/src/hw/I3CDriver.cpp
     ${PROJECT_SOURCE_DIR}/src/hw/aspeed/PCIeMonitor.cpp
     ${PROJECT_SOURCE_DIR}/src/hw/aspeed/PCIeDriver.cpp
+    ${PROJECT_SOURCE_DIR}/src/hw/aspeed/I3CDriver.cpp
     ${PROJECT_SOURCE_DIR}/src/utils/Configuration.cpp
     ${PROJECT_SOURCE_DIR}/src/utils/device_watcher.cpp
     ${PROJECT_SOURCE_DIR}/src/utils/transmission_queue.cpp
@@ -72,7 +75,8 @@ set(SRC_FILES
 set(HEADER_FILES
     ${PROJECT_SOURCE_DIR}/include/MCTPBinding.hpp
     ${PROJECT_SOURCE_DIR}/include/SMBusBinding.hpp
-    ${PROJECT_SOURCE_DIR}/include/PCIeBinding.hpp)
+    ${PROJECT_SOURCE_DIR}/include/PCIeBinding.hpp
+    ${PROJECT_SOURCE_DIR}/include/I3CBinding.hpp)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 

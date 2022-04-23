@@ -1,8 +1,11 @@
 #include "MCTPBinding.hpp"
 #include "PCIeBinding.hpp"
 #include "SMBusBinding.hpp"
+#include "I3CBinding.hpp"
 #include "hw/aspeed/PCIeDriver.hpp"
 #include "hw/aspeed/PCIeMonitor.hpp"
+#include "hw/I3CDriver.hpp"
+#include "hw/aspeed/I3CDriver.hpp"
 
 #include <CLI/CLI.hpp>
 #include <boost/asio/signal_set.hpp>
@@ -31,6 +34,14 @@ std::shared_ptr<MctpBinding>
             conn, objectServer, mctpBaseObj, *pcieConfig, ioc,
             std::make_unique<hw::aspeed::PCIeDriver>(ioc),
             std::make_unique<hw::aspeed::PCIeMonitor>(ioc));
+    }
+
+    else if (auto i3cConfig =
+                 dynamic_cast<const I3CConfiguration*>(&configuration))
+    {
+        return std::make_shared<I3CBinding>(
+            conn, objectServer, mctpBaseObj, *i3cConfig, ioc,
+            std::make_unique<hw::aspeed::I3CDriver>(ioc));
     }
 
     return nullptr;
