@@ -1068,7 +1068,22 @@ bool MctpBinding::handleGetRoutingTable(const std::vector<uint8_t>& request,
             request.data());
     auto dest =
         reinterpret_cast<mctp_ctrl_resp_get_routing_table*>(response.data());
-    if (getRoutingTableRequest->entry_handle != 0x00)
+
+    bool status = false;
+    auto& entries = this->routingTable.getAllEntries();
+    std::vector<RoutingTableEntry::MCTPLibData> entriesLibFormat;
+
+    std::vector<RoutingTableEntry::MCTPLibData> requiredEntriesLibFormat;
+
+    // TODO. Combine EIDs in a range.
+    for (const auto& [eid, data] : entries)
+    {
+        entriesLibFormat.emplace_back(data.routeEntry);
+    }
+    uint16_t startIndex = 256 * getRoutingTableRequest->entry_handle;
+    uint16_t endIndex = startIndex - 1 + 256;
+
+    if (static_cast<uint16_t>(entriesLibFormat.size()) < startIndex + 1)
     {
         response.resize(errRespSize);
         dest->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
@@ -1076,26 +1091,26 @@ bool MctpBinding::handleGetRoutingTable(const std::vector<uint8_t>& request,
         // Return true so that a response will be sent with error code
         return true;
     }
-
-    bool status = false;
-    auto& entries = this->routingTable.getAllEntries();
-    std::vector<RoutingTableEntry::MCTPLibData> entriesLibFormat;
-    // TODO. Combine EIDs in a range.
-    for (const auto& [eid, data] : entries)
+    if (static_cast<uint16_t>(entriesLibFormat.size()) < endIndex + 1)
     {
-        entriesLibFormat.emplace_back(data.routeEntry);
+        endIndex = static_cast<uint16_t>(entriesLibFormat.size());
     }
 
-    size_t estSize =
-        sizeof(mctp_ctrl_resp_get_routing_table) +
-        entries.size() * sizeof(get_routing_table_entry_with_address);
+    for (uint16_t i = startIndex; i <= endIndex; i++)
+    {
+        requiredEntriesLibFormat.emplace_back(entriesLibFormat[i]);
+    }
+
+    size_t estSize = sizeof(mctp_ctrl_resp_get_routing_table) +
+                     requiredEntriesLibFormat.size() *
+                         sizeof(get_routing_table_entry_with_address);
     response.resize(estSize);
     size_t formattedRespSize = 0;
     dest = reinterpret_cast<mctp_ctrl_resp_get_routing_table*>(response.data());
-    // TODO. Split if entries > 255
     if (!mctp_encode_ctrl_cmd_rsp_get_routing_table(
-            dest, entriesLibFormat.data(),
-            static_cast<uint8_t>(entriesLibFormat.size()), &formattedRespSize))
+            dest, requiredEntriesLibFormat.data(),
+            static_cast<uint8_t>(requiredEntriesLibFormat.size()),
+            &formattedRespSize, getRoutingTableRequest->entry_handle))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Error formatting get routing table");
@@ -2222,7 +2237,6 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     populateDeviceProperties(eid, bindingPrivate);
     populateEndpointProperties(epProperties);
 
-
     // Update the uuidTable with eid and the uuid of the endpoint registered.
     if (destUUID != nullUUID && eid != MCTP_EID_NULL)
     {
@@ -2231,7 +2245,7 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
 
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("Device Registered: EID = " + std::to_string(eid)).c_str());
-    
+
     // Pass eid, service name & Type.
     auto endpointType = mctpd::convertToEndpointType(epProperties.mode);
     mctpd::RoutingTable::Entry entry(eid, getDbusName(), endpointType);
