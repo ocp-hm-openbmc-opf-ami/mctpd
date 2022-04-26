@@ -30,6 +30,9 @@ class SMBusBinding : public MctpBinding
     void initializeBinding() override;
     std::optional<std::vector<uint8_t>>
         getBindingPrivateData(uint8_t dstEid) override;
+    bool handlePrepareForEndpointDiscovery(
+        mctp_eid_t destEid, void* bindingPrivate, std::vector<uint8_t>& request,
+        std::vector<uint8_t>& response) override;
     bool handleGetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
                              std::vector<uint8_t>& request,
                              std::vector<uint8_t>& response) override;

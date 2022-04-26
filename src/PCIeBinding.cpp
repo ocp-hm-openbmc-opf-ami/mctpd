@@ -586,7 +586,7 @@ bool PCIeBinding::handleGetVdmSupport(mctp_eid_t destEid, void* bindingPrivate,
 
     if (setIndex + 1U > vdmSetDatabase.size())
     {
-        resp->completion_code = MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD;
+        resp->completion_code = MCTP_CTRL_CC_ERROR;
         response.resize(sizeof(mctp_ctrl_msg_hdr) +
                         sizeof(resp->completion_code));
         return true;

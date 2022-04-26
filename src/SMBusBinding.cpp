@@ -977,6 +977,17 @@ void SMBusBinding::initEndpointDiscovery(boost::asio::yield_context& yield)
     }
 }
 
+bool SMBusBinding::handlePrepareForEndpointDiscovery(
+    mctp_eid_t, void*, std::vector<uint8_t>&, std::vector<uint8_t>& response)
+{
+    response.resize(sizeof(mctp_ctrl_resp_prepare_discovery));
+    auto resp =
+        reinterpret_cast<mctp_ctrl_resp_prepare_discovery*>(response.data());
+    resp->completion_code = MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD;
+
+    return true;
+}
+
 // TODO: This method is a placeholder and has not been tested
 bool SMBusBinding::handleGetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
                                        std::vector<uint8_t>& request,
@@ -1090,7 +1101,7 @@ bool SMBusBinding::handleGetVdmSupport(mctp_eid_t destEid,
 
     if (setIndex + 1U > vdmSetDatabase.size())
     {
-        resp->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
+        resp->completion_code = MCTP_CTRL_CC_ERROR;
         response.resize(sizeof(mctp_ctrl_msg_hdr) +
                         sizeof(resp->completion_code));
         return true;

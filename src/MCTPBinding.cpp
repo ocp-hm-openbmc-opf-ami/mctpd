@@ -2222,7 +2222,6 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     populateDeviceProperties(eid, bindingPrivate);
     populateEndpointProperties(epProperties);
 
-
     // Update the uuidTable with eid and the uuid of the endpoint registered.
     if (destUUID != nullUUID && eid != MCTP_EID_NULL)
     {
@@ -2231,7 +2230,7 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
 
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("Device Registered: EID = " + std::to_string(eid)).c_str());
-    
+
     // Pass eid, service name & Type.
     auto endpointType = mctpd::convertToEndpointType(epProperties.mode);
     mctpd::RoutingTable::Entry entry(eid, getDbusName(), endpointType);
