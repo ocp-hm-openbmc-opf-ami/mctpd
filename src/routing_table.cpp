@@ -111,6 +111,42 @@ PhysicalMediumIdentifier convertToPhysicalMediumIdentifier(
     return id;
 }
 
+PhysicalBindingIdentifier
+    convertToPhysicalBindingIdentifier(mctp_server::BindingTypes binding)
+{
+    auto id = PhysicalBindingIdentifier::reserved;
+    switch (binding)
+    {
+        case mctp_server::BindingTypes::MctpOverSmbus: {
+            id = PhysicalBindingIdentifier::mctpOverSmbus;
+            break;
+        }
+        case mctp_server::BindingTypes::MctpOverPcieVdm: {
+            id = PhysicalBindingIdentifier::mctpOverPcieVdm;
+            break;
+        }
+        case mctp_server::BindingTypes::MctpOverUsb: {
+            id = PhysicalBindingIdentifier::mctpOverUsb;
+            break;
+        }
+        case mctp_server::BindingTypes::MctpOverKcs: {
+            id = PhysicalBindingIdentifier::mctpOverKcs;
+            break;
+        }
+        case mctp_server::BindingTypes::MctpOverSerial: {
+            id = PhysicalBindingIdentifier::mctpOverSerial;
+            break;
+        }
+        case mctp_server::BindingTypes::VendorDefined: {
+            id = PhysicalBindingIdentifier::vendorDefined;
+            break;
+        }
+        default:
+            break;
+    }
+    return id;
+}
+
 } // namespace mctpd
 
 using RoutingTable = mctpd::RoutingTable;

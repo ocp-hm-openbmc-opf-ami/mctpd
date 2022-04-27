@@ -45,6 +45,9 @@ class MCTPServiceScanner
     {
         mctp_eid_t eid;
         std::string endpointType;
+        std::vector<uint8_t> endpointAddress{0};
+        uint8_t endpointBindingtypeId;
+        uint8_t endponitMediumtypeId;
         MCTPService service;
     };
     using Callback = std::function<void(EndPoint, bool)>;
@@ -70,6 +73,11 @@ class MCTPServiceScanner
     void onEidRemoved(sdbusplus::message::message& message);
     const MCTPService& getMctpServiceDetails(boost::asio::yield_context yield,
                                              const std::string& serviceName);
+    void getMctpEndpointDetails(
+        boost::asio::yield_context yield,
+        const sdbusplus::message::object_path& object_path,
+        const std::string& serviceName, MCTPServiceScanner::EndPoint& ep);
+
     void scanForEIDs(const std::string& serviceName,
                      boost::asio::yield_context yield);
 

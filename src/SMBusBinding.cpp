@@ -653,6 +653,24 @@ void SMBusBinding::setupMuxMonitor()
 
 void SMBusBinding::initializeBinding()
 {
+    if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
+    {
+        // Pass eid, service name & Type
+        mctpd::RoutingTable::Entry entry(ownEid, getDbusName(),
+                                         mctpd::EndPointType::BridgeOnly);
+        uint8_t entryType =
+            static_cast<uint8_t>(mctpd::EndPointType::BridgeOnly);
+        entryType = entryType | static_cast<uint8_t>(2 << 6);
+        entry.routeEntry.routing_info.entry_type = entryType;
+        entry.routeEntry.routing_info.phys_media_type_id = static_cast<uint8_t>(
+            mctpd::convertToPhysicalMediumIdentifier(bindingMediumID));
+        struct mctp_smbus_pkt_private pktPrv = {};
+        pktPrv.slave_addr = bmcSlaveAddr;
+        uint8_t* pktPrvPtr = reinterpret_cast<uint8_t*>(&pktPrv);
+        std::vector<uint8_t> prvData = std::vector<uint8_t>(
+            pktPrvPtr, pktPrvPtr + sizeof(mctp_smbus_pkt_private));
+        updateRoutingTableEntry(entry, prvData);
+    }
     try
     {
         initializeMctp();
@@ -864,8 +882,8 @@ void SMBusBinding::populateDeviceProperties(
         objectServer->add_interface(mctpEpObj, I2CDeviceDecorator::interface);
     smbusIntf->register_property<size_t>("Bus",
                                          getBusNumByFd(smbusBindingPvt->fd));
-    smbusIntf->register_property<size_t>("Address",
-                                         smbusBindingPvt->slave_addr);
+    smbusIntf->register_property<uint8_t>("Address",
+                                          smbusBindingPvt->slave_addr);
     smbusIntf->initialize();
     deviceInterface.emplace(eid, std::move(smbusIntf));
 }

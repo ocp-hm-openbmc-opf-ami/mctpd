@@ -28,6 +28,10 @@ class PCIeBinding : public MctpBinding,
     ~PCIeBinding() override;
     void initializeBinding() override;
 
+    void updateRoutingTableEntry(
+        mctpd::RoutingTable::Entry entry,
+        const std::vector<uint8_t>& privateData) override;
+
   protected:
     bool handlePrepareForEndpointDiscovery(
         mctp_eid_t destEid, void* bindingPrivate, std::vector<uint8_t>& request,

@@ -252,7 +252,7 @@ class MctpBinding
 
     virtual void
         populateDeviceProperties(const mctp_eid_t eid,
-                                   const std::vector<uint8_t>& bindingPrivate);
+                                 const std::vector<uint8_t>& bindingPrivate);
     virtual std::optional<std::string>
         getLocationCode(const std::vector<uint8_t>& bindingPrivate);
 

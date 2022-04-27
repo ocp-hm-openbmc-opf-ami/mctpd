@@ -321,6 +321,29 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
             auto entryType = mctpd::convertToEndpointType(ep.endpointType);
             mctpd::RoutingTable::Entry entry(ep.eid, ep.service.name,
                                              entryType);
+            entry.routeEntry.routing_info.phys_transport_binding_id =
+                ep.endpointBindingtypeId;
+            entry.routeEntry.routing_info.phys_media_type_id =
+                ep.endponitMediumtypeId;
+
+            switch (ep.endpointBindingtypeId)
+            {
+                case MCTP_BINDING_SMBUS:
+                    entry.routeEntry.phys_address[0] = ep.endpointAddress[1];
+                    entry.routeEntry.routing_info.phys_address_size = 1;
+                    ep.endpointAddress.pop_back();
+                    break;
+                case MCTP_BINDING_PCIE:
+                    entry.routeEntry.phys_address[0] = ep.endpointAddress[1];
+                    entry.routeEntry.phys_address[1] = ep.endpointAddress[2];
+                    entry.routeEntry.routing_info.phys_address_size = 2;
+                    ep.endpointAddress.pop_back();
+                    ep.endpointAddress.pop_back();
+                    break;
+                default:
+                    break;
+            }
+
             entry.isUpstream = true;
             routingTable.updateEntry(ep.eid, entry);
             sendNewRoutingTableEntryToAllBridges(entry);
@@ -378,17 +401,6 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
         registerProperty(
             mctpInterface, "BindingMode",
             mctp_server::convertBindingModeTypesToString(bindingModeType));
-
-        if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
-        {
-            // Pass eid, service name & Type
-            mctpd::RoutingTable::Entry entry(ownEid, getDbusName(),
-                                             mctpd::EndPointType::BridgeOnly);
-            entry.routeEntry.routing_info.phys_media_type_id =
-                static_cast<uint8_t>(
-                    mctpd::convertToPhysicalMediumIdentifier(bindingMediumID));
-            routingTable.updateEntry(ownEid, entry);
-        }
 
         /*
          * msgTag and tagOwner are not currently used, but can't be removed
@@ -2222,7 +2234,6 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     populateDeviceProperties(eid, bindingPrivate);
     populateEndpointProperties(epProperties);
 
-
     // Update the uuidTable with eid and the uuid of the endpoint registered.
     if (destUUID != nullUUID && eid != MCTP_EID_NULL)
     {
@@ -2231,7 +2242,7 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
 
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("Device Registered: EID = " + std::to_string(eid)).c_str());
-    
+
     // Pass eid, service name & Type.
     auto endpointType = mctpd::convertToEndpointType(epProperties.mode);
     mctpd::RoutingTable::Entry entry(eid, getDbusName(), endpointType);

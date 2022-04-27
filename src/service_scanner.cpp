@@ -118,6 +118,52 @@ const MCTPServiceScanner::MCTPService&
     return it->second;
 }
 
+void MCTPServiceScanner::getMctpEndpointDetails(
+    boost::asio::yield_context yield,
+    const sdbusplus::message::object_path& object_path,
+    const std::string& serviceName, MCTPServiceScanner::EndPoint& ep)
+{
+    ep.endpointBindingtypeId =
+        static_cast<uint8_t>(mctpd::convertToPhysicalBindingIdentifier(
+            mctp_server::convertBindingTypesFromString(ep.service.bindingID)));
+    ep.endponitMediumtypeId =
+        static_cast<uint8_t>(mctpd::convertToPhysicalMediumIdentifier(
+            mctp_server::convertMctpPhysicalMediumIdentifiersFromString(
+                ep.service.bindingMediumID)));
+
+    uint8_t bus = 0, device = 0, function = 0;
+    static std::string baseIntf;
+    switch (ep.endpointBindingtypeId)
+    {
+        case MCTP_BINDING_SMBUS:
+            baseIntf = "xyz.openbmc_project.Inventory.Decorator.I2CDevice";
+            bus = readPropertyValue<uint8_t>(yield, *connection, serviceName,
+                                             object_path, baseIntf, "Address");
+
+            ep.endpointAddress.push_back(
+                readPropertyValue<uint8_t>(yield, *connection, serviceName,
+                                           object_path, baseIntf, "Address"));
+            break;
+        case MCTP_BINDING_PCIE:
+            baseIntf = "xyz.openbmc_project.Inventory.Decorator.PCIDevice";
+            bus = readPropertyValue<uint8_t>(yield, *connection, serviceName,
+                                             object_path, baseIntf, "Bus");
+            device =
+                readPropertyValue<uint8_t>(yield, *connection, serviceName,
+                                           object_path, baseIntf, "Device");
+            function =
+                readPropertyValue<uint8_t>(yield, *connection, serviceName,
+                                           object_path, baseIntf, "Function");
+            device = device << 3;
+            function = function & 7;
+            ep.endpointAddress.push_back(device | function);
+            ep.endpointAddress.push_back(bus);
+            break;
+        default:
+            break;
+    }
+}
+
 void MCTPServiceScanner::scanForEIDs(const std::string& serviceName,
                                      boost::asio::yield_context yield)
 {
@@ -174,6 +220,7 @@ void MCTPServiceScanner::scanForEIDs(const std::string& serviceName,
                 yield, *connection, serviceName, objectPath,
                 "xyz.openbmc_project.MCTP.Endpoint", "Mode");
             ep.service = getMctpServiceDetails(yield, serviceName);
+            getMctpEndpointDetails(yield, objectPath, serviceName, ep);
             this->onNewEid(ep, false);
         }
     }
@@ -347,7 +394,8 @@ void MCTPServiceScanner::onHotPluggedEid(sdbusplus::message::message& message)
             std::get<std::string>(endpointIntf->second.at("Mode"));
         boost::asio::spawn(
             connection->get_io_context(),
-            [this, ep, message](boost::asio::yield_context yield) mutable {
+            [this, ep, object_path,
+             message](boost::asio::yield_context yield) mutable {
                 try
                 {
                     std::string serviceName = message.get_sender();
@@ -364,6 +412,8 @@ void MCTPServiceScanner::onHotPluggedEid(sdbusplus::message::message& message)
                     }
                     ep.service = this->getMctpServiceDetails(
                         yield, message.get_sender());
+                    this->getMctpEndpointDetails(yield, object_path,
+                                                 message.get_sender(), ep);
                     this->onNewEid(ep, true);
                 }
                 catch (const std::exception& e)

@@ -69,6 +69,20 @@ enum class PhysicalMediumIdentifier : uint8_t
 PhysicalMediumIdentifier convertToPhysicalMediumIdentifier(
     mctp_server::MctpPhysicalMediumIdentifiers medium);
 
+enum class PhysicalBindingIdentifier :uint8_t
+{
+ reserved = 0,
+ mctpOverSmbus = 1,
+ mctpOverPcieVdm=2,
+ mctpOverUsb = 3,
+ mctpOverKcs = 4,
+ mctpOverSerial = 5,
+ vendorDefined=0xFF,
+};
+
+PhysicalBindingIdentifier convertToPhysicalBindingIdentifier(
+    mctp_server::BindingTypes binding);
+
 class RoutingTable
 {
   public:

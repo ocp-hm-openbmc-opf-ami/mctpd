@@ -609,6 +609,25 @@ bool PCIeBinding::handleGetVdmSupport(mctp_eid_t destEid, void* bindingPrivate,
 
 void PCIeBinding::initializeBinding()
 {
+    if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
+    {
+        // Pass eid, service name & Type
+        mctpd::RoutingTable::Entry entry(ownEid, getDbusName(),
+                                         mctpd::EndPointType::BridgeOnly);
+        uint8_t entryType =
+            static_cast<uint8_t>(mctpd::EndPointType::BridgeOnly);
+        entryType = entryType | static_cast<uint8_t>(2 << 6);
+        entry.routeEntry.routing_info.entry_type = entryType;
+        entry.routeEntry.routing_info.phys_media_type_id = static_cast<uint8_t>(
+            mctpd::convertToPhysicalMediumIdentifier(bindingMediumID));
+        struct mctp_astpcie_pkt_private pktPrv;
+        pktPrv.routing = PCIE_ROUTE_TO_RC;
+        pktPrv.remote_id = bdf;
+        uint8_t* pktPrvPtr = reinterpret_cast<uint8_t*>(&pktPrv);
+        std::vector<uint8_t> prvData =
+            std::vector<uint8_t>(pktPrvPtr, pktPrvPtr + sizeof pktPrv);
+        updateRoutingTableEntry(entry, prvData);
+    }
     int status = 0;
     initializeMctp();
     hw->init();
@@ -730,4 +749,22 @@ void PCIeBinding::changeDiscoveredFlag(pcie_binding::DiscoveryFlags flag)
     {
         getRoutingTableTimer.expires_from_now(boost::posix_time::seconds{0});
     }
+}
+
+void PCIeBinding::updateRoutingTableEntry(
+    mctpd::RoutingTable::Entry entry, const std::vector<uint8_t>& privateData)
+{
+    constexpr uint8_t transportIdPcie = 0x02;
+    entry.routeEntry.routing_info.phys_transport_binding_id = transportIdPcie;
+    auto pcieBindingPvt =
+        reinterpret_cast<const mctp_astpcie_pkt_private*>(privateData.data());
+
+    entry.routeEntry.phys_address[0] =
+        static_cast<uint8_t>(pcieBindingPvt->remote_id & 0xff);
+    entry.routeEntry.phys_address[1] =
+        static_cast<uint8_t>(pcieBindingPvt->remote_id >> 8);
+    entry.routeEntry.routing_info.phys_address_size =
+        sizeof(pcieBindingPvt->remote_id);
+    MctpBinding::routingTable.updateEntry(
+        entry.routeEntry.routing_info.starting_eid, entry);
 }
