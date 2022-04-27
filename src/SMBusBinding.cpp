@@ -1,27 +1,32 @@
 #include "SMBusBinding.hpp"
 
 #include "MCTPBinding.hpp"
+#include "utils/utils.hpp"
 
 extern "C" {
 #include <errno.h>
 #include <i2c/smbus.h>
 #include <linux/i2c-dev.h>
+#include <sys/inotify.h>
 #include <sys/ioctl.h>
 }
 
 #include <boost/algorithm/string.hpp>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <phosphor-logging/log.hpp>
 #include <regex>
 #include <string>
+#include <xyz/openbmc_project/Inventory/Decorator/I2CDevice/server.hpp>
 #include <xyz/openbmc_project/MCTP/Binding/SMBus/server.hpp>
 
 #include "libmctp-msgtypes.h"
-#include "libmctp-smbus.h"
 
 using smbus_server =
     sdbusplus::xyz::openbmc_project::MCTP::Binding::server::SMBus;
+using I2CDeviceDecorator =
+    sdbusplus::xyz::openbmc_project::Inventory::Decorator::server::I2CDevice;
 
 namespace fs = std::filesystem;
 std::map<MuxIdleModes, std::string> muxIdleModesMap{
@@ -218,6 +223,23 @@ std::map<int, int> SMBusBinding::getMuxFds(const std::string& rootPort)
     return muxes;
 }
 
+int SMBusBinding::getBusNumByFd(const int fd)
+{
+    if (muxPortMap.count(fd))
+    {
+        return muxPortMap.at(fd);
+    }
+
+    std::string busNum;
+    if (getBusNumFromPath(bus, busNum))
+    {
+        return std::stoi(busNum);
+    }
+
+    // bus cannot be negative, return -1 on error
+    return -1;
+}
+
 std::optional<std::vector<uint8_t>>
     SMBusBinding::getBindingPrivateData(uint8_t dstEid)
 {
@@ -345,15 +367,16 @@ void SMBusBinding::startTimerAndReleaseBW(const uint16_t interval,
     });
 }
 
-SMBusBinding::SMBusBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
-                           std::shared_ptr<object_server>& objServer,
-                           const std::string& objPath,
-                           const SMBusConfiguration& conf,
-                           boost::asio::io_context& ioc) :
+SMBusBinding::SMBusBinding(
+    std::shared_ptr<sdbusplus::asio::connection> conn,
+    std::shared_ptr<object_server>& objServer, const std::string& objPath,
+    const SMBusConfiguration& conf, boost::asio::io_context& ioc,
+    std::shared_ptr<boost::asio::posix::stream_descriptor>&& i2cMuxMonitor) :
     MctpBinding(conn, objServer, objPath, conf, ioc,
                 mctp_server::BindingTypes::MctpOverSmbus),
     smbusReceiverFd(ioc), reserveBWTimer(ioc), scanTimer(ioc),
-    addRootDevices(true)
+    addRootDevices(true), muxMonitor{std::move(i2cMuxMonitor)},
+    refreshMuxTimer(ioc)
 {
     smbusInterface = objServer->add_interface(objPath, smbus_server::interface);
 
@@ -540,6 +563,94 @@ void SMBusBinding::setMuxIdleMode(const MuxIdleModes mode)
     muxIdleModeFlag = true;
 }
 
+inline void SMBusBinding::handleMuxInotifyEvent(const std::string& name)
+{
+    if (boost::starts_with(name, "i2c-"))
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            ("Detected change on bus " + name).c_str());
+
+        // Delay 1s to refresh only once as multiple i2c
+        // buses will change when handling mux
+        refreshMuxTimer.expires_after(std::chrono::seconds(1));
+        refreshMuxTimer.async_wait(
+            [this](const boost::system::error_code& ec2) {
+                // Calling expires_after will invoke this handler with
+                // operation_aborted, just ignore it as we only need to
+                // rescan mux on last inotify event
+                if (ec2 == boost::asio::error::operation_aborted)
+                {
+                    return;
+                }
+
+                std::string rootPort;
+                if (!getBusNumFromPath(bus, rootPort))
+                {
+                    throwRunTimeError("Error in finding root port");
+                }
+
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    "i2c bus change detected, refreshing "
+                    "muxPortMap");
+                muxPortMap = getMuxFds(rootPort);
+                scanTimer.cancel();
+            });
+    }
+}
+
+void SMBusBinding::monitorMuxChange()
+{
+    static std::array<char, 4096> readBuffer;
+
+    muxMonitor->async_read_some(
+        boost::asio::buffer(readBuffer),
+        [&](const boost::system::error_code& ec, std::size_t bytesTransferred) {
+            if (ec)
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    ("monitorMuxChange: Callback Error " + ec.message())
+                        .c_str());
+                return;
+            }
+            size_t index = 0;
+            while ((index + sizeof(inotify_event)) <= bytesTransferred)
+            {
+                // Using reinterpret_cast gives a cast-align error here
+                inotify_event event;
+                const char* eventPtr = &readBuffer[index];
+                memcpy(&event, eventPtr, sizeof(inotify_event));
+                switch (event.mask)
+                {
+                    case IN_CREATE:
+                    case IN_MOVED_TO:
+                    case IN_DELETE:
+                        std::string name(eventPtr + sizeof(inotify_event),
+                                         event.len);
+                        handleMuxInotifyEvent(name);
+                }
+                index += sizeof(inotify_event) + event.len;
+            }
+            monitorMuxChange();
+        });
+}
+
+void SMBusBinding::setupMuxMonitor()
+{
+    int fd = inotify_init1(IN_NONBLOCK);
+    if (fd < 0)
+    {
+        throwRunTimeError("inotify_init failed");
+    }
+    int watch =
+        inotify_add_watch(fd, "/dev", IN_CREATE | IN_MOVED_TO | IN_DELETE);
+    if (watch < 0)
+    {
+        throwRunTimeError("inotify_add_watch failed");
+    }
+    muxMonitor->assign(fd);
+    monitorMuxChange();
+}
+
 void SMBusBinding::initializeBinding()
 {
     try
@@ -561,6 +672,9 @@ void SMBusBinding::initializeBinding()
         phosphor::logging::log<phosphor::logging::level::ERR>(error.c_str());
         return;
     }
+
+    setupPowerMatch(connection, this);
+    setupMuxMonitor();
 
     scanDevices();
 }
@@ -695,12 +809,74 @@ void SMBusBinding::scanMuxBus(std::set<std::pair<int, uint8_t>>& deviceMap)
     }
 }
 
+std::optional<std::string>
+    SMBusBinding::getLocationCode(const std::vector<uint8_t>& bindingPrivate)
+{
+    const std::filesystem::path muxSymlinkDirPath("/dev/i2c-mux");
+    auto smbusBindingPvt =
+        reinterpret_cast<const mctp_smbus_pkt_private*>(bindingPrivate.data());
+    const size_t busNum = getBusNumByFd(smbusBindingPvt->fd);
+
+    if (!std::filesystem::exists(muxSymlinkDirPath) ||
+        !std::filesystem::is_directory(muxSymlinkDirPath))
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "/dev/i2c-mux does not exist");
+        return std::nullopt;
+    }
+    for (auto file :
+         std::filesystem::recursive_directory_iterator(muxSymlinkDirPath))
+    {
+        if (!file.is_symlink())
+        {
+            continue;
+        }
+        std::string linkPath =
+            std::filesystem::read_symlink(file.path()).string();
+        if (boost::algorithm::ends_with(linkPath,
+                                        "i2c-" + std::to_string(busNum)))
+        {
+            std::string slotName = file.path().filename().string();
+            // Only take the part before "_Mux" in mux name
+            std::string muxFullname =
+                file.path().parent_path().filename().string();
+            std::string muxName =
+                muxFullname.substr(0, muxFullname.find("_Mux"));
+            std::string location = muxName + ' ' + slotName;
+            std::replace(location.begin(), location.end(), '_', ' ');
+            return location;
+        }
+    }
+    return std::nullopt;
+}
+
+void SMBusBinding::populateDeviceProperties(
+    const mctp_eid_t eid, const std::vector<uint8_t>& bindingPrivate)
+{
+    auto smbusBindingPvt =
+        reinterpret_cast<const mctp_smbus_pkt_private*>(bindingPrivate.data());
+
+    std::string mctpEpObj =
+        "/xyz/openbmc_project/mctp/device/" + std::to_string(eid);
+
+    std::shared_ptr<dbus_interface> smbusIntf;
+    smbusIntf =
+        objectServer->add_interface(mctpEpObj, I2CDeviceDecorator::interface);
+    smbusIntf->register_property<size_t>("Bus",
+                                         getBusNumByFd(smbusBindingPvt->fd));
+    smbusIntf->register_property<size_t>("Address",
+                                         smbusBindingPvt->slave_addr);
+    smbusIntf->initialize();
+    deviceInterface.emplace(eid, std::move(smbusIntf));
+}
+
 void SMBusBinding::initEndpointDiscovery(boost::asio::yield_context& yield)
 {
     std::set<std::pair<int, uint8_t>> registerDeviceMap;
 
     if (addRootDevices)
     {
+        addRootDevices = false;
         for (const auto& device : rootDeviceMap)
         {
             registerDeviceMap.insert(device);
@@ -710,13 +886,6 @@ void SMBusBinding::initEndpointDiscovery(boost::asio::yield_context& yield)
     // Scan mux bus to get the list of fd and the corresponding slave address of
     // all the mux ports
     scanMuxBus(registerDeviceMap);
-
-    if (registerDeviceMap.empty())
-    {
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
-            "No device found");
-        return;
-    }
 
     /* Since i2c muxes restrict that only one command needs to be
      * in flight, we cannot register multiple endpoints in parallel.
@@ -759,54 +928,53 @@ void SMBusBinding::initEndpointDiscovery(boost::asio::yield_context& yield)
         std::optional<mctp_eid_t> eid =
             registerEndpoint(yield, bindingPvtVect, registeredEid);
 
-        if (eid.has_value())
+        if (eid.has_value() && eid.value() != MCTP_EID_NULL)
         {
-            bool isEidPresent = false;
-            for (auto const& [eidEntry, bindingPvt] : smbusDeviceTable)
-            {
-                if (eidEntry == eid.value())
-                {
-                    isEidPresent = true;
-                }
-            }
-            if (eid.value() != registeredEid)
-            {
-                // Remove the entry from DeviceTable
-                if (smbusDeviceTable.size())
-                {
-                    removeDeviceTableEntry(registeredEid);
-                }
-            }
+            DeviceTableEntry_t entry =
+                std::make_pair(eid.value(), smbusBindingPvt);
+            bool newEntry = !isDeviceEntryPresent(entry, smbusDeviceTable);
+            bool noDeviceUpdate = !newEntry && eid.value() == registeredEid;
+            bool deviceUpdated = !newEntry && eid.value() != registeredEid;
 
-            if (!isEidPresent && eid.value() != MCTP_EID_NULL)
-            {
-                smbusDeviceTable.push_back(
-                    std::make_pair(eid.value(), smbusBindingPvt));
-                std::string busName(bus);
-
-                if (muxPortMap.count(smbusBindingPvt.fd) != 0)
-                {
-                    auto itr = muxPortMap.find(smbusBindingPvt.fd);
-                    busName.assign(std::to_string(itr->second));
-                }
-
+            auto logDeviceDetails = [&]() {
                 phosphor::logging::log<phosphor::logging::level::INFO>(
-                    ("SMBus device at bus:" + busName + ",8 bit address: " +
+                    ("SMBus device at bus:" +
+                     std::to_string(getBusNumByFd(smbusBindingPvt.fd)) +
+                     ", 8 bit address: " +
                      std::to_string(smbusBindingPvt.slave_addr) +
-                     " registered at EID " + std::to_string(*eid))
+                     " registered at EID " + std::to_string(eid.value()))
                         .c_str());
-            }
-        }
-        else
-        {
-            // Remove the entry from DeviceTable
-            if (smbusDeviceTable.size())
+            };
+
+            if (noDeviceUpdate)
             {
+                continue;
+            }
+            else if (newEntry)
+            {
+                smbusDeviceTable.push_back(entry);
+                logDeviceDetails();
+            }
+            else if (deviceUpdated)
+            {
+                unregisterEndpoint(registeredEid);
                 removeDeviceTableEntry(registeredEid);
+                smbusDeviceTable.push_back(entry);
+                logDeviceDetails();
             }
         }
     }
-    addRootDevices = false;
+
+    if (registerDeviceMap.empty())
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "No device found");
+        for (auto& deviceTableEntry : smbusDeviceTable)
+        {
+            unregisterEndpoint(std::get<0>(deviceTableEntry));
+        }
+        smbusDeviceTable.clear();
+    }
 }
 
 // TODO: This method is a placeholder and has not been tested
