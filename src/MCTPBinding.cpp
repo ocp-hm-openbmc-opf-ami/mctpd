@@ -13,6 +13,8 @@
 #include "libmctp-msgtypes.h"
 #include "libmctp.h"
 
+#define MAX_NUM_ROUTING_ENTRIES 256
+
 using LocationCodeDecorator =
     sdbusplus::xyz::openbmc_project::Inventory::Decorator::server::LocationCode;
 
@@ -1080,8 +1082,8 @@ bool MctpBinding::handleGetRoutingTable(const std::vector<uint8_t>& request,
     {
         entriesLibFormat.emplace_back(data.routeEntry);
     }
-    uint16_t startIndex = 256 * getRoutingTableRequest->entry_handle;
-    uint16_t endIndex = startIndex - 1 + 256;
+    uint16_t startIndex = MAX_NUM_ROUTING_ENTRIES * getRoutingTableRequest->entry_handle;
+    uint16_t endIndex = startIndex - 1 + MAX_NUM_ROUTING_ENTRIES;
 
     if (static_cast<uint16_t>(entriesLibFormat.size()) < startIndex + 1)
     {
