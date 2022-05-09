@@ -964,19 +964,6 @@ bool SMBusBinding::handleResolveEndpointId(mctp_eid_t destEid,
             "EId's Are same! Not a Bridge, Target Device On Same Bus");
     }
 
-    /* physical address for the returned EID has to added to the
-     * response
-     */
-    for (const DeviceTableEntry_t& item : smbusDeviceTable)
-    {
-        if (item.first == resp->bridge_eid)
-        {
-            std::memcpy(resp->phy_addr,
-                        reinterpret_cast<const void*>(item.second.slave_addr),
-                        MAX_PHYSICAL_ADDRESS_SIZE);
-        }
-    }
-
     return true;
 }
 
