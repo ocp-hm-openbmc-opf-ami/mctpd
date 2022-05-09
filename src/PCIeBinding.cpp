@@ -601,22 +601,6 @@ bool PCIeBinding::handleResolveEndpointId(mctp_eid_t destEid,
             "Eid's Are same! Not a Bridge, Target Device On Same Bus");
     }
 
-    /* physical address for the returned EID has to added to the
-     * response
-     * The size of physical address is 16 byte for PCIe.
-     */
-    for (const routingTableEntry_t& item : routingTable)
-    {
-        uint8_t eid = std::get<0>(item);
-        if (eid == resp->bridge_eid)
-        {
-
-            std::memcpy(resp->phy_addr,
-                        reinterpret_cast<const void*>(std::get<1>(item)),
-                        sizeof(uint16_t));
-        }
-    }
-
     return true;
 }
 
