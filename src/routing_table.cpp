@@ -147,6 +147,7 @@ bool RoutingTable::updateEntry(const mctp_eid_t eid, RoutingTable::Entry entry)
 {
     auto status = entries.insert_or_assign(eid, std::move(entry)).second;
 
+
     // Print routing table only in debug mode.
     if (getRoutingTableLogEnabled())
     {
@@ -171,6 +172,28 @@ bool RoutingTable::updateEntry(const mctp_eid_t eid, RoutingTable::Entry entry)
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
                 ss.str().c_str());
         }
+
+    auto& table = getAllEntries();
+    // TODO. Enable printing routing table only in debug mode.
+    for (auto& [i, e] : table)
+    {
+        std::stringstream ss;
+        ss << "Entry "
+           << static_cast<int>(e.routeEntry.routing_info.starting_eid)
+           << " Type " << static_cast<int>(e.routeEntry.routing_info.entry_type)
+           << " Medium "
+           << static_cast<int>(e.routeEntry.routing_info.phys_media_type_id)
+           << " Medium ID "
+           << static_cast<int>(
+                  e.routeEntry.routing_info.phys_transport_binding_id)
+           << " Address ";
+        for (int addr : e.routeEntry.phys_address)
+        {
+            ss << addr << ' ';
+        }
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            ss.str().c_str());
+
     }
     return status;
 }

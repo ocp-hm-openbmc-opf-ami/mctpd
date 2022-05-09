@@ -21,10 +21,11 @@ class SMBusBinding : public MctpBinding
 {
   public:
     SMBusBinding() = delete;
-    SMBusBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
-                 std::shared_ptr<object_server>& objServer,
-                 const std::string& objPath, const SMBusConfiguration& conf,
-                 boost::asio::io_context& ioc);
+    SMBusBinding(
+        std::shared_ptr<sdbusplus::asio::connection> conn,
+        std::shared_ptr<object_server>& objServer, const std::string& objPath,
+        const SMBusConfiguration& conf, boost::asio::io_context& ioc,
+        std::shared_ptr<boost::asio::posix::stream_descriptor>&& i2cMuxMonitor);
     ~SMBusBinding() override;
     void initializeBinding() override;
     std::optional<std::vector<uint8_t>>
@@ -46,6 +47,15 @@ class SMBusBinding : public MctpBinding
                              std::vector<uint8_t>& response) override;
     void addUnknownEIDToDeviceTable(const mctp_eid_t eid,
                                     void* bindingPrivate) override;
+
+    void triggerDeviceDiscovery() override;
+
+    void populateDeviceProperties(
+        const mctp_eid_t eid,
+        const std::vector<uint8_t>& bindingPrivate) override;
+    std::optional<std::string>
+        getLocationCode(const std::vector<uint8_t>& bindingPrivate) override;
+
     void updateRoutingTableEntry(
         mctpd::RoutingTable::Entry entry,
         const std::vector<uint8_t>& privateData) override;
@@ -62,7 +72,6 @@ class SMBusBinding : public MctpBinding
     void startTimerAndReleaseBW(const uint16_t interval,
                                 const mctp_smbus_pkt_private prvt);
     bool releaseBandwidth(const mctp_eid_t eid) override;
-    void triggerDeviceDiscovery() override;
     std::string bus;
     bool arpMasterSupport;
     uint8_t bmcSlaveAddr;
@@ -86,8 +95,14 @@ class SMBusBinding : public MctpBinding
     std::unique_ptr<boost::asio::steady_timer> smbusRoutingTableTimer;
     uint8_t busOwnerSlaveAddr;
     int busOwnerFd;
+    std::shared_ptr<boost::asio::posix::stream_descriptor> muxMonitor;
+    boost::asio::steady_timer refreshMuxTimer;
+    inline void handleMuxInotifyEvent(const std::string& name);
+    void monitorMuxChange();
+    void setupMuxMonitor();
     void scanDevices();
     std::map<int, int> getMuxFds(const std::string& rootPort);
+    int getBusNumByFd(const int fd);
     void scanPort(const int scanFd,
                   std::set<std::pair<int, uint8_t>>& deviceMap);
     void scanMuxBus(std::set<std::pair<int, uint8_t>>& deviceMap);

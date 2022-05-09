@@ -20,8 +20,9 @@ std::shared_ptr<MctpBinding>
     if (auto smbusConfig =
             dynamic_cast<const SMBusConfiguration*>(&configuration))
     {
-        return std::make_shared<SMBusBinding>(conn, objectServer, mctpBaseObj,
-                                              *smbusConfig, ioc);
+        return std::make_shared<SMBusBinding>(
+            conn, objectServer, mctpBaseObj, *smbusConfig, ioc,
+            std::make_unique<boost::asio::posix::stream_descriptor>(ioc));
     }
     else if (auto pcieConfig =
                  dynamic_cast<const PcieConfiguration*>(&configuration))
@@ -102,6 +103,7 @@ int main(int argc, char* argv[])
 
     try
     {
+        bindingPtr->setDbusName(mctpServiceName);
         bindingPtr->initializeBinding();
     }
     catch (const std::exception& e)

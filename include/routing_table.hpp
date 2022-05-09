@@ -109,6 +109,7 @@ class RoutingTable
     {
         return entries.count(eid) == 1;
     }
+
     // Setter for enabling-disabling routing table logs
     inline void setRoutingTableLogEnabled(bool rtLogs)
     {
@@ -123,6 +124,10 @@ class RoutingTable
   private:
     EntryMap entries;
     bool isRoutingLogsEnabled = false;
+
+  private:
+    EntryMap entries;
+
 };
 
 } // namespace mctpd
