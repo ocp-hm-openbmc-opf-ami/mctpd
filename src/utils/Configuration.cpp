@@ -93,7 +93,7 @@ static bool getField(const ConfigurationMap& configuration,
         }
     }
     phosphor::logging::log<phosphor::logging::level::WARNING>(
-        ("Missing configuration field " + fieldName).c_str());
+        ("Missing configuration field " + fieldName + "in config map").c_str());
     return false;
 }
 
@@ -104,7 +104,7 @@ static bool getField(const json& configuration, const std::string& fieldName,
     if (!configuration.contains(fieldName))
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
-            ("Missing configuration field " + fieldName).c_str());
+            ("Missing configuration field " + fieldName + " in " + configuration.dump()).c_str());
         return false;
     }
 
@@ -265,7 +265,7 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
     std::string role;
     uint64_t defaultEID = 0;
     std::vector<uint64_t> eidPool;
-    std::string bus;
+    uint64_t bus;
     uint64_t I3CAddress = 0;
     uint64_t reqToRespTimeMs = 0;
     uint64_t reqRetryCount = 0;
@@ -273,6 +273,8 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
     uint64_t provisionalIdMask = 0;
     uint64_t getRoutingInterval = 0;
     I3CConfiguration config;
+
+    phosphor::logging::log<phosphor::logging::level::WARNING>("Reading I3C config");
 
     if (!getField(map, "PhysicalMediumID", physicalMediumID))
     {
@@ -289,6 +291,7 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
         return std::nullopt;
     }
 
+    phosphor::logging::log<phosphor::logging::level::WARNING>("Reading I3C config: Bus");
     if (!getField(map, "Bus", bus))
     {
         return std::nullopt;
@@ -341,7 +344,7 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
         config.eidPool = std::set<uint8_t>(eidPool.begin(), eidPool.end());
     }
 
-    config.bus = bus;
+    config.bus = std::to_string(bus);
     config.reqToRespTime = static_cast<unsigned int>(reqToRespTimeMs);
     config.reqRetryCount = static_cast<uint8_t>(reqRetryCount);
     config.requiresCpuPidMask = requiresCpuPidMask;
@@ -448,6 +451,7 @@ static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
     ConfigurationMap map;
     try
     {
+        phosphor::logging::log<phosphor::logging::level::ERR>((std::string("Reading config from ") + objectPath).c_str());
         map = getConfigurationMap(conn, objectPath);
     }
     catch (const std::exception& e)

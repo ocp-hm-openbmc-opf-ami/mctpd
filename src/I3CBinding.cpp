@@ -1,4 +1,5 @@
 #include "I3CBinding.hpp"
+#include "hw/aspeed/I3CDriver.hpp"
 
 #include <phosphor-logging/log.hpp>
 
@@ -12,13 +13,16 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                         const std::string& objPath,
                         const I3CConfiguration& conf,
                         boost::asio::io_context& ioc,
-                        std::unique_ptr<hw::I3CDriver>&& hwParam) :
+                        const std::string& device) :
     MctpBinding(conn, objServer, objPath, conf, ioc,
                 mctp_server::BindingTypes::MctpOverI3c),
-    hw{std::move(hwParam)},
     getRoutingInterval(conf.getRoutingInterval),
     getRoutingTableTimer(ioc, getRoutingInterval)
 {
+    int fd = open(device.c_str(), O_RDWR);
+    this->mctpI3cFd = fd;
+    hw = std::make_unique<hw::aspeed::I3CDriver>(ioc, fd);
+
     i3cInterface = objServer->add_interface(objPath, i3c_binding::interface);
 
     try

@@ -20,7 +20,7 @@ class I3CBinding : public MctpBinding
                 std::shared_ptr<object_server>& objServer,
                 const std::string& objPath, const I3CConfiguration& conf,
                 boost::asio::io_context& ioc,
-                std::unique_ptr<hw::I3CDriver>&& hw);
+                        const std::string& device);
     ~I3CBinding() override;
     void initializeBinding() override;
 

@@ -41,7 +41,7 @@ std::shared_ptr<MctpBinding>
     {
         return std::make_shared<I3CBinding>(
             conn, objectServer, mctpBaseObj, *i3cConfig, ioc,
-            std::make_unique<hw::aspeed::I3CDriver>(ioc));
+            "/dev/i3c-mctp-0-558000000001");
     }
 
     return nullptr;

@@ -16,7 +16,7 @@ namespace aspeed
 class I3CDriver : public hw::I3CDriver
 {
   public:
-    I3CDriver(boost::asio::io_context& ioc);
+    I3CDriver(boost::asio::io_context& ioc, int fd);
     ~I3CDriver() override;
 
     void init() override;

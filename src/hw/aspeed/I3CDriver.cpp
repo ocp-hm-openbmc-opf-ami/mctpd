@@ -5,11 +5,13 @@ namespace hw
 namespace aspeed
 {
 
-I3CDriver::I3CDriver(boost::asio::io_context& ioc) : streamMonitor(ioc)
+I3CDriver::I3CDriver(boost::asio::io_context& ioc, int fd) : streamMonitor(ioc)
 {
     /* TODO: Add logic based on I3C configurations to assign
     streamMonitor's fd */
-    streamMonitorFd = -1;
+
+    streamMonitorFd = fd;
+    streamMonitor = boost::asio::posix::stream_descriptor(ioc, streamMonitorFd);
 }
 
 void I3CDriver::init()
@@ -37,8 +39,9 @@ void I3CDriver::pollRx()
             if (ec)
             {
                 phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "Error reading PCIe response");
-                pollRx();
+                    ("Error reading PCIe response" + ec.message()).c_str());
+                return;
+                // pollRx();
             }
             mctp_asti3c_rx(i3c, streamMonitorFd);
             pollRx();
