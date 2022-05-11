@@ -66,12 +66,16 @@ set(SRC_FILES
     ${PROJECT_SOURCE_DIR}/src/utils/device_watcher.cpp
     ${PROJECT_SOURCE_DIR}/src/utils/transmission_queue.cpp
     ${PROJECT_SOURCE_DIR}/src/utils/eid_pool.cpp
+    ${PROJECT_SOURCE_DIR}/src/utils/smbus_utils.cpp
     ${PROJECT_SOURCE_DIR}/src/routing_table.cpp
     ${PROJECT_SOURCE_DIR}/src/service_scanner.cpp
     ${PROJECT_SOURCE_DIR}/src/mctp_dbus_interfaces.cpp
     ${PROJECT_SOURCE_DIR}/src/mctp_device.cpp
     ${PROJECT_SOURCE_DIR}/src/mctp_endpoint.cpp
     ${PROJECT_SOURCE_DIR}/src/mctp_bridge.cpp
+    ${PROJECT_SOURCE_DIR}/src/smbus_device.cpp
+    ${PROJECT_SOURCE_DIR}/src/smbus_endpoint.cpp
+    ${PROJECT_SOURCE_DIR}/src/smbus_bridge.cpp
     )
 
 set(HEADER_FILES
@@ -83,6 +87,9 @@ set(HEADER_FILES
     ${PROJECT_SOURCE_DIR}/include/mctp_cmd_encoder.hpp
     ${PROJECT_SOURCE_DIR}/include/mctp_endpoint.hpp
     ${PROJECT_SOURCE_DIR}/include/mctp_bridge.hpp
+    ${PROJECT_SOURCE_DIR}/include/smbus_device.hpp
+    ${PROJECT_SOURCE_DIR}/include/smbus_endpoint.hpp
+    ${PROJECT_SOURCE_DIR}/include/smbus_bridge.hpp
     )
 
 include_directories(${PROJECT_SOURCE_DIR}/include)

@@ -98,3 +98,9 @@ inline std::string formatUUID(const guid_t& uuid)
     // UUID is in RFC4122 format. Ex: 61a39523-78f2-11e5-9862-e6402cfc3223
     return std::string(buf);
 }
+
+inline void throwRunTimeError(const std::string& err)
+{
+    phosphor::logging::log<phosphor::logging::level::ERR>(err.c_str());
+    throw std::runtime_error(err);
+}
