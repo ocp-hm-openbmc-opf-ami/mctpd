@@ -52,6 +52,12 @@ class MCTPEndpoint : public MCTPDevice
                                      std::vector<uint8_t>& response);
     virtual bool handleGetRoutingTable(const std::vector<uint8_t>& request,
                                        std::vector<uint8_t>& response);
+
+    virtual bool handleResolveEndpointId(mctp_eid_t destEid,
+                                         void* bindingPrivate,
+                                         std::vector<uint8_t>& request,
+                                         std::vector<uint8_t>& response);
+
     virtual bool handlePrepareForEndpointDiscovery(
         mctp_eid_t destEid, void* bindingPrivate, std::vector<uint8_t>& request,
         std::vector<uint8_t>& response);

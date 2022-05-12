@@ -106,6 +106,11 @@ void MCTPEndpoint::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
             sendResponse = handleGetRoutingTable(request, response);
             break;
         }
+        case MCTP_CTRL_CMD_RESOLVE_ENDPOINT_ID: {
+            sendResponse = handleResolveEndpointId(destEid, bindingPrivate,
+                                                   request, response);
+            break;
+        }
         default: {
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "Message not supported");
@@ -291,6 +296,38 @@ bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,
     response.resize(formattedRespSize);
     status = true;
     return status;
+}
+
+bool MCTPEndpoint::handleResolveEndpointId(
+    mctp_eid_t eid, void*, [[maybe_unused]] std::vector<uint8_t>& request,
+    std::vector<uint8_t>& response)
+{
+
+    uint16_t phys_addr = 0x0;
+    response.resize(sizeof(mctp_ctrl_resolve_eid_resp));
+    auto resp = reinterpret_cast<mctp_ctrl_resolve_eid_resp*>(response.data());
+
+    /*Getting entry related to the Eid from the table
+     this way we can get the structure reference to the particular eid.
+    */
+    auto& entry = routingTable.getEntry(eid);
+
+    /*
+     The addr size for SMBUS is 8, and for PCIE is 16, So taking higher
+     size as buffer assuming correct value as per binding.
+     */
+    uint8_t addrSize = entry.routeEntry.routing_info.phys_address_size;
+    std::memcpy(reinterpret_cast<void*>(&phys_addr),
+                entry.routeEntry.phys_address, addrSize);
+
+    if (mctp_ctrl_cmd_encode_resolve_eid_resp(
+            mctp, eid, resp, reinterpret_cast<uint8_t*>(&phys_addr), addrSize) <
+        0)
+    {
+        return false;
+    }
+
+    return true;
 }
 
 bool MCTPEndpoint::discoveryNotifyCtrlCmd(
