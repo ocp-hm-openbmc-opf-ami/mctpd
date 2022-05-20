@@ -567,7 +567,16 @@ std::optional<mctp_eid_t> MCTPBridge::busOwnerRegisterEndpoint(
             "Get UUID failed");
         if (isEIDRegistered(getEidRespPtr->eid))
         {
-            return getEidRespPtr->eid;
+            if (!uuidTable.count(getEidRespPtr->eid))
+            {
+                return getEidRespPtr->eid;
+            }
+            else
+            {
+                phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                    "EID has been taken, reassign an EID");
+                eid = MCTP_EID_NULL;
+            }
         }
 
         if (eid != MCTP_EID_NULL)
