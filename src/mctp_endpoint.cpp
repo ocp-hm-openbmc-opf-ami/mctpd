@@ -17,6 +17,7 @@
 #include "mctp_endpoint.hpp"
 
 #include "mctp_cmd_encoder.hpp"
+#include "utils/utils.hpp"
 
 #include <phosphor-logging/log.hpp>
 
@@ -107,8 +108,19 @@ void MCTPEndpoint::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
             break;
         }
         default: {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Message not supported");
+            std::stringstream commandCodeHex;
+            commandCodeHex << std::hex
+                           << static_cast<int>(reqHeader->command_code);
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                ("Device EID = " + std::to_string(destEid) +
+                 " requested control command code = 0x" + commandCodeHex.str() +
+                 " is not supported")
+                    .c_str());
+
+            auto resp =
+                castVectorToStruct<mctp_ctrl_resp_completion_code>(response);
+            sendResponse = encode_cc_only_response(
+                MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD, resp);
         }
     }
 
@@ -124,30 +136,35 @@ void MCTPEndpoint::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
     return;
 }
 
-bool MCTPEndpoint::handlePrepareForEndpointDiscovery(mctp_eid_t, void*,
-                                                     std::vector<uint8_t>&,
-                                                     std::vector<uint8_t>&)
+bool MCTPEndpoint::handlePrepareForEndpointDiscovery(
+    [[maybe_unused]] mctp_eid_t destEid, [[maybe_unused]] void* bindingPrivate,
+    [[maybe_unused]] std::vector<uint8_t>& request,
+    std::vector<uint8_t>& response)
 {
     phosphor::logging::log<phosphor::logging::level::ERR>(
-        "Message not supported");
-    return false;
+        "Prepare For Endpoint Discovery command not supported");
+    auto resp = castVectorToStruct<mctp_ctrl_resp_completion_code>(response);
+    return encode_cc_only_response(MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD, resp);
 }
 
-bool MCTPEndpoint::handleEndpointDiscovery(mctp_eid_t, void*,
-                                           std::vector<uint8_t>&,
-                                           std::vector<uint8_t>&)
+bool MCTPEndpoint::handleEndpointDiscovery(
+    [[maybe_unused]] mctp_eid_t destEid, [[maybe_unused]] void* bindingPrivate,
+    [[maybe_unused]] std::vector<uint8_t>& request,
+    std::vector<uint8_t>& response)
 {
     phosphor::logging::log<phosphor::logging::level::ERR>(
-        "Message not supported");
-    return false;
+        "Endpoint Discovery command not supported");
+    auto resp = castVectorToStruct<mctp_ctrl_resp_completion_code>(response);
+    return encode_cc_only_response(MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD, resp);
 }
 
-bool MCTPEndpoint::handleGetEndpointId(mctp_eid_t destEid, void*,
-                                       std::vector<uint8_t>&,
-                                       std::vector<uint8_t>& response)
+bool MCTPEndpoint::handleGetEndpointId(
+    mctp_eid_t destEid, [[maybe_unused]] void* bindingPrivate,
+    [[maybe_unused]] std::vector<uint8_t>& request,
+    std::vector<uint8_t>& response)
 {
-    response.resize(sizeof(mctp_ctrl_resp_get_eid));
-    auto resp = reinterpret_cast<mctp_ctrl_resp_get_eid*>(response.data());
+
+    auto resp = castVectorToStruct<mctp_ctrl_resp_get_eid>(response);
 
     bool busownerMode =
         bindingModeType == mctp_server::BindingModeTypes::BusOwner ? true
@@ -156,7 +173,8 @@ bool MCTPEndpoint::handleGetEndpointId(mctp_eid_t destEid, void*,
     return true;
 }
 
-bool MCTPEndpoint::handleSetEndpointId(mctp_eid_t destEid, void*,
+bool MCTPEndpoint::handleSetEndpointId(mctp_eid_t destEid,
+                                       [[maybe_unused]] void* bindingPrivate,
                                        std::vector<uint8_t>& request,
                                        std::vector<uint8_t>& response)
 {
@@ -164,8 +182,7 @@ bool MCTPEndpoint::handleSetEndpointId(mctp_eid_t destEid, void*,
     {
         return false;
     }
-    response.resize(sizeof(mctp_ctrl_resp_set_eid));
-    auto resp = reinterpret_cast<mctp_ctrl_resp_set_eid*>(response.data());
+    auto resp = castVectorToStruct<mctp_ctrl_resp_set_eid>(response);
     auto req = reinterpret_cast<mctp_ctrl_cmd_set_eid*>(request.data());
 
     mctp_ctrl_cmd_set_endpoint_id(mctp, destEid, req, resp);
@@ -177,15 +194,14 @@ bool MCTPEndpoint::handleSetEndpointId(mctp_eid_t destEid, void*,
     return true;
 }
 
-bool MCTPEndpoint::handleGetVersionSupport(mctp_eid_t, void*,
-                                           std::vector<uint8_t>& request,
-                                           std::vector<uint8_t>& response)
+bool MCTPEndpoint::handleGetVersionSupport(
+    [[maybe_unused]] mctp_eid_t destEid, [[maybe_unused]] void* bindingPrivate,
+    std::vector<uint8_t>& request, std::vector<uint8_t>& response)
 {
-    response.resize(sizeof(mctp_ctrl_resp_get_mctp_ver_support));
     auto req =
         reinterpret_cast<mctp_ctrl_cmd_get_mctp_ver_support*>(request.data());
     auto resp =
-        reinterpret_cast<mctp_ctrl_resp_get_mctp_ver_support*>(response.data());
+        castVectorToStruct<mctp_ctrl_resp_get_mctp_ver_support>(response);
 
     std::vector<version_entry> versions = {};
 
@@ -216,14 +232,14 @@ std::vector<uint8_t> MCTPEndpoint::getBindingMsgTypes()
     return bindingMsgTypes;
 }
 
-bool MCTPEndpoint::handleGetMsgTypeSupport(mctp_eid_t, void*,
-                                           std::vector<uint8_t>&,
-                                           std::vector<uint8_t>& response)
+bool MCTPEndpoint::handleGetMsgTypeSupport(
+    [[maybe_unused]] mctp_eid_t destEid, [[maybe_unused]] void* bindingPrivate,
+    [[maybe_unused]] std::vector<uint8_t>& request,
+    std::vector<uint8_t>& response)
 {
-    response.resize(sizeof(mctp_ctrl_resp_get_msg_type_support));
     std::vector<uint8_t> supportedMsgTypes = getBindingMsgTypes();
     auto resp =
-        reinterpret_cast<mctp_ctrl_resp_get_msg_type_support*>(response.data());
+        castVectorToStruct<mctp_ctrl_resp_get_msg_type_support>(response);
     resp->completion_code = MCTP_CTRL_CC_SUCCESS;
     resp->msg_type_count = static_cast<uint8_t>(supportedMsgTypes.size());
     std::copy(supportedMsgTypes.begin(), supportedMsgTypes.end(),
@@ -237,8 +253,9 @@ bool MCTPEndpoint::handleGetVdmSupport(
     [[maybe_unused]] std::vector<uint8_t>& response)
 {
     phosphor::logging::log<phosphor::logging::level::ERR>(
-        "Message not supported");
-    return false;
+        "Get Vendor Defined Message command not supported");
+    auto resp = castVectorToStruct<mctp_ctrl_resp_completion_code>(response);
+    return encode_cc_only_response(MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD, resp);
 }
 
 bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,

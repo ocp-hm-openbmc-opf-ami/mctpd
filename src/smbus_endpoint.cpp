@@ -16,6 +16,8 @@
 
 #include "smbus_endpoint.hpp"
 
+#include "utils/utils.hpp"
+
 #include <libmctp-smbus.h>
 
 #include <phosphor-logging/log.hpp>
@@ -28,6 +30,28 @@ SMBusEndpoint::SMBusEndpoint(std::shared_ptr<sdbusplus::asio::connection> conn,
     SMBusDevice(conn, objServer, objPath, conf, ioc)
 {
     smbusRoutingTableTimer = std::make_unique<boost::asio::steady_timer>(ioc);
+}
+
+bool SMBusEndpoint::handlePrepareForEndpointDiscovery(
+    [[maybe_unused]] mctp_eid_t destEid, [[maybe_unused]] void* bindingPrivate,
+    [[maybe_unused]] std::vector<uint8_t>& request,
+    std::vector<uint8_t>& response)
+{
+    phosphor::logging::log<phosphor::logging::level::ERR>(
+        "Prepare For Endpoint Discovery command not supported");
+    auto resp = castVectorToStruct<mctp_ctrl_resp_completion_code>(response);
+    return encode_cc_only_response(MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD, resp);
+}
+
+bool SMBusEndpoint::handleEndpointDiscovery(
+    [[maybe_unused]] mctp_eid_t destEid, [[maybe_unused]] void* bindingPrivate,
+    [[maybe_unused]] std::vector<uint8_t>& request,
+    std::vector<uint8_t>& response)
+{
+    phosphor::logging::log<phosphor::logging::level::ERR>(
+        "Endpoint Discovery command not supported");
+    auto resp = castVectorToStruct<mctp_ctrl_resp_completion_code>(response);
+    return encode_cc_only_response(MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD, resp);
 }
 
 // TODO: This method is a placeholder and has not been tested
@@ -63,8 +87,7 @@ bool SMBusEndpoint::handleSetEndpointId(mctp_eid_t destEid,
         return false;
     }
 
-    response.resize(sizeof(mctp_ctrl_resp_set_eid));
-    auto resp = reinterpret_cast<mctp_ctrl_resp_set_eid*>(response.data());
+    auto resp = castVectorToStruct<mctp_ctrl_resp_set_eid>(response);
 
     if (resp->completion_code == MCTP_CTRL_CC_SUCCESS)
     {
@@ -118,8 +141,6 @@ bool SMBusEndpoint::handleGetVdmSupport(mctp_eid_t destEid,
                                         std::vector<uint8_t>& request,
                                         std::vector<uint8_t>& response)
 {
-    response.resize(sizeof(mctp_pci_ctrl_resp_get_vdm_support));
-
     if (request.size() < sizeof(struct mctp_ctrl_cmd_get_vdm_support))
     {
         return false;
@@ -130,8 +151,7 @@ bool SMBusEndpoint::handleGetVdmSupport(mctp_eid_t destEid,
 
     /* Generic library API. Specialized later on. */
     struct mctp_ctrl_resp_get_vdm_support* libResp =
-        reinterpret_cast<struct mctp_ctrl_resp_get_vdm_support*>(
-            response.data());
+        castVectorToStruct<mctp_ctrl_resp_get_vdm_support>(response);
 
     if (mctp_ctrl_cmd_get_vdm_support(mctp, destEid, libResp) < 0)
     {
@@ -140,12 +160,12 @@ bool SMBusEndpoint::handleGetVdmSupport(mctp_eid_t destEid,
 
     /* Cast to full binding specific response. */
     mctp_pci_ctrl_resp_get_vdm_support* resp =
-        reinterpret_cast<mctp_pci_ctrl_resp_get_vdm_support*>(response.data());
+        castVectorToStruct<mctp_pci_ctrl_resp_get_vdm_support>(response);
     uint8_t setIndex = req->vendor_id_set_selector;
 
     if (setIndex + 1U > vdmSetDatabase.size())
     {
-        resp->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
+        resp->completion_code = MCTP_CTRL_CC_ERROR;
         response.resize(sizeof(mctp_ctrl_msg_hdr) +
                         sizeof(resp->completion_code));
         return true;
