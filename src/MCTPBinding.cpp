@@ -676,7 +676,7 @@ std::optional<mctp_eid_t>
     epProperties.endpointEid = eid;
     epProperties.mode = bindingMode;
     // TODO:get Network ID, now set it to 0
-    epProperties.networkId = 0x00;
+    epProperties.network_id = 0x00;
     epProperties.endpointMsgTypes = getMsgTypes(msgTypeSupportResp.msgType);
 
     getVendorDefinedMessageTypes(yield, bindingPrivate, eid, epProperties);
