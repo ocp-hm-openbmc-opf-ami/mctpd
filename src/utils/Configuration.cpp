@@ -259,6 +259,101 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
 }
 
 template <typename T>
+static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
+{
+    std::string physicalMediumID;
+    std::string role;
+    uint64_t defaultEID = 0;
+    std::vector<uint64_t> eidPool;
+    uint64_t bus;
+    uint64_t I3CAddress = 0;
+    uint64_t reqToRespTimeMs = 0;
+    uint64_t reqRetryCount = 0;
+    bool requiresCpuPidMask = false;
+    uint64_t provisionalIdMask = 0;
+    uint64_t getRoutingInterval = 0;
+
+    if (!getField(map, "PhysicalMediumID", physicalMediumID))
+    {
+        return std::nullopt;
+    }
+
+    if (!getField(map, "Role", role))
+    {
+        return std::nullopt;
+    }
+
+    if (!getField(map, "DefaultEID", defaultEID))
+    {
+        return std::nullopt;
+    }
+
+    if (!getField(map, "Bus", bus))
+    {
+        return std::nullopt;
+    }
+
+    if (!getField(map, "ReqToRespTimeMs", reqToRespTimeMs) ||
+        !getField(map, "ReqRetryCount", reqRetryCount))
+    {
+        return std::nullopt;
+    }
+
+    const auto mode = stringToBindingModeMap.at(role);
+    if (mode == mctp_server::BindingModeTypes::BusOwner &&
+        !getField(map, "EIDPool", eidPool))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Role is set to BusOwner but EIDPool is missing");
+        return std::nullopt;
+    }
+
+    if (mode != mctp_server::BindingModeTypes::BusOwner &&
+        !getField(map, "GetRoutingInterval", getRoutingInterval))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Role is not BusOwner but Get Routing update interval is missing");
+        return std::nullopt;
+    }
+
+    if(getField(map, "RequiresCpuPidMask", requiresCpuPidMask))
+    {
+        if(requiresCpuPidMask && !getField(map, "ProvisionalIdMask", provisionalIdMask))
+        {
+            //Requires CPU PID mask was set to true but none was provided
+            return std::nullopt;
+        }
+    }
+
+    if(!getField(map, "I3CAddress", I3CAddress))
+    {
+        //We are in I3C primary role. DSP0233 v1.0.0 Section 5.6 mentions that I3C primary's address
+        // be set to 0
+        I3CAddress = 0;
+    }
+
+    I3CConfiguration config;
+    config.mediumId = stringToMediumID.at(physicalMediumID);
+    config.mode = mode;
+    config.defaultEid = static_cast<uint8_t>(defaultEID);
+    if (mode == mctp_server::BindingModeTypes::BusOwner)
+    {
+        config.eidPool = std::set<uint8_t>(eidPool.begin(), eidPool.end());
+    }
+
+    config.bus = static_cast<uint8_t>(bus);
+    config.reqToRespTime = static_cast<unsigned int>(reqToRespTimeMs);
+    config.reqRetryCount = static_cast<uint8_t>(reqRetryCount);
+    config.requiresCpuPidMask = requiresCpuPidMask;
+    config.provisionalIdMask = static_cast<uint8_t>(provisionalIdMask);
+    config.I3CAddress = static_cast<uint8_t>(I3CAddress);
+    config.getRoutingInterval = static_cast<uint8_t>(getRoutingInterval);
+    config.allowedBuses = getAllowedBuses(map);
+
+    return config;
+}
+
+template <typename T>
 static std::optional<PcieConfiguration> getPcieConfiguration(const T& map)
 {
     std::string physicalMediumID;
@@ -392,6 +487,16 @@ static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
                 std::make_unique<PcieConfiguration>(std::move(*optConfig));
         }
     }
+
+    else if (bindingType == "MctpI3C")
+    {
+        if (auto optConfig = getI3CConfiguration(map))
+        {
+            configuration =
+                std::make_unique<I3CConfiguration>(std::move(*optConfig));
+        }
+    }
+
     if (!configuration)
     {
         return std::nullopt;
@@ -468,5 +573,9 @@ SMBusConfiguration::~SMBusConfiguration()
 }
 
 PcieConfiguration::~PcieConfiguration()
+{
+}
+
+I3CConfiguration::~I3CConfiguration()
 {
 }
