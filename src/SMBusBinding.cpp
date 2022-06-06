@@ -99,7 +99,10 @@ void SMBusBinding::initializeBinding()
     setupPowerMatch(connection, this);
     setupMuxMonitor();
 
-    scanDevices();
+   if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
+    {
+        scanDevices();
+    }
 }
 
 std::optional<std::string>
