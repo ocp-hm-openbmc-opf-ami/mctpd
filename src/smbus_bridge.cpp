@@ -43,7 +43,7 @@ SMBusBridge::SMBusBridge(
     const SMBusConfiguration& conf, boost::asio::io_context& ioc,
     std::shared_ptr<boost::asio::posix::stream_descriptor>&& i2cMuxMonitor) :
     SMBusEndpoint(conn, objServer, objPath, conf, ioc),
-    addRootDevices(true), reserveBWTimer(ioc), refreshMuxTimer(ioc),
+    reserveBWTimer(ioc), refreshMuxTimer(ioc),
     scanTimer(ioc), muxMonitor{std::move(i2cMuxMonitor)}
 
 {
@@ -496,16 +496,12 @@ void SMBusBridge::scanMuxBus(std::set<std::pair<int, uint8_t>>& deviceMap)
 void SMBusBridge::initEndpointDiscovery(boost::asio::yield_context& yield)
 {
     std::set<std::pair<int, uint8_t>> registerDeviceMap;
+    // clearing rootDeviceMap before scanning the root port
+    rootDeviceMap.clear();
 
-    if (addRootDevices)
-    {
-        addRootDevices = false;
-        for (const auto& device : rootDeviceMap)
-        {
-            registerDeviceMap.insert(device);
-        }
-    }
-
+    // Scan root port
+    scanPort(outFd, rootDeviceMap);
+    registerDeviceMap.insert(rootDeviceMap.begin(), rootDeviceMap.end());
     // Scan mux bus to get the list of fd and the corresponding slave address of
     // all the mux ports
     scanMuxBus(registerDeviceMap);

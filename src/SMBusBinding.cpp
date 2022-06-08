@@ -83,8 +83,6 @@ void SMBusBinding::initializeBinding()
         phosphor::logging::log<phosphor::logging::level::INFO>(
             "Scanning root port");
         setMuxIdleMode(MuxIdleModes::muxIdleModeDisconnect);
-        // Scan root port
-        scanPort(outFd, rootDeviceMap);
         muxPortMap = getMuxFds(rootPort);
     }
 

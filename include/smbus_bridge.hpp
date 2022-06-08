@@ -50,7 +50,6 @@ class SMBusBridge : public SMBusEndpoint
 
   private:
     size_t ret = 0;
-    bool addRootDevices;
     boost::asio::steady_timer reserveBWTimer;
     boost::asio::steady_timer refreshMuxTimer;
     boost::asio::steady_timer scanTimer;
