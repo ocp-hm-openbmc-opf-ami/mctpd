@@ -2,6 +2,8 @@
 
 #include <phosphor-logging/log.hpp>
 
+#include "libmctp-cmds.h"
+
 using mctpd::MctpTransmissionQueue;
 
 MctpTransmissionQueue::Message::Message(size_t index_,
@@ -77,11 +79,98 @@ void MctpTransmissionQueue::Endpoint::transmitQueuedMessages(struct mctp* mctp,
     }
 }
 
+static uint8_t getInstanceId(const uint8_t msg)
+{
+    return msg & MCTP_CTRL_HDR_INSTANCE_ID_MASK;
+}
+
+bool MctpTransmissionQueue::Message::checkMatchingControlCmdRequest(
+    std::vector<uint8_t>& resp) const
+{
+    constexpr size_t mctpControlMessageHeaderSize = sizeof(mctp_ctrl_msg_hdr);
+    if (payload.size() < mctpControlMessageHeaderSize ||
+        resp.size() < mctpControlMessageHeaderSize)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Request message size too small");
+        return false;
+    }
+
+    const mctp_ctrl_msg_hdr* reqHeader =
+        reinterpret_cast<const mctp_ctrl_msg_hdr*>(payload.data());
+    const mctp_ctrl_msg_hdr* respHeader =
+        reinterpret_cast<const mctp_ctrl_msg_hdr*>(resp.data());
+    if (getInstanceId(reqHeader->rq_dgram_inst) ==
+        getInstanceId(respHeader->rq_dgram_inst))
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "Matching MCTP Control command request found!!");
+        return true;
+    }
+    return false;
+}
+
+bool MctpTransmissionQueue::Endpoint::checkMatchingControlCmdRequest(
+    uint8_t msgTag, std::vector<uint8_t>& response) const
+{
+    auto messageIter = transmittedMessages.find(msgTag);
+    if (messageIter == transmittedMessages.end())
+    {
+        return false;
+    }
+
+    const auto& message = messageIter->second;
+    if (message->checkMatchingControlCmdRequest(response))
+    {
+        return true;
+    }
+    return false;
+}
+
+std::optional<mctp_eid_t> MctpTransmissionQueue::checkMatchingControlCmdRequest(
+    uint8_t msgTag, std::vector<uint8_t>& response)
+{
+
+    for (auto const& [eid, endpoint] : endpoints)
+    {
+        if (endpoint.checkMatchingControlCmdRequest(msgTag, response))
+        {
+            return eid;
+        }
+    }
+    return std::nullopt;
+}
+
+static bool isMCTPControlResponse(std::vector<uint8_t>& response)
+{
+    if (mctp_is_mctp_ctrl_msg(response.data(), response.size()) &&
+        !mctp_ctrl_msg_is_req(response.data(), response.size()))
+    {
+        return true;
+    }
+    return false;
+}
+
 bool MctpTransmissionQueue::receive(struct mctp* mctp, mctp_eid_t srcEid,
                                     uint8_t msgTag,
                                     std::vector<uint8_t>&& response,
                                     boost::asio::io_context& ioc)
 {
+    // (Message tag) Field that, along with the Source Endpoint IDs and the Tag
+    // Owner (TO) field, identifies a unique message at the MCTP transport
+    // level. It is not mandatory that 'srcEid' reported in MCTP control command
+    // responses should match with the EID we used to send. It can differ in
+    // cases like device lost it's EID due to reset. Thus extract last known EID
+    // from 'transmittedMessages' based on Instance ID, Message Tag. Also, give
+    // preference to MCTP Control message check over other messages.
+    if (isMCTPControlResponse(response))
+    {
+        if (auto eid = checkMatchingControlCmdRequest(msgTag, response))
+        {
+            srcEid = eid.value();
+        }
+    }
+
     auto endpointIter = endpoints.find(srcEid);
     if (endpointIter == endpoints.end())
     {

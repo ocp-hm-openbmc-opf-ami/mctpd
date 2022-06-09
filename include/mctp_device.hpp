@@ -18,6 +18,7 @@
 
 #include "mctp_dbus_interfaces.hpp"
 #include "routing_table.hpp"
+#include "utils/transmission_queue.hpp"
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/steady_timer.hpp>
@@ -69,6 +70,7 @@ class MCTPDevice : public MCTPDBusInterfaces
     // <eid, uuid>
     std::unordered_map<mctp_eid_t, std::string> uuidTable;
     struct mctp* mctp = nullptr;
+    mctpd::MctpTransmissionQueue transmissionQueue;
 
     virtual std::optional<std::string>
         getLocationCode(const std::vector<uint8_t>& bindingPrivate);
@@ -95,24 +97,5 @@ class MCTPDevice : public MCTPDBusInterfaces
     bool isMCTPVersionSupported(const MCTPVersionFields& version);
 
   private:
-    bool ctrlTxTimerExpired = true;
-    boost::asio::steady_timer ctrlTxTimer;
-    // <state, retryCount, maxRespDelay, destEid, BindingPrivate, ReqPacket,
-    //  Callback>
-    std::vector<
-        std::tuple<PacketState, uint8_t, unsigned int, mctp_eid_t,
-                   std::vector<uint8_t>, std::vector<uint8_t>,
-                   std::function<void(PacketState, std::vector<uint8_t>&)>>>
-        ctrlTxQueue;
-
     void initializeLogging();
-    void processCtrlTxQueue();
-    bool sendMctpCtrlMessage(mctp_eid_t destEid, std::vector<uint8_t> req,
-                             bool tagOwner, uint8_t msgTag,
-                             std::vector<uint8_t> bindingPrivate);
-    void pushToCtrlTxQueue(
-        PacketState pktState, const mctp_eid_t destEid,
-        const std::vector<uint8_t>& bindingPrivate,
-        const std::vector<uint8_t>& req,
-        std::function<void(PacketState, std::vector<uint8_t>&)>& callback);
 };

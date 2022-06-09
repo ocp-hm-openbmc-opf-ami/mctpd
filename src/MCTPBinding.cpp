@@ -417,18 +417,6 @@ void MctpBinding::rxMessage(uint8_t srcEid, void* data, void* msg, size_t len,
         binding.addUnknownEIDToDeviceTable(srcEid, bindingPrivate);
     }
 
-    // TODO: Take into account the msgTags too when we verify control messages.
-    if (!tagOwner && mctp_is_mctp_ctrl_msg(msg, len) &&
-        !mctp_ctrl_msg_is_req(msg, len))
-    {
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
-            "MCTP Control packet response received!!");
-        if (binding.handleCtrlResp(msg, len))
-        {
-            return;
-        }
-    }
-
     if (!tagOwner &&
         binding.transmissionQueue.receive(binding.mctp, srcEid, msgTag,
                                           std::move(response), binding.io))

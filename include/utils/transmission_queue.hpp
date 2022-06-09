@@ -42,6 +42,8 @@ class MctpTransmissionQueue
         std::vector<uint8_t> privateData{};
         boost::asio::steady_timer timer;
         std::optional<std::vector<uint8_t>> response{};
+
+        bool checkMatchingControlCmdRequest(std::vector<uint8_t>& resp) const;
     };
 
     std::shared_ptr<Message> transmit(struct mctp* mctp, mctp_eid_t destEid,
@@ -72,8 +74,14 @@ class MctpTransmissionQueue
 
         size_t msgCounter{0u};
         void transmitQueuedMessages(struct mctp* mctp, mctp_eid_t destEid);
+        bool checkMatchingControlCmdRequest(
+            uint8_t msgTag, std::vector<uint8_t>& response) const;
     };
 
     std::map<mctp_eid_t, Endpoint> endpoints{};
+
+    std::optional<mctp_eid_t>
+        checkMatchingControlCmdRequest(uint8_t msgTag,
+                                       std::vector<uint8_t>& response);
 };
 } // namespace mctpd

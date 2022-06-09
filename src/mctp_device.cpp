@@ -27,7 +27,7 @@ struct MCTPVersionFields supportedMCTPVersion = {241, 243, 241, 0};
 MCTPDevice::MCTPDevice(boost::asio::io_context& ioc,
                        std::shared_ptr<object_server>& objServer) :
     MCTPDBusInterfaces(objServer),
-    io(ioc), ctrlTxTimer(ioc)
+    io(ioc)
 {
     initializeLogging();
     mctp = mctp_init();
@@ -85,179 +85,6 @@ void MCTPDevice::updateRoutingTableEntry(mctpd::RoutingTable::Entry,
     // Do nothing
 }
 
-bool MCTPDevice::sendMctpCtrlMessage(mctp_eid_t destEid,
-                                     std::vector<uint8_t> req, bool tagOwner,
-                                     uint8_t msgTag,
-                                     std::vector<uint8_t> bindingPrivate)
-{
-    if (mctp_message_tx(mctp, destEid, req.data(), req.size(), tagOwner, msgTag,
-                        bindingPrivate.data()) < 0)
-    {
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
-            "MCTP control: mctp_message_tx failed");
-        return false;
-    }
-    return true;
-}
-
-static uint8_t getInstanceId(const uint8_t msg)
-{
-    return msg & MCTP_CTRL_HDR_INSTANCE_ID_MASK;
-}
-
-bool MCTPDevice::handleCtrlResp(void* msg, const size_t len)
-{
-    mctp_ctrl_msg_hdr* respHeader = reinterpret_cast<mctp_ctrl_msg_hdr*>(msg);
-
-    auto reqItr =
-        std::find_if(ctrlTxQueue.begin(), ctrlTxQueue.end(), [&](auto& ctrlTx) {
-            auto& [state, retryCount, maxRespDelay, destEid, bindingPrivate,
-                   req, callback] = ctrlTx;
-
-            mctp_ctrl_msg_hdr* reqHeader =
-                reinterpret_cast<mctp_ctrl_msg_hdr*>(req.data());
-
-            if (!reqHeader)
-            {
-                phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                    "MCTP Control Request Header is null");
-                return false;
-            }
-
-            // TODO: Check Message terminus with Instance ID
-            // (EID, TO, Msg Tag) + Instance ID
-            if (getInstanceId(reqHeader->rq_dgram_inst) ==
-                getInstanceId(respHeader->rq_dgram_inst))
-            {
-                phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                    "Matching Control command request found");
-
-                uint8_t* tmp = reinterpret_cast<uint8_t*>(msg);
-                std::vector<uint8_t> resp =
-                    std::vector<uint8_t>(tmp, tmp + len);
-                state = PacketState::receivedResponse;
-
-                // Call Callback function
-                callback(state, resp);
-                return true;
-            }
-            return false;
-        });
-
-    if (reqItr != ctrlTxQueue.end())
-    {
-        // Delete the entry from queue after receiving response
-        ctrlTxQueue.erase(reqItr);
-        return true;
-    }
-
-    phosphor::logging::log<phosphor::logging::level::WARNING>(
-        "No matching Control command request found for the response");
-    return false;
-}
-
-void MCTPDevice::processCtrlTxQueue()
-{
-    ctrlTxTimerExpired = false;
-    ctrlTxTimer.expires_after(std::chrono::milliseconds(ctrlTxPollInterval));
-    ctrlTxTimer.async_wait([this](const boost::system::error_code& ec) {
-        if (ec == boost::asio::error::operation_aborted)
-        {
-            // timer aborted do nothing
-            phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                "ctrlTxTimer operation_aborted");
-            return;
-        }
-        else if (ec)
-        {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "ctrlTxTimer failed");
-            return;
-        }
-
-        // Discard the packet if retry count exceeded
-
-        ctrlTxQueue.erase(
-            std::remove_if(
-                ctrlTxQueue.begin(), ctrlTxQueue.end(),
-                [this](auto& ctrlTx) {
-                    auto& [state, retryCount, maxRespDelay, destEid,
-                           bindingPrivate, req, callback] = ctrlTx;
-
-                    maxRespDelay -= ctrlTxPollInterval;
-
-                    // If no reponse:
-                    // Retry the packet on every ctrlTxRetryDelay
-                    // Total no of tries = 1 + ctrlTxRetryCount
-                    if (maxRespDelay > 0 &&
-                        state != PacketState::receivedResponse)
-                    {
-                        if (retryCount > 0 &&
-                            maxRespDelay <= retryCount * ctrlTxRetryDelay)
-                        {
-                            if (sendMctpCtrlMessage(destEid, req, true, 0,
-                                                    bindingPrivate))
-                            {
-                                phosphor::logging::log<
-                                    phosphor::logging::level::DEBUG>(
-                                    "Packet transmited");
-                                state = PacketState::transmitted;
-                            }
-
-                            // Decrement retry count
-                            retryCount--;
-                        }
-
-                        return false;
-                    }
-
-                    state = PacketState::noResponse;
-                    std::vector<uint8_t> resp1 = {};
-                    phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                        "Retry timed out, No response");
-
-                    // Call Callback function
-                    callback(state, resp1);
-                    return true;
-                }),
-            ctrlTxQueue.end());
-
-        if (ctrlTxQueue.empty())
-        {
-            ctrlTxTimer.cancel();
-            ctrlTxTimerExpired = true;
-            phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                "ctrlTxQueue empty, canceling timer");
-        }
-        else
-        {
-            processCtrlTxQueue();
-        }
-    });
-}
-
-void MCTPDevice::pushToCtrlTxQueue(
-    PacketState state, const mctp_eid_t destEid,
-    const std::vector<uint8_t>& bindingPrivate, const std::vector<uint8_t>& req,
-    std::function<void(PacketState, std::vector<uint8_t>&)>& callback)
-{
-    ctrlTxQueue.push_back(std::make_tuple(
-        state, ctrlTxRetryCount, ((ctrlTxRetryCount + 1) * ctrlTxRetryDelay),
-        destEid, bindingPrivate, req, callback));
-
-    if (sendMctpCtrlMessage(destEid, req, true, 0, bindingPrivate))
-    {
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
-            "Packet transmited");
-        state = PacketState::transmitted;
-    }
-
-    if (ctrlTxTimerExpired)
-    {
-        processCtrlTxQueue();
-    }
-}
-
 PacketState MCTPDevice::sendAndRcvMctpCtrl(
     boost::asio::yield_context& yield, const std::vector<uint8_t>& req,
     const mctp_eid_t destEid, const std::vector<uint8_t>& bindingPrivate,
@@ -267,40 +94,54 @@ PacketState MCTPDevice::sendAndRcvMctpCtrl(
     {
         return PacketState::invalidPacket;
     }
-
     PacketState pktState = PacketState::pushedForTransmission;
-    boost::system::error_code ec;
-    boost::asio::steady_timer timer(io);
 
-    std::function<void(PacketState, std::vector<uint8_t>&)> callback =
-        [&resp, &pktState, &timer](PacketState state,
-                                   std::vector<uint8_t>& response) {
-            phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                "Callback triggered");
-
-            resp = response;
-            pktState = state;
-            timer.cancel();
-
-            phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                ("Packet state: " + std::to_string(static_cast<int>(pktState)))
-                    .c_str());
-        };
-
-    pushToCtrlTxQueue(pktState, destEid, bindingPrivate, req, callback);
-
-    // Wait for the state to change
-    while (pktState == PacketState::pushedForTransmission)
+    // If no reponse:
+    // Retry the packet on every ctrlTxRetryDelay
+    // Total no of tries = 1 + ctrlTxRetryCount
+    for (int count = 0; count <= ctrlTxRetryCount; ++count)
     {
-        timer.expires_after(std::chrono::milliseconds(ctrlTxRetryDelay));
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
-            "sendAndRcvMctpCtrl: Timer created, ctrl cmd waiting");
-        timer.async_wait(yield[ec]);
+        boost::system::error_code ec;
+        std::vector<uint8_t> reqTemp = req;
+        std::vector<uint8_t> bindingPrivateTemp = bindingPrivate;
+
+        std::string log = "ctrlTxRetryCount " +
+                          std::to_string(static_cast<int>(ctrlTxRetryCount)) +
+                          " count " + std::to_string(count);
+        phosphor::logging::log<phosphor::logging::level::INFO>(log.c_str());
+
+        auto message =
+            transmissionQueue.transmit(mctp, destEid, std::move(reqTemp),
+                                       std::move(bindingPrivateTemp), io);
+
+        message->timer.expires_after(
+            std::chrono::milliseconds(ctrlTxRetryDelay));
+        message->timer.async_wait(yield[ec]);
+
         if (ec && ec != boost::asio::error::operation_aborted)
         {
+            transmissionQueue.dispose(destEid, message);
             phosphor::logging::log<phosphor::logging::level::ERR>(
-                "sendAndRcvMctpCtrl: async_wait error");
+                "sendAndRcvMctpCtrl: Timer failed");
+            continue;
         }
+        pktState = PacketState::transmitted;
+        if (!message->response)
+        {
+            transmissionQueue.dispose(destEid, message);
+            pktState = PacketState::noResponse;
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "sendAndRcvMctpCtrl: No response");
+            continue;
+        }
+        if (message->response->empty())
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "sendAndRcvMctpCtrl: Empty response");
+        }
+        resp = std::move(message->response).value();
+        pktState = PacketState::receivedResponse;
+        break;
     }
 
     return pktState;

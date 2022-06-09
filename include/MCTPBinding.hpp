@@ -3,7 +3,6 @@
 #include "mctp_bridge.hpp"
 #include "service_scanner.hpp"
 #include "utils/Configuration.hpp"
-#include "utils/transmission_queue.hpp"
 #include "utils/types.hpp"
 
 #include <libmctp-cmds.h>
@@ -49,7 +48,6 @@ class MctpBinding : public MCTPBridge
     std::shared_ptr<sdbusplus::asio::connection> connection;
     bool rsvBWActive = false;
     mctp_eid_t reservedEID = 0;
-    mctpd::MctpTransmissionQueue transmissionQueue;
     bridging::MCTPServiceScanner mctpServiceScanner;
     // Register MCTP responder for upper layer
     std::vector<InternalVdmSetDatabase> vdmSetDatabase;
