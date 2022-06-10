@@ -82,6 +82,6 @@ class MctpTransmissionQueue
 
     std::optional<mctp_eid_t>
         checkMatchingControlCmdRequest(uint8_t msgTag,
-                                       std::vector<uint8_t>& response);
+                                       std::vector<uint8_t>& response) const;
 };
 } // namespace mctpd

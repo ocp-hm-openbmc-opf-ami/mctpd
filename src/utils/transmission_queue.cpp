@@ -128,7 +128,7 @@ bool MctpTransmissionQueue::Endpoint::checkMatchingControlCmdRequest(
 }
 
 std::optional<mctp_eid_t> MctpTransmissionQueue::checkMatchingControlCmdRequest(
-    uint8_t msgTag, std::vector<uint8_t>& response)
+    uint8_t msgTag, std::vector<uint8_t>& response) const
 {
 
     for (auto const& [eid, endpoint] : endpoints)
