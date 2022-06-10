@@ -261,8 +261,12 @@ void MCTPServiceScanner::scan()
                 (std::string("EID Scan ") + e.what()).c_str());
         }
     };
-
-    boost::asio::spawn(connection->get_io_context(), scanTask);
+    // If the allowed bus list is empty, then scanning for other services is not
+    // required.
+    if (!allowedDestBuses.empty())
+    {
+        boost::asio::spawn(connection->get_io_context(), scanTask);
+    }
 }
 
 bool MCTPServiceScanner::isAllowedBus(const std::string& bus,
@@ -270,14 +274,15 @@ bool MCTPServiceScanner::isAllowedBus(const std::string& bus,
 {
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
         ("Checking if bridging is allowed on bus " + bus).c_str());
-    if (bus.empty() || disallowedDestBuses.count(bus) > 0)
+    // If allowed bus list is empty then all serives bridging to all the
+    // services is disabled by default
+    if (bus.empty() || disallowedDestBuses.count(bus) > 0 ||
+        allowedDestBuses.empty())
     {
         return false;
     }
 
-    // If allowed bus list is empty then all services bridging to all the
-    // services is enabled by default
-    if (allowedDestBuses.size() == 0 || allowedDestBuses.count(bus) > 0)
+    if (allowedDestBuses.count(bus) > 0)
     {
         return true;
     }

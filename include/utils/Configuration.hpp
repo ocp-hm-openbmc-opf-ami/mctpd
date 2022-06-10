@@ -39,6 +39,18 @@ struct PcieConfiguration : Configuration
     ~PcieConfiguration() override;
 };
 
+struct I3CConfiguration : Configuration
+{
+    std::set<uint8_t> eidPool;
+    uint8_t bus;
+    uint8_t I3CAddress = 0;
+    bool requiresCpuPidMask = true;
+    uint8_t provisionalIdMask;
+    uint8_t getRoutingInterval = 0;
+
+    ~I3CConfiguration() override;
+};
+
 std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
     getConfiguration(std::shared_ptr<sdbusplus::asio::connection> conn,
                      const std::string& configurationName,

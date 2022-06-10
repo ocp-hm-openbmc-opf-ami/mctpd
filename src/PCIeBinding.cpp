@@ -1,5 +1,7 @@
 #include "PCIeBinding.hpp"
 
+#include "utils/utils.hpp"
+
 #include <phosphor-logging/log.hpp>
 
 PCIeBinding::~PCIeBinding()
@@ -477,7 +479,8 @@ bool PCIeBinding::isReceivedPrivateDataCorrect(const void* bindingPrivate)
 }
 
 bool PCIeBinding::handlePrepareForEndpointDiscovery(
-    mctp_eid_t, void* bindingPrivate, std::vector<uint8_t>&,
+    [[maybe_unused]] mctp_eid_t destEid, void* bindingPrivate,
+    [[maybe_unused]] std::vector<uint8_t>& request,
     std::vector<uint8_t>& response)
 {
     if (bindingModeType != mctp_server::BindingModeTypes::Endpoint)
@@ -493,9 +496,7 @@ bool PCIeBinding::handlePrepareForEndpointDiscovery(
             "broadcast.");
         return false;
     }
-    response.resize(sizeof(mctp_ctrl_resp_prepare_discovery));
-    auto resp =
-        reinterpret_cast<mctp_ctrl_resp_prepare_discovery*>(response.data());
+    auto resp = castVectorToStruct<mctp_ctrl_resp_prepare_discovery>(response);
 
     changeDiscoveredFlag(pcie_binding::DiscoveryFlags::Undiscovered);
     resp->completion_code = MCTP_CTRL_CC_SUCCESS;
@@ -503,9 +504,10 @@ bool PCIeBinding::handlePrepareForEndpointDiscovery(
     return true;
 }
 
-bool PCIeBinding::handleEndpointDiscovery(mctp_eid_t, void* bindingPrivate,
-                                          std::vector<uint8_t>&,
-                                          std::vector<uint8_t>& response)
+bool PCIeBinding::handleEndpointDiscovery(
+    [[maybe_unused]] mctp_eid_t destEid, void* bindingPrivate,
+    [[maybe_unused]] std::vector<uint8_t>& request,
+    std::vector<uint8_t>& response)
 {
     if (discoveredFlag == pcie_binding::DiscoveryFlags::Discovered)
     {
@@ -520,9 +522,7 @@ bool PCIeBinding::handleEndpointDiscovery(mctp_eid_t, void* bindingPrivate,
         return false;
     }
     busOwnerBdf = pciePrivate->remote_id;
-    response.resize(sizeof(mctp_ctrl_resp_endpoint_discovery));
-    auto resp =
-        reinterpret_cast<mctp_ctrl_resp_endpoint_discovery*>(response.data());
+    auto resp = castVectorToStruct<mctp_ctrl_resp_endpoint_discovery>(response);
 
     resp->completion_code = MCTP_CTRL_CC_SUCCESS;
     pciePrivate->routing = PCIE_ROUTE_TO_RC;
@@ -562,8 +562,7 @@ bool PCIeBinding::handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
     {
         return false;
     }
-    response.resize(sizeof(mctp_ctrl_resp_set_eid));
-    auto resp = reinterpret_cast<mctp_ctrl_resp_set_eid*>(response.data());
+    auto resp = castVectorToStruct<mctp_ctrl_resp_set_eid>(response);
 
     if (resp->completion_code == MCTP_CTRL_CC_SUCCESS)
     {
@@ -612,15 +611,13 @@ bool PCIeBinding::handleGetVdmSupport(mctp_eid_t destEid, void* bindingPrivate,
                                       std::vector<uint8_t>& request,
                                       std::vector<uint8_t>& response)
 {
-    response.resize(sizeof(mctp_pci_ctrl_resp_get_vdm_support));
 
     struct mctp_ctrl_cmd_get_vdm_support* req =
         reinterpret_cast<struct mctp_ctrl_cmd_get_vdm_support*>(request.data());
 
     /* Generic library API. Specialized later on. */
     struct mctp_ctrl_resp_get_vdm_support* libResp =
-        reinterpret_cast<struct mctp_ctrl_resp_get_vdm_support*>(
-            response.data());
+        castVectorToStruct<mctp_ctrl_resp_get_vdm_support>(response);
 
     if (mctp_ctrl_cmd_get_vdm_support(mctp, destEid, libResp) < 0)
     {
@@ -633,12 +630,12 @@ bool PCIeBinding::handleGetVdmSupport(mctp_eid_t destEid, void* bindingPrivate,
 
     /* Cast to full binding specific response. */
     mctp_pci_ctrl_resp_get_vdm_support* resp =
-        reinterpret_cast<mctp_pci_ctrl_resp_get_vdm_support*>(response.data());
+        castVectorToStruct<mctp_pci_ctrl_resp_get_vdm_support>(response);
     uint8_t setIndex = req->vendor_id_set_selector;
 
     if (setIndex + 1U > vdmSetDatabase.size())
     {
-        resp->completion_code = MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD;
+        resp->completion_code = MCTP_CTRL_CC_ERROR;
         response.resize(sizeof(mctp_ctrl_msg_hdr) +
                         sizeof(resp->completion_code));
         return true;

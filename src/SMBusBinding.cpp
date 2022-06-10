@@ -83,8 +83,6 @@ void SMBusBinding::initializeBinding()
         phosphor::logging::log<phosphor::logging::level::INFO>(
             "Scanning root port");
         setMuxIdleMode(MuxIdleModes::muxIdleModeDisconnect);
-        // Scan root port
-        scanPort(outFd, rootDeviceMap);
         muxPortMap = getMuxFds(rootPort);
     }
 
@@ -99,7 +97,10 @@ void SMBusBinding::initializeBinding()
     setupPowerMatch(connection, this);
     setupMuxMonitor();
 
-    scanDevices();
+   if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
+    {
+        scanDevices();
+    }
 }
 
 std::optional<std::string>

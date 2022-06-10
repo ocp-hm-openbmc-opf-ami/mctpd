@@ -104,3 +104,10 @@ inline void throwRunTimeError(const std::string& err)
     phosphor::logging::log<phosphor::logging::level::ERR>(err.c_str());
     throw std::runtime_error(err);
 }
+
+template <typename T>
+T* castVectorToStruct(std::vector<uint8_t>& response)
+{
+    response.resize(sizeof(T));
+    return reinterpret_cast<T*>(response.data());
+}

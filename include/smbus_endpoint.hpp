@@ -55,6 +55,12 @@ class SMBusEndpoint : public SMBusDevice
     bool handleGetVdmSupport(mctp_eid_t endpointEid, void* bindingPrivate,
                              std::vector<uint8_t>& request,
                              std::vector<uint8_t>& response) override;
+    bool handleEndpointDiscovery(mctp_eid_t destEid, void* bindingPrivate,
+                                 std::vector<uint8_t>& request,
+                                 std::vector<uint8_t>& response) override;
+    bool handlePrepareForEndpointDiscovery(
+        mctp_eid_t destEid, void* bindingPrivate, std::vector<uint8_t>& request,
+        std::vector<uint8_t>& response) override;
 
   private:
     std::unique_ptr<boost::asio::steady_timer> smbusRoutingTableTimer;
