@@ -160,6 +160,7 @@ bool MCTPEndpoint::handlePrepareForEndpointDiscovery(mctp_eid_t, void*,
 {
     phosphor::logging::log<phosphor::logging::level::ERR>(
         "Message not supported");
+	return false;
 }
 
 bool MCTPEndpoint::handleEndpointDiscovery(
