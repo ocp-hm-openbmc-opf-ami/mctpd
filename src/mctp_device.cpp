@@ -105,11 +105,6 @@ PacketState MCTPDevice::sendAndRcvMctpCtrl(
         std::vector<uint8_t> reqTemp = req;
         std::vector<uint8_t> bindingPrivateTemp = bindingPrivate;
 
-        std::string log = "ctrlTxRetryCount " +
-                          std::to_string(static_cast<int>(ctrlTxRetryCount)) +
-                          " count " + std::to_string(count);
-        phosphor::logging::log<phosphor::logging::level::INFO>(log.c_str());
-
         auto message =
             transmissionQueue.transmit(mctp, destEid, std::move(reqTemp),
                                        std::move(bindingPrivateTemp), io);
@@ -130,8 +125,9 @@ PacketState MCTPDevice::sendAndRcvMctpCtrl(
         {
             transmissionQueue.dispose(destEid, message);
             pktState = PacketState::noResponse;
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "sendAndRcvMctpCtrl: No response");
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "sendAndRcvMctpCtrl: No response. Device busy or doesn't "
+                "support MCTP?");
             continue;
         }
         if (message->response->empty())
