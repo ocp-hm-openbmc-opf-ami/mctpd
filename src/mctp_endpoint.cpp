@@ -102,6 +102,11 @@ void MCTPEndpoint::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
                 handleGetVdmSupport(destEid, bindingPrivate, request, response);
             break;
         }
+        case MCTP_CTRL_CMD_GET_NETWORK_ID: {
+            sendResponse =
+                handleGetNetworkId(destEid, bindingPrivate, response);
+            break;
+        }
         case MCTP_CTRL_CMD_GET_ROUTING_TABLE_ENTRIES: {
             sendResponse = handleGetRoutingTable(request, response);
             break;
@@ -122,6 +127,19 @@ void MCTPEndpoint::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
                         msgTag, bindingPrivate);
     }
     return;
+}
+
+bool MCTPEndpoint::handleGetNetworkId([[maybe_unused]] mctp_eid_t destEid,
+                                      void*, std::vector<uint8_t>& response)
+{
+    response.resize(sizeof(mctp_ctrl_get_networkid_resp));
+    auto resp =
+        reinterpret_cast<mctp_ctrl_get_networkid_resp*>(response.data());
+    if (!mctp_set_networkid(mctp, &(resp->networkid)))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>("Message failed");
+    }
+    return true;
 }
 
 bool MCTPEndpoint::handlePrepareForEndpointDiscovery(mctp_eid_t, void*,

@@ -167,7 +167,7 @@ bool MCTPBridge::getNetworkIdCtrlCmd(boost::asio::yield_context yield,
         return false;
     }
 
-    if (!checkRespSizeAndCompletionCode<mctp_ctrl_cmd_network_id_resp>(resp))
+    if (!checkRespSizeAndCompletionCode<mctp_ctrl_get_networkid_resp>(resp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Get NETWORKID failed");
@@ -175,9 +175,9 @@ bool MCTPBridge::getNetworkIdCtrlCmd(boost::asio::yield_context yield,
     }
 
     const std::string nilUUID = "00000000-0000-0000-0000-000000000000";
-    mctp_ctrl_cmd_network_id_resp* getNetworkIDRespPtr =
-        reinterpret_cast<mctp_ctrl_cmd_network_id_resp*>(resp.data());
-    std::string networkidResp = formatUUID(getNetworkIDRespPtr->network_id);
+    mctp_ctrl_get_networkid_resp* getNetworkIDRespPtr =
+        reinterpret_cast<mctp_ctrl_get_networkid_resp*>(resp.data());
+    std::string networkidResp = formatUUID(getNetworkIDRespPtr->networkid);
     if (nilUUID == networkidResp)
     {
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
