@@ -107,6 +107,11 @@ void MCTPEndpoint::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
             sendResponse = handleGetRoutingTable(request, response);
             break;
         }
+        case MCTP_CTRL_CMD_ALLOCATE_ENDPOINT_IDS: {
+            sendResponse = handleAllocateEIDs(request, response);
+            break;
+        }
+
         default: {
             std::stringstream commandCodeHex;
             commandCodeHex << std::hex
@@ -308,6 +313,23 @@ bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,
     response.resize(formattedRespSize);
     status = true;
     return status;
+}
+
+/*Allocate EID Responder*/
+bool MCTPEndpoint::handleAllocateEIDs(const std::vector<uint8_t>& request,
+                                      std::vector<uint8_t>& response)
+{
+    response.resize(sizeof(mctp_ctrl_cmd_allocate_eids_resp));
+    auto resp =
+        reinterpret_cast<mctp_ctrl_cmd_allocate_eids_resp*>(response.data());
+    auto req = reinterpret_cast<const mctp_ctrl_cmd_allocate_eids_req*>(
+        request.data());
+
+    mctp_encode_ctrl_cmd_allocate_endpoint_id_resp(
+        resp, const_cast<struct mctp_ctrl_msg_hdr*>(&req->ctrl_msg_hdr),
+        allocation_accepted, req->eid_pool_size, 0x00);
+
+    return true;
 }
 
 bool MCTPEndpoint::discoveryNotifyCtrlCmd(
