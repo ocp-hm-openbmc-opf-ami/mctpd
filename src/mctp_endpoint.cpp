@@ -158,9 +158,11 @@ bool MCTPEndpoint::handlePrepareForEndpointDiscovery(mctp_eid_t, void*,
                                                      std::vector<uint8_t>&,
                                                      std::vector<uint8_t>&)
 {
+    auto resp = castVectorToStruct<mctp_ctrl_resp_completion_code>(response);
+    return encode_cc_only_response(MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD, resp);
     phosphor::logging::log<phosphor::logging::level::ERR>(
-        "Message not supported");
-	return false;
+        "Prepare For Endpoint Discovery command not supported");
+    return false;
 }
 
 bool MCTPEndpoint::handleEndpointDiscovery(

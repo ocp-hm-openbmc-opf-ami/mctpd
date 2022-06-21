@@ -45,7 +45,7 @@ struct EndpointProperties
     uint8_t endpointEid;
     std::string uuid;
     mctp_server::BindingModeTypes mode;
-    uint16_t network_id;
+    uint16_t network_Id;
     MsgTypes endpointMsgTypes;
     // Vendor PCI ID Support
     std::vector<uint16_t> vendorIdCapabilitySets;
