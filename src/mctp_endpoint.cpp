@@ -107,6 +107,10 @@ void MCTPEndpoint::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
             sendResponse = handleGetRoutingTable(request, response);
             break;
         }
+        case MCTP_CTRL_CMD_ALLOCATE_ENDPOINT_IDS: {
+            sendResponse = handleAllocateEIDs(request, response);
+            break;
+        }
         default: {
             std::stringstream commandCodeHex;
             commandCodeHex << std::hex
@@ -308,6 +312,40 @@ bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,
     response.resize(formattedRespSize);
     status = true;
     return status;
+}
+
+/*Allocate EID Responder*/
+bool MCTPEndpoint::handleAllocateEIDs(std::vector<uint8_t>& request,
+                                      std::vector<uint8_t>& response)
+{
+    response.resize(sizeof(mctp_ctrl_cmd_allocate_eids_resp));
+    auto resp =
+        reinterpret_cast<mctp_ctrl_cmd_allocate_eids_resp*>(response.data());
+    auto req =
+        reinterpret_cast<mctp_ctrl_cmd_allocate_eids_req*>(request.data());
+    uint8_t ic_msg_type;
+    uint8_t rq_dgram_inst;
+    uint8_t command_code;
+    mctp_ctrl_cmd_allocate_eids_req_op op;
+    uint8_t eid_pool_size;
+    uint8_t first_eid;
+
+    if (!mctp_decode_ctrl_cmd_allocate_endpoint_id_req(
+            req, &ic_msg_type, &rq_dgram_inst, &command_code, &op,
+            &eid_pool_size, &first_eid))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Decode allocate Eid req returned false");
+    }
+
+    if (!mctp_encode_ctrl_cmd_allocate_endpoint_id_resp(
+            resp, &req->ctrl_msg_hdr, allocation_accepted, eid_pool_size,
+            first_eid))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Encode allocate Eid resp returned false");
+    }
+    return true;
 }
 
 bool MCTPEndpoint::discoveryNotifyCtrlCmd(
