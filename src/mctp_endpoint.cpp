@@ -155,8 +155,8 @@ bool MCTPEndpoint::handleGetNetworkId([[maybe_unused]] mctp_eid_t destEid,
 }
 
 bool MCTPEndpoint::handlePrepareForEndpointDiscovery(mctp_eid_t, void*,
-                                                     std::vector<uint8_t>&,
-                                                     std::vector<uint8_t>&)
+                                                     std::vector<uint8_t>& request,
+                                                     std::vector<uint8_t>& response)
 {
     auto resp = castVectorToStruct<mctp_ctrl_resp_completion_code>(response);
     return encode_cc_only_response(MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD, resp);

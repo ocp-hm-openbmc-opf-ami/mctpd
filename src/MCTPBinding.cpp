@@ -680,7 +680,7 @@ std::optional<mctp_eid_t>
         /* In case EP doesn't support Get NetworkID set to all 0 */
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Get NetworkID failed");
-        epProperties.network_id = 0x00;
+        epProperties.network_Id = 0x00;
     }
     else
     {
@@ -689,7 +689,7 @@ std::optional<mctp_eid_t>
                 getNetworkIdResp.data());
 
         std::memcpy(
-            reinterpret_cast<void*>(epProperties.network_id),
+            reinterpret_cast<void*>(epProperties.network_Id),
             reinterpret_cast<const void*>(getNetworkIdRespPtr->networkid.raw),
             sizeof(uint16_t));
     }
