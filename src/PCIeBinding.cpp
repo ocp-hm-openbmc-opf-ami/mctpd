@@ -437,11 +437,13 @@ void PCIeBinding::processRoutingTableChanges(
              */
             std::stringstream busHex, deviceHex, functionHex;
             busHex << std::setfill('0') << std::setw(2) << std::hex
-                   << hw::bdf::getBus(pciePrivate->remote_id);
+                   << static_cast<int>(hw::bdf::getBus(pciePrivate->remote_id));
             deviceHex << std::setfill('0') << std::setw(2) << std::hex
-                      << hw::bdf::getDevice(pciePrivate->remote_id);
+                      << static_cast<int>(
+                             hw::bdf::getDevice(pciePrivate->remote_id));
             functionHex << std::hex
-                        << hw::bdf::getFunction(pciePrivate->remote_id);
+                        << static_cast<int>(
+                               hw::bdf::getFunction(pciePrivate->remote_id));
 
             std::string bus(busHex.str()), device(deviceHex.str()),
                 function(functionHex.str());
