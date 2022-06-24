@@ -150,6 +150,7 @@ bool MCTPEndpoint::handleGetNetworkId([[maybe_unused]] mctp_eid_t destEid,
     if (!mctp_set_networkid(mctp, &(resp->networkid)))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>("Message failed");
+        return false;
     }
     return true;
 }

@@ -68,7 +68,6 @@ bool getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
         mctp_encode_ctrl_cmd_get_uuid(getUuid, getRqDgramInst());
         return true;
     }
-
     else if constexpr (cmd == MCTP_CTRL_CMD_GET_NETWORK_ID)
     {
         req.resize(sizeof(mctp_ctrl_cmd_get_networkid_req));
@@ -78,7 +77,6 @@ bool getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
         mctp_encode_ctrl_cmd_get_networkid_req(getNetworkId, getRqDgramInst());
         return true;
     }
-
     else if constexpr (cmd == MCTP_CTRL_CMD_GET_VERSION_SUPPORT)
     {
         req.resize(sizeof(mctp_ctrl_cmd_get_mctp_ver_support));
@@ -89,7 +87,6 @@ bool getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
                                              std::forward<Args>(reqParam)...);
         return true;
     }
-
     else if constexpr (cmd == MCTP_CTRL_CMD_GET_MESSAGE_TYPE_SUPPORT)
     {
         req.resize(sizeof(mctp_ctrl_cmd_get_msg_type_support));

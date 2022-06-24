@@ -689,7 +689,7 @@ std::optional<mctp_eid_t>
                 getNetworkIdResp.data());
 
         std::memcpy(
-            reinterpret_cast<void*>(epProperties.network_Id),
+            reinterpret_cast<void*>(epProperties.networkId),
             reinterpret_cast<const void*>(getNetworkIdRespPtr->networkid.raw),
             sizeof(uint16_t));
     }
