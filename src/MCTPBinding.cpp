@@ -674,6 +674,7 @@ std::optional<mctp_eid_t>
     }
 
     std::vector<uint8_t> getNetworkIdResp;
+    getNetworkIdResp.resize(sizeof(mctp_ctrl_get_networkid_resp));
 
     if (!(getNetworkIdCtrlCmd(yield, bindingPrivate, eid, getNetworkIdResp)))
     {

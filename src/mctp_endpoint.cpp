@@ -149,7 +149,8 @@ bool MCTPEndpoint::handleGetNetworkId([[maybe_unused]] mctp_eid_t destEid,
         reinterpret_cast<mctp_ctrl_get_networkid_resp*>(response.data());
     if (!mctp_set_networkid(mctp, &(resp->networkid)))
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>("Message failed");
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Message failed,Mctp set network id return false");
         return false;
     }
     return true;

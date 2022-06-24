@@ -105,7 +105,7 @@ void MCTPDBusInterfaces::populateEndpointProperties(
     endpointIntf->register_property(
         "Mode",
         mctp_server::convertBindingModeTypesToString(epProperties.mode));
-    endpointIntf->register_property("NetworkId", epProperties.network_Id);
+    endpointIntf->register_property("NetworkId", epProperties.networkId);
     endpointIntf->initialize();
     endpointInterface.emplace(epProperties.endpointEid,
                               std::move(endpointIntf));
