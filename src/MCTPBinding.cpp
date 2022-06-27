@@ -681,18 +681,14 @@ std::optional<mctp_eid_t>
         /* In case EP doesn't support Get NetworkID set to all 0 */
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Get NetworkID failed");
-        epProperties.networkId = 0x00;
+        epProperties.networkId = "00000000-0000-0000-0000-000000000000";
     }
     else
     {
         mctp_ctrl_get_networkid_resp* getNetworkIdRespPtr =
             reinterpret_cast<mctp_ctrl_get_networkid_resp*>(
                 getNetworkIdResp.data());
-
-        std::memcpy(
-            reinterpret_cast<void*>(epProperties.networkId),
-            reinterpret_cast<const void*>(getNetworkIdRespPtr->networkid.raw),
-            sizeof(uint16_t));
+        epProperties.networkId = formatUUID(getNetworkIdRespPtr->networkid);
     }
 
     epProperties.endpointEid = eid;

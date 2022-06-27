@@ -721,7 +721,7 @@ std::optional<mctp_eid_t> MCTPBridge::busOwnerRegisterEndpoint(
     }
     // Network ID need to be assigned only if EP is requesting for the same.
     // Keep Network ID as zero and update it later if a change happend.
-    epProperties.networkId = 0x00;
+    epProperties.networkId = "00000000-0000-0000-0000-000000000000";
     epProperties.endpointMsgTypes = getMsgTypes(msgTypeSupportResp.msgType);
     getVendorDefinedMessageTypes(yield, bindingPrivate, eid, epProperties);
     epProperties.locationCode = getLocationCode(bindingPrivate).value_or("");
