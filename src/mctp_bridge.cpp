@@ -719,6 +719,24 @@ std::optional<mctp_eid_t> MCTPBridge::busOwnerRegisterEndpoint(
     {
         return std::nullopt;
     }
+
+    std::vector<uint8_t> getNetworkIdResp;
+    getNetworkIdResp.resize(sizeof(mctp_ctrl_get_networkid_resp));
+
+    if (!(getNetworkIdCtrlCmd(yield, bindingPrivate, eid, getNetworkIdResp)))
+    {
+        /* In case EP doesn't support Get NetworkID set to all 0 */
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get NetworkID failed");
+    }
+    else
+    {
+        mctp_ctrl_get_networkid_resp* getNetworkIdRespPtr =
+            reinterpret_cast<mctp_ctrl_get_networkid_resp*>(
+                getNetworkIdResp.data());
+        epProperties.networkId = formatUUID(getNetworkIdRespPtr->networkid);
+    }
+
     // Network ID need to be assigned only if EP is requesting for the same.
     // Keep Network ID as zero and update it later if a change happend.
     epProperties.networkId = "00000000-0000-0000-0000-000000000000";

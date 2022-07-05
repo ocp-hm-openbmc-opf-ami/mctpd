@@ -153,6 +153,7 @@ bool MCTPEndpoint::handleGetNetworkId([[maybe_unused]] mctp_eid_t destEid,
             "Message failed,Mctp set network id return false");
         return false;
     }
+    mctp_encode_ctrl_cmd_get_network_id_resp(resp, &(resp->networkid));
     return true;
 }
 

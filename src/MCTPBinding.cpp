@@ -678,10 +678,22 @@ std::optional<mctp_eid_t>
 
     if (!(getNetworkIdCtrlCmd(yield, bindingPrivate, eid, getNetworkIdResp)))
     {
-        /* In case EP doesn't support Get NetworkID set to all 0 */
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Get NetworkID failed");
-        epProperties.networkId = "00000000-0000-0000-0000-000000000000";
+        if (eid == busOwnerEid)
+        {
+            mctp_ctrl_get_networkid_resp getNetworkId;
+            if (!mctp_set_networkid(mctp, &(getNetworkId.networkid)))
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Message failed");
+            }
+            return true;
+        }
+        else
+        {
+            /* In case EP doesn't support Get NetworkID set to all 0 */
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Get NetworkID failed");
+        }
     }
     else
     {
