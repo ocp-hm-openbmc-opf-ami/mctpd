@@ -95,8 +95,8 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                          const std::string& objPath, const Configuration& conf,
                          boost::asio::io_context& ioc,
                          const mctp_server::BindingTypes bindingType) :
-    MCTPBridge(ioc, objServer),
-    connection(conn), mctpServiceScanner(connection), bindingID(bindingType)
+    MCTPBridge(conn, ioc, objServer),
+    mctpServiceScanner(connection), bindingID(bindingType)
 {
     objServer->add_manager(objPath);
     mctpServiceScanner.setAllowedBuses(conf.allowedBuses.begin(),
@@ -184,6 +184,11 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
             // Pass eid, service name & Type
             mctpd::RoutingTable::Entry entry(ownEid, getDbusName(),
                                              mctpd::EndPointType::BridgeOnly);
+            // Binding ID enums start from 0, but the spec defined values start
+            // from 1. Add an offset of 1 0xFF is an invalid case, thus ignoring
+            // buffer overrun case
+            entry.routeEntry.routing_info.phys_transport_binding_id =
+                (static_cast<uint8_t>(bindingID) + 1);
             entry.routeEntry.routing_info.phys_media_type_id =
                 static_cast<uint8_t>(
                     mctpd::convertToPhysicalMediumIdentifier(bindingMediumID));
@@ -351,6 +356,34 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
             [this](uint8_t msgTypeName,
                    std::vector<uint8_t> inputVersion) -> bool {
                 return registerUpperLayerResponder(msgTypeName, inputVersion);
+            });
+
+        mctpInterface->register_method(
+            "SetEIDPool", [this](uint8_t startEID, uint8_t poolSize) -> bool {
+                if (bindingModeType != mctp_server::BindingModeTypes::BusOwner)
+                {
+                    // Only bus owner roles requires a pool
+                    return false;
+                }
+
+                if (startEID > (0xFF - poolSize))
+                {
+                    // Invalid EID range passed to us
+                    return false;
+                }
+                std::set<mctp_eid_t> eidRange;
+
+                for (uint8_t i = startEID; i < (startEID + poolSize); i++)
+                {
+                    eidRange.insert(i);
+                }
+
+                eidPool.clearEIDPool();
+                eidPool.initializeEidPool(eidRange);
+
+                //TODO - If the bus was already initialised, then reinitialisation
+                //of the existing Endpoints should happen
+                return true;
             });
 
         // register VDPCI responder with MCTP for upper layers

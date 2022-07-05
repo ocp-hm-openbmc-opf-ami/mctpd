@@ -272,6 +272,8 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
     bool requiresCpuPidMask = false;
     uint64_t provisionalIdMask = 0;
     uint64_t getRoutingInterval = 0;
+    uint64_t requiredEIDPoolSize = 0;
+    uint64_t requiredEIDPoolSizeFromBO = 0;
 
     if (!getField(map, "PhysicalMediumID", physicalMediumID))
     {
@@ -303,9 +305,20 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
     if (mode == mctp_server::BindingModeTypes::BusOwner &&
         !getField(map, "EIDPool", eidPool))
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Role is set to BusOwner but EIDPool is missing");
-        return std::nullopt;
+        // Check if a topmost bus owner can set the EID pool
+        if (!getField(map, "RequiredEIDPoolSize", requiredEIDPoolSize))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Role is set to BusOwner but EIDPool is missing");
+            return std::nullopt;
+        }
+    }
+
+    if (mode == mctp_server::BindingModeTypes::Endpoint &&
+        !getField(map, "RequiredEIDPoolFromBO", requiredEIDPoolSizeFromBO))
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "Endpoint will not ask for EID Pool from Bus Owner");
     }
 
     if (mode != mctp_server::BindingModeTypes::BusOwner &&
@@ -316,18 +329,20 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
         return std::nullopt;
     }
 
-    if(getField(map, "RequiresCpuPidMask", requiresCpuPidMask))
+    if (getField(map, "RequiresCpuPidMask", requiresCpuPidMask))
     {
-        if(requiresCpuPidMask && !getField(map, "ProvisionalIdMask", provisionalIdMask))
+        if (requiresCpuPidMask &&
+            !getField(map, "ProvisionalIdMask", provisionalIdMask))
         {
-            //Requires CPU PID mask was set to true but none was provided
+            // Requires CPU PID mask was set to true but none was provided
             return std::nullopt;
         }
     }
 
-    if(!getField(map, "I3CAddress", I3CAddress))
+    if (!getField(map, "I3CAddress", I3CAddress))
     {
-        //We are in I3C primary role. DSP0233 v1.0.0 Section 5.6 mentions that I3C primary's address
+        // We are in I3C primary role. DSP0233 v1.0.0 Section 5.6 mentions that
+        // I3C primary's address
         // be set to 0
         I3CAddress = 0;
     }
@@ -336,7 +351,8 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
     config.mediumId = stringToMediumID.at(physicalMediumID);
     config.mode = mode;
     config.defaultEid = static_cast<uint8_t>(defaultEID);
-    if (mode == mctp_server::BindingModeTypes::BusOwner)
+    if ((mode == mctp_server::BindingModeTypes::BusOwner) &&
+        (requiredEIDPoolSize == 0))
     {
         config.eidPool = std::set<uint8_t>(eidPool.begin(), eidPool.end());
     }
@@ -349,6 +365,9 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
     config.I3CAddress = static_cast<uint8_t>(I3CAddress);
     config.getRoutingInterval = static_cast<uint8_t>(getRoutingInterval);
     config.allowedBuses = getAllowedBuses(map);
+    config.requiredEIDPoolSizeFromBO =
+        static_cast<uint8_t>(requiredEIDPoolSizeFromBO);
+    config.requiredEIDPoolSize = static_cast<uint8_t>(requiredEIDPoolSize);
 
     return config;
 }
@@ -432,6 +451,24 @@ static ConfigurationMap
     return map;
 }
 
+static ConfigurationMap getEIDPoolConfigurationMap(
+    std::shared_ptr<sdbusplus::asio::connection> conn,
+    const std::string& configurationPath)
+{
+    auto method_call = conn->new_method_call(
+        "xyz.openbmc_project.EntityManager", configurationPath.c_str(),
+        "org.freedesktop.DBus.Properties", "GetAll");
+    method_call.append("xyz.openbmc_project.Configuration.MctpConfiguration."
+                       "EIDPoolDistribution");
+
+    // Note: This is a blocking call.
+    // However, there is nothing to do until the configuration is retrieved.
+    auto reply = conn->call(method_call);
+    ConfigurationMap map;
+    reply.read(map);
+    return map;
+}
+
 static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
     getConfigurationFromEntityManager(
         std::shared_ptr<sdbusplus::asio::connection> conn,
@@ -500,6 +537,30 @@ static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
     if (!configuration)
     {
         return std::nullopt;
+    }
+
+    /* xyz.openbmc_project.Configuration.MctpConfiguration.EIDPoolDistribution
+    holds the EID pool configuration for the bus owners on the bridge */
+    ConfigurationMap eidPoolDistribution;
+    if (configuration->requiredEIDPoolSizeFromBO > 0)
+    {
+        try
+        {
+            eidPoolDistribution = getEIDPoolConfigurationMap(conn, objectPath);
+
+            for (auto& [busName, requiredPool] : eidPoolDistribution)
+            {
+                configuration->downstreamEIDPoolDistribution.insert_or_assign(
+                    ("xyz.openbmc_project." + busName),
+                    static_cast<uint8_t>(std::get<uint64_t>(requiredPool)));
+            }
+        }
+        catch (const std::exception& e)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Error retrieving EID Pool distributions");
+            return std::nullopt;
+        }
     }
 
     const std::regex illegal_name_regex("[^A-Za-z0-9_.]");

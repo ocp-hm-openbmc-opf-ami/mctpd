@@ -43,13 +43,15 @@ struct MctpVendIdMsgSupportResp
 class MCTPBridge : public MCTPEndpoint
 {
   public:
-    MCTPBridge(boost::asio::io_context& ioc,
+    MCTPBridge(std::shared_ptr<sdbusplus::asio::connection> conn,
+               boost::asio::io_context& ioc,
                std::shared_ptr<object_server>& objServer);
     MCTPBridge() = delete;
     ~MCTPBridge() = default;
 
   protected:
     mctpd::EidPool eidPool;
+    std::optional<uint8_t> requiredEIDPoolSize = std::nullopt;
     mctpd::DeviceWatcher deviceWatcher{};
 
     bool getEidCtrlCmd(boost::asio::yield_context& yield,

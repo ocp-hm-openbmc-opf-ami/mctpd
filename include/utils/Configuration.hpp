@@ -14,6 +14,14 @@ struct Configuration
     unsigned int reqToRespTime;
     uint8_t reqRetryCount;
     std::set<std::string> allowedBuses;
+    /* Configurations for bridges to get the EID pool allocations from TopMost
+     * BusOwner */
+    std::unordered_map<std::string /*busName*/, uint8_t /*poolSize*/>
+        downstreamEIDPoolDistribution;
+    // Setting for indicating the pool size requirement to upstream bus owner
+    std::uint8_t requiredEIDPoolSizeFromBO = 0; 
+    // Setting for the downstream bus owner's pool size
+    std::uint8_t requiredEIDPoolSize = 0; 
 
     virtual ~Configuration();
 };

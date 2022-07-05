@@ -29,9 +29,10 @@ constexpr int completionCodeIndex = 3;
 constexpr int noMoreSet = 0xFF;
 static const std::string nullUUID = "00000000-0000-0000-0000-000000000000";
 
-MCTPBridge::MCTPBridge(boost::asio::io_context& ioc,
+MCTPBridge::MCTPBridge(std::shared_ptr<sdbusplus::asio::connection> conn,
+                       boost::asio::io_context& ioc,
                        std::shared_ptr<object_server>& objServer) :
-    MCTPEndpoint(ioc, objServer)
+    MCTPEndpoint(conn, ioc, objServer)
 {
 }
 

@@ -97,7 +97,7 @@ void SMBusBinding::initializeBinding()
     setupPowerMatch(connection, this);
     setupMuxMonitor();
 
-   if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
+    if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
     {
         scanDevices();
     }
