@@ -84,6 +84,7 @@ class MCTPDBusInterfaces
     endpointInterfaceMap endpointInterface;
     endpointInterfaceMap msgTypeInterface;
     endpointInterfaceMap uuidInterface;
+    endpointInterfaceMap networkidInterface;
 
     virtual void
         populateDeviceProperties(const mctp_eid_t eid,

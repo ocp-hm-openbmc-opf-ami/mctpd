@@ -42,6 +42,11 @@ MCTPDBusInterfaces::~MCTPDBusInterfaces()
         objectServer->remove_interface(iter.second);
     }
 
+    for (auto& iter : networkidInterface)
+    {
+        objectServer->remove_interface(iter.second);
+    }
+
     for (auto& iter : vendorIdInterface)
     {
         objectServer->remove_interface(iter.second);
@@ -105,7 +110,6 @@ void MCTPDBusInterfaces::populateEndpointProperties(
     endpointIntf->register_property(
         "Mode",
         mctp_server::convertBindingModeTypesToString(epProperties.mode));
-    endpointIntf->register_property("NetworkId", epProperties.networkId);
     endpointIntf->initialize();
     endpointInterface.emplace(epProperties.endpointEid,
                               std::move(endpointIntf));
@@ -117,6 +121,15 @@ void MCTPDBusInterfaces::populateEndpointProperties(
     uuidIntf->register_property("UUID", epProperties.uuid);
     uuidIntf->initialize();
     uuidInterface.emplace(epProperties.endpointEid, std::move(uuidIntf));
+
+    // NetworkId Interface
+    std::shared_ptr<dbus_interface> networkIdIntf;
+    networkIdIntf = objectServer->add_interface(
+        mctpEpObj, "xyz.openbmc_project.Common.NETWORKID");
+    networkIdIntf->register_property("NETWORKID", epProperties.networkId);
+    networkIdIntf->initialize();
+    networkidInterface.emplace(epProperties.endpointEid,
+                               std::move(networkIdIntf));
 
     // Vendor-defined message type interface
     if (epProperties.endpointMsgTypes.vdpci)
