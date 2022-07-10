@@ -25,9 +25,11 @@
 
 using RoutingTableEntry = mctpd::RoutingTable::Entry;
 
-MCTPEndpoint::MCTPEndpoint(boost::asio::io_context& ioc,
+MCTPEndpoint::MCTPEndpoint(std::shared_ptr<sdbusplus::asio::connection> conn,
+                           boost::asio::io_context& ioc,
                            std::shared_ptr<object_server>& objServer) :
-    MCTPDevice(ioc, objServer)
+    MCTPDevice(ioc, objServer),
+    connection(conn)
 {
 }
 
@@ -111,6 +113,11 @@ void MCTPEndpoint::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
             sendResponse = handleAllocateEIDs(request, response);
             break;
         }
+        case MCTP_CTRL_CMD_DISCOVERY_NOTIFY: {
+            sendResponse = handleDiscoveryNotify(destEid, bindingPrivate,
+                                                 request, response);
+            break;
+        }
         default: {
             std::stringstream commandCodeHex;
             commandCodeHex << std::hex
@@ -140,12 +147,146 @@ void MCTPEndpoint::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
     return;
 }
 
+bool MCTPEndpoint::handleDiscoveryNotify(
+    [[maybe_unused]] mctp_eid_t destEid, [[maybe_unused]] void* bindingPrivate,
+    [[maybe_unused]] std::vector<uint8_t>& request,
+    std::vector<uint8_t>& response)
+{
+    bool busownerMode =
+        bindingModeType == mctp_server::BindingModeTypes::BusOwner;
+
+    response.resize(sizeof(mctp_ctrl_msg_hdr));
+
+    if (busownerMode)
+    {
+        response.push_back(static_cast<uint8_t>(MCTP_CTRL_CC_SUCCESS));
+    }
+    else
+    {
+        response.push_back(
+            static_cast<uint8_t>(MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD));
+    }
+
+    return true;
+}
+
+void MCTPEndpoint::setDownStreamEIDPools(uint8_t eidPoolSize, uint8_t firstEID)
+{
+    boost::asio::spawn(io, [this, eidPoolSize,
+                            firstEID](boost::asio::yield_context yield) {
+        uint8_t remainingPoolSize = eidPoolSize;
+        uint8_t startEID = firstEID;
+
+        for (auto& [busName, poolSize] : downstreamEIDPools)
+        {
+            boost::system::error_code ec;
+
+            // Check if startEID + poolsize overruns 255 EID
+            if (startEID  > (0xFF - poolSize))
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    ("EID pool crossing EID range on bus:" + busName).c_str());
+                continue;
+            }
+
+            if (remainingPoolSize < poolSize)
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    ("Running out of eid pool for bus" + busName).c_str());
+                // Check if remaining pool can be distributed
+                continue;
+            }
+            auto rc = connection->yield_method_call<bool>(
+                yield, ec, busName, "/xyz/openbmc_project/mctp",
+                mctp_server::interface, "SetEIDPool", startEID, poolSize);
+
+            if (ec || !rc)
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    ("Error setting EID pool for: " + busName).c_str());
+                continue;
+            }
+
+            startEID += poolSize;
+            remainingPoolSize -= poolSize;
+        }
+    });
+}
+
+bool MCTPEndpoint::handleAllocateEID(std::vector<uint8_t>& request,
+                                     std::vector<uint8_t>& response)
+{
+    auto req =
+        reinterpret_cast<mctp_ctrl_cmd_allocate_eids_req*>(request.data());
+    uint8_t icMsgType;
+    uint8_t rqDgramInstanceID;
+    uint8_t commandCode;
+    mctp_ctrl_cmd_allocate_eids_req_op op;
+    uint8_t eidPoolSize;
+    uint8_t firstEID;
+
+    response.resize(sizeof(mctp_ctrl_cmd_allocate_eids_resp));
+    auto resp =
+        reinterpret_cast<mctp_ctrl_cmd_allocate_eids_resp*>(response.data());
+
+    if (!mctp_decode_ctrl_cmd_allocate_endpoint_id_req(
+            req, &icMsgType, &rqDgramInstanceID, &commandCode, &op,
+            &eidPoolSize, &firstEID))
+    {
+        resp->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
+        return true;
+    }
+
+    if (requiredEIDPoolSizeFromBO.has_value())
+    {
+        switch (op)
+        {
+            case allocate_eids:
+            case force_allocation: {
+                if (eidPoolSize > requiredEIDPoolSizeFromBO.value())
+                {
+                    resp->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
+                    resp->operation = allocation_rejected;
+                }
+                else
+                {
+                    resp->completion_code = MCTP_CTRL_CC_SUCCESS;
+                    resp->operation = allocation_accepted;
+                    resp->eid_pool_size = eidPoolSize;
+                    resp->first_eid = firstEID;
+
+                    setDownStreamEIDPools(eidPoolSize, firstEID);
+                    allocatedPoolSize = eidPoolSize;
+                    allocatedPoolFirstEID = firstEID;
+                }
+                break;
+            }
+            case get_allocation_info: {
+                resp->completion_code = MCTP_CTRL_CC_SUCCESS;
+                resp->eid_pool_size = allocatedPoolSize;
+                resp->first_eid = allocatedPoolFirstEID;
+                break;
+            }
+
+            default:
+                resp->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
+        }
+    }
+    else
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "Allocate EID is not supported for this simple endpoint");
+        resp->completion_code = MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD;
+    }
+    return true;
+}
+
 bool MCTPEndpoint::handlePrepareForEndpointDiscovery(
     [[maybe_unused]] mctp_eid_t destEid, [[maybe_unused]] void* bindingPrivate,
     [[maybe_unused]] std::vector<uint8_t>& request,
     std::vector<uint8_t>& response)
 {
-    phosphor::logging::log<phosphor::logging::level::ERR>(
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
         "Prepare For Endpoint Discovery command not supported");
     auto resp = castVectorToStruct<mctp_ctrl_resp_completion_code>(response);
     return encode_cc_only_response(MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD, resp);
@@ -156,7 +297,7 @@ bool MCTPEndpoint::handleEndpointDiscovery(
     [[maybe_unused]] std::vector<uint8_t>& request,
     std::vector<uint8_t>& response)
 {
-    phosphor::logging::log<phosphor::logging::level::ERR>(
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
         "Endpoint Discovery command not supported");
     auto resp = castVectorToStruct<mctp_ctrl_resp_completion_code>(response);
     return encode_cc_only_response(MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD, resp);
@@ -174,6 +315,11 @@ bool MCTPEndpoint::handleGetEndpointId(
         bindingModeType == mctp_server::BindingModeTypes::BusOwner ? true
                                                                    : false;
     mctp_ctrl_cmd_get_endpoint_id(mctp, destEid, busownerMode, resp);
+
+    if (requiredEIDPoolSizeFromBO.has_value())
+    {
+        resp->eid_type = 1;
+    }
     return true;
 }
 
@@ -195,6 +341,13 @@ bool MCTPEndpoint::handleSetEndpointId(mctp_eid_t destEid,
         busOwnerEid = destEid;
         ownEid = resp->eid_set;
     }
+
+    if (requiredEIDPoolSizeFromBO.has_value())
+    {
+        resp->status |= 1;
+        resp->eid_pool_size = requiredEIDPoolSizeFromBO.value();
+    }
+
     return true;
 }
 
