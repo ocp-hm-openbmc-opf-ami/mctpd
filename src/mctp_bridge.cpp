@@ -171,7 +171,7 @@ bool MCTPBridge::getNetworkIdCtrlCmd(boost::asio::yield_context yield,
     if (!checkRespSizeAndCompletionCode<mctp_ctrl_get_networkid_resp>(resp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Get NETWORKID failed: Invalid response size/CC"");
+            "Get NETWORKID failed: Invalid response size/CC");
         return false;
     }
 
