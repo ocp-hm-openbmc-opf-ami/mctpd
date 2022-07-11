@@ -158,6 +158,7 @@ bool MCTPEndpoint::handleGetNetworkId([[maybe_unused]] mctp_eid_t destEid,
     response.resize(sizeof(mctp_ctrl_get_networkid_resp));
     auto resp =
         reinterpret_cast<mctp_ctrl_get_networkid_resp*>(response.data());
+	//TODO: To set the networkid in mctp structure during the initialisation of the network.
     if (!mctp_get_networkid(mctp, &(resp->networkid)))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(

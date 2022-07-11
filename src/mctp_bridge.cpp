@@ -171,7 +171,7 @@ bool MCTPBridge::getNetworkIdCtrlCmd(boost::asio::yield_context yield,
     if (!checkRespSizeAndCompletionCode<mctp_ctrl_get_networkid_resp>(resp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Get NETWORKID failed");
+            "Get NETWORKID failed: Invalid response size/CC"");
         return false;
     }
 
@@ -179,13 +179,7 @@ bool MCTPBridge::getNetworkIdCtrlCmd(boost::asio::yield_context yield,
     mctp_ctrl_get_networkid_resp* getNetworkIDRespPtr =
         reinterpret_cast<mctp_ctrl_get_networkid_resp*>(resp.data());
     std::string networkidResp = formatUUID(getNetworkIDRespPtr->networkid);
-    if (nilUUID == networkidResp)
-    {
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
-            "Get networkID: Device returned Nil networkID");
-        return false;
-    }
-
+	
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
         ("Get networkID success: " + networkidResp).c_str());
     return true;
@@ -723,6 +717,7 @@ std::optional<mctp_eid_t> MCTPBridge::busOwnerRegisterEndpoint(
 
     std::vector<uint8_t> getNetworkIdResp;
     getNetworkIdResp.resize(sizeof(mctp_ctrl_get_networkid_resp));
+	epProperties.networkId = "00000000-0000-0000-0000-000000000000";
 
     if (!(getNetworkIdCtrlCmd(yield, bindingPrivate, eid, getNetworkIdResp)))
     {
@@ -740,7 +735,6 @@ std::optional<mctp_eid_t> MCTPBridge::busOwnerRegisterEndpoint(
 
     // Network ID need to be assigned only if EP is requesting for the same.
     // Keep Network ID as zero and update it later if a change happend.
-    epProperties.networkId = "00000000-0000-0000-0000-000000000000";
     epProperties.endpointMsgTypes = getMsgTypes(msgTypeSupportResp.msgType);
     getVendorDefinedMessageTypes(yield, bindingPrivate, eid, epProperties);
     epProperties.locationCode = getLocationCode(bindingPrivate).value_or("");

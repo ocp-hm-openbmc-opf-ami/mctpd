@@ -125,7 +125,7 @@ void MCTPDBusInterfaces::populateEndpointProperties(
     // NetworkId Interface
     std::shared_ptr<dbus_interface> networkIdIntf;
     networkIdIntf = objectServer->add_interface(
-        mctpEpObj, "xyz.openbmc_project.Common.NETWORKID");
+        mctpEpObj, "xyz.openbmc_project.MCTP.network");
     networkIdIntf->register_property("NETWORKID", epProperties.networkId);
     networkIdIntf->initialize();
     networkidInterface.emplace(epProperties.endpointEid,
