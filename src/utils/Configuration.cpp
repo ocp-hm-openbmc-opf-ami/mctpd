@@ -122,6 +122,7 @@ static bool getField(const json& configuration, const std::string& fieldName,
     }
 }
 
+template <typename T>
 std::set<std::string> getAllowedBuses(const T& map)
 {
     std::vector<std::string> allowedBuses;
@@ -139,7 +140,7 @@ std::set<std::string> getAllowedBuses(const T& map)
 }
 
 template <typename T>
-uint32_t getNetworkID(const T& map)
+uint16_t getNetworkID(const T& map)
 {
     uint64_t networkId = 0;
     if (!getField(map, "NetworkID", networkId))
@@ -149,7 +150,7 @@ uint32_t getNetworkID(const T& map)
             "overlap");
         networkId = 0;
     }
-    return static_cast<uint32_t>(networkId);
+    return static_cast<uint16_t>(networkId);
 }
 
 template <typename T>
