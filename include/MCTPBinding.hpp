@@ -45,7 +45,6 @@ class MctpBinding : public MCTPBridge
     virtual void initializeBinding() = 0;
 
   protected:
-    std::shared_ptr<sdbusplus::asio::connection> connection;
     bool rsvBWActive = false;
     mctp_eid_t reservedEID = 0;
     bridging::MCTPServiceScanner mctpServiceScanner;

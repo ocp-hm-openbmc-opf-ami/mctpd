@@ -1,11 +1,15 @@
+#include "I3CBinding.hpp"
 #include "MCTPBinding.hpp"
 #include "PCIeBinding.hpp"
 #include "SMBusBinding.hpp"
+#include "hw/I3CDriver.hpp"
+#include "hw/aspeed/I3CDriver.hpp"
 #include "hw/aspeed/PCIeDriver.hpp"
 #include "hw/aspeed/PCIeMonitor.hpp"
 
 #include <CLI/CLI.hpp>
 #include <boost/asio/signal_set.hpp>
+#include <optional>
 #include <phosphor-logging/log.hpp>
 #include <sdbusplus/asio/object_server.hpp>
 
@@ -31,6 +35,20 @@ std::shared_ptr<MctpBinding>
             conn, objectServer, mctpBaseObj, *pcieConfig, ioc,
             std::make_unique<hw::aspeed::PCIeDriver>(ioc),
             std::make_unique<hw::aspeed::PCIeMonitor>(ioc));
+    }
+    else if (auto i3cConfig =
+                 dynamic_cast<const I3CConfiguration*>(&configuration))
+    {
+        std::optional<uint8_t> pidMask = std::nullopt;
+        if (i3cConfig->requiresCpuPidMask)
+        {
+            pidMask = i3cConfig->provisionalIdMask;
+        }
+
+        return std::make_shared<I3CBinding>(
+            conn, objectServer, mctpBaseObj, *i3cConfig, ioc,
+            std::make_unique<hw::aspeed::I3CDriver>(ioc, i3cConfig->bus,
+                                                    pidMask));
     }
 
     return nullptr;
