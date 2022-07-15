@@ -55,6 +55,8 @@ deps = [
 	udev
 ]
 
+# TODO: libmctp linking 
+
 src_files = [
 	'src/main.cpp', 
 	'src/MCTPBinding.cpp',
