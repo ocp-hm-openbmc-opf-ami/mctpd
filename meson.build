@@ -51,8 +51,8 @@ deps = [
     dependency('phosphor-logging', required: dep_required),
     dependency('sdbusplus', required: dep_required),
     dependency('phosphor-dbus-interfaces', required: dep_required),
-	i2c,
-	udev
+    i2c,
+    udev
 ]
 
 # TODO: libmctp linking 
