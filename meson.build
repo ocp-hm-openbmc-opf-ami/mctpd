@@ -5,7 +5,7 @@ project(
     version: '0.1',
     default_options: [
         'warning_level=0',
-        'werror=false',
+        'werror=true',
         'cpp_std=c++17'
     ],
 )
