@@ -119,8 +119,9 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
 
             // TODO. Get physical medium specific details
             auto entryType = mctpd::convertToEndpointType(ep.endpointType);
-            mctpd::RoutingTable::Entry entry(ep.eid, ep.service.name,
-                                             entryType);
+            mctpd::RoutingTable::Entry entry(
+                ep.eid, ep.service.name, entryType, ep.mediumTypeId,
+                ep.transportTypeId, ep.physicalAddress);
             entry.isUpstream = true;
             routingTable.updateEntry(ep.eid, entry);
             sendNewRoutingTableEntryToAllBridges(entry);
@@ -178,22 +179,6 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
         registerProperty(
             mctpInterface, "BindingMode",
             mctp_server::convertBindingModeTypesToString(bindingModeType));
-
-        if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
-        {
-            // Pass eid, service name & Type
-            mctpd::RoutingTable::Entry entry(ownEid, getDbusName(),
-                                             mctpd::EndPointType::BridgeOnly);
-            // Binding ID enums start from 0, but the spec defined values start
-            // from 1. Add an offset of 1 0xFF is an invalid case, thus ignoring
-            // buffer overrun case
-            entry.routeEntry.routing_info.phys_transport_binding_id =
-                (static_cast<uint8_t>(bindingID) + 1);
-            entry.routeEntry.routing_info.phys_media_type_id =
-                static_cast<uint8_t>(
-                    mctpd::convertToPhysicalMediumIdentifier(bindingMediumID));
-            routingTable.updateEntry(ownEid, entry);
-        }
 
         /*
          * msgTag and tagOwner are not currently used, but can't be removed
@@ -381,8 +366,8 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                 eidPool.clearEIDPool();
                 eidPool.initializeEidPool(eidRange);
 
-                //TODO - If the bus was already initialised, then reinitialisation
-                //of the existing Endpoints should happen
+                // TODO - If the bus was already initialised, then
+                // reinitialisation of the existing Endpoints should happen
                 return true;
             });
 
@@ -634,6 +619,7 @@ void MctpBinding::createUuid()
 void MctpBinding::initializeMctp()
 {
     mctpServiceScanner.scan();
+    addOwnEIDToRoutingTable();
 }
 
 bool MctpBinding::setMediumId(
@@ -716,11 +702,14 @@ std::optional<mctp_eid_t>
 
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("Device Registered: EID = " + std::to_string(eid)).c_str());
-
-    // Pass eid, service name & Type.
     auto endpointType = mctpd::convertToEndpointType(bindingMode);
-    mctpd::RoutingTable::Entry entry(eid, getDbusName(), endpointType);
-    updateRoutingTableEntry(entry, bindingPrivate);
+    uint8_t mediumId = static_cast<uint8_t>(
+        mctpd::convertToPhysicalMediumIdentifier(bindingMediumID));
+
+    mctpd::RoutingTable::Entry entry(eid, getDbusName(), endpointType, mediumId,
+                                     getTransportId(),
+                                     getPhysicalAddress(bindingPrivate));
+    routingTable.updateEntry(eid, entry);
 
     if (bindingModeType != mctp_server::BindingModeTypes::Endpoint)
     {

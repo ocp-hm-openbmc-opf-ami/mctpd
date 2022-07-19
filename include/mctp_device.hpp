@@ -72,9 +72,6 @@ class MCTPDevice : public MCTPDBusInterfaces
 
     virtual std::optional<std::string>
         getLocationCode(const std::vector<uint8_t>& bindingPrivate);
-    virtual void
-        updateRoutingTableEntry(mctpd::RoutingTable::Entry entry,
-                                const std::vector<uint8_t>& privateData);
     virtual std::optional<std::vector<uint8_t>>
         getBindingPrivateData(uint8_t dstEid);
 
@@ -93,6 +90,12 @@ class MCTPDevice : public MCTPDBusInterfaces
     mctp_server::BindingModeTypes getEndpointType(const uint8_t types);
     MsgTypes getMsgTypes(const std::vector<uint8_t>& msgType);
     bool isMCTPVersionSupported(const MCTPVersionFields& version);
+
+    virtual uint8_t getTransportId() = 0;
+    virtual std::vector<uint8_t>
+        getPhysicalAddress(const std::vector<uint8_t>& bindingPrivate) = 0;
+    virtual std::vector<uint8_t> getOwnPhysicalAddress() = 0;
+    void addOwnEIDToRoutingTable();
 
   private:
     bool ctrlTxTimerExpired = true;

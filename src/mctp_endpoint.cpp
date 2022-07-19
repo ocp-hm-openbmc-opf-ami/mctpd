@@ -182,7 +182,7 @@ void MCTPEndpoint::setDownStreamEIDPools(uint8_t eidPoolSize, uint8_t firstEID)
             boost::system::error_code ec;
 
             // Check if startEID + poolsize overruns 255 EID
-            if (startEID  > (0xFF - poolSize))
+            if (startEID > (0xFF - poolSize))
             {
                 phosphor::logging::log<phosphor::logging::level::WARNING>(
                     ("EID pool crossing EID range on bus:" + busName).c_str());

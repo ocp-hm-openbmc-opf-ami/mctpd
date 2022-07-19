@@ -35,9 +35,6 @@ class SMBusDevice : public MctpBinding
         getBindingPrivateData(uint8_t dstEid) override;
     void addUnknownEIDToDeviceTable(const mctp_eid_t eid,
                                     void* bindingPrivate) override;
-    void updateRoutingTableEntry(
-        mctpd::RoutingTable::Entry entry,
-        const std::vector<uint8_t>& privateData) override;
 
   protected:
     bool arpMasterSupport;
@@ -65,6 +62,9 @@ class SMBusDevice : public MctpBinding
     mctp_eid_t
         getEIDFromDeviceTable(const std::vector<uint8_t>& bindingPrivate);
     void removeDeviceTableEntry(const mctp_eid_t eid);
+    uint8_t getTransportId() override;
+    std::vector<uint8_t>
+        getPhysicalAddress(const std::vector<uint8_t>& bindingPrivate) override;
 
   private:
     int inFd{-1}; // in_fd for the smbus binding
