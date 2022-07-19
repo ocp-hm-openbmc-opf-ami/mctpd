@@ -47,9 +47,9 @@ udev = meson.get_compiler('cpp').find_library('udev')
 deps = [
     boost,
     threads,
-	dependency('libmctp', required: dep_required),
-	dependency('phosphor-logging', required: dep_required),
-	dependency('sdbusplus', required: dep_required),
+    dependency('libmctp', required: dep_required),
+    dependency('phosphor-logging', required: dep_required),
+    dependency('sdbusplus', required: dep_required),
     dependency('phosphor-dbus-interfaces', required: dep_required),
 	i2c,
 	udev
