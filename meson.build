@@ -90,7 +90,7 @@ endif
 executable(
       'mctpd',
       src_files,
-	  include_directories : incdir,
+      include_directories : incdir,
       implicit_include_directories: false,
       dependencies: deps,
       install: true,
