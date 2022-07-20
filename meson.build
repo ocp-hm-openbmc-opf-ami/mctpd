@@ -81,7 +81,7 @@ src_files = [
 	'src/smbus_endpoint.cpp',
 	'src/smbus_bridge.cpp',
 	'src/I3CBinding.cpp',
-    'src/utils/i3c_utils.cpp',
+	'src/utils/i3c_utils.cpp',
 	'src/hw/aspeed/I3CDriver.cpp'
 ]
 
