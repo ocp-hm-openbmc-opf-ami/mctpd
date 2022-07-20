@@ -79,7 +79,10 @@ src_files = [
 	'src/mctp_bridge.cpp',
 	'src/smbus_device.cpp',
 	'src/smbus_endpoint.cpp',
-	'src/smbus_bridge.cpp'
+	'src/smbus_bridge.cpp',
+	'src/I3CBinding.cpp',
+    'src/utils/i3c_utils.cpp',
+	'src/hw/aspeed/I3CDriver.cpp'
 ]
 
 exe_options = ['warning_level=3']
