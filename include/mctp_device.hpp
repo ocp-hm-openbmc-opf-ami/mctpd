@@ -64,7 +64,7 @@ class MCTPDevice : public MCTPDBusInterfaces
     mctp_server::MctpPhysicalMediumIdentifiers bindingMediumID{};
     mctpd::RoutingTable routingTable;
     boost::asio::io_context& io;
-    std::unordered_map<uint8_t, version_entry>
+    std::unordered_map<uint8_t, std::vector<version_entry>>
         versionNumbersForUpperLayerResponder;
     // <eid, uuid>
     std::unordered_map<mctp_eid_t, std::string> uuidTable;

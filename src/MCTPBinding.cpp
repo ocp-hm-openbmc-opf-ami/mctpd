@@ -145,12 +145,12 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
     mctpInterface = objServer->add_interface(objPath, mctp_server::interface);
 
     /*initialize the map*/
-    versionNumbersForUpperLayerResponder.insert(
-        std::pair<uint8_t, version_entry>{MCTP_MESSAGE_TYPE_MCTP_CTRL,
-                                          {0xF1, 0xF3, 0xF1, 0}});
-    versionNumbersForUpperLayerResponder.insert(
-        std::pair<uint8_t, version_entry>{MCTP_GET_VERSION_SUPPORT_BASE_INFO,
-                                          {0xF1, 0xF3, 0xF1, 0}});
+    versionNumbersForUpperLayerResponder.emplace(
+        MCTP_MESSAGE_TYPE_MCTP_CTRL,
+        std::vector<version_entry>{{0xF1, 0xF3, 0xF1, 0}});
+    versionNumbersForUpperLayerResponder.emplace(
+        MCTP_GET_VERSION_SUPPORT_BASE_INFO,
+        std::vector<version_entry>{{0xF1, 0xF3, 0xF1, 0}});
 
     try
     {
@@ -374,7 +374,10 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
         // register VDPCI responder with MCTP for upper layers
         mctpInterface->register_method(
             "RegisterVdpciResponder",
-            [this](uint16_t vendorIdx, uint16_t cmdSetType) -> bool {
+            [this](uint16_t vendorIdx, uint16_t cmdSetType,
+                   [[maybe_unused]] std::vector<uint8_t> inputVersion) -> bool {
+                // TODO . Use inputVersion to set support for VDPCI type using
+                // registerUpperLayerResponder
                 return manageVdpciVersionInfo(vendorIdx, cmdSetType);
             });
 
@@ -539,9 +542,7 @@ bool MctpBinding::registerUpperLayerResponder(uint8_t typeNo,
 bool MctpBinding::manageVersionInfo(uint8_t typeNo,
                                     std::vector<uint8_t>& versionInfo)
 {
-    struct version_entry verString;
-
-    if (versionInfo.size() != 4)
+    if (versionInfo.empty() || versionInfo.size() % sizeof(version_entry) != 0)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "The Version info is of invalid length...");
@@ -553,8 +554,11 @@ bool MctpBinding::manageVersionInfo(uint8_t typeNo,
     {
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "No existing Data for typeNo, So pushing into map");
-        std::copy_n(versionInfo.begin(), sizeof(version_entry),
-                    reinterpret_cast<uint8_t*>(&verString));
+
+        std::vector<version_entry> verString(versionInfo.size() /
+                                             sizeof(version_entry));
+        std::copy_n(versionInfo.begin(), versionInfo.size(),
+                    reinterpret_cast<uint8_t*>(verString.data()));
 
         versionNumbersForUpperLayerResponder.emplace(typeNo, verString);
         return true;
