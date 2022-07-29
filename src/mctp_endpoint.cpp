@@ -182,7 +182,7 @@ void MCTPEndpoint::setDownStreamEIDPools(uint8_t eidPoolSize, uint8_t firstEID)
             boost::system::error_code ec;
 
             // Check if startEID + poolsize overruns 255 EID
-            if (startEID  > (0xFF - poolSize))
+            if (startEID > (0xFF - poolSize))
             {
                 phosphor::logging::log<phosphor::logging::level::WARNING>(
                     ("EID pool crossing EID range on bus:" + busName).c_str());
@@ -360,24 +360,28 @@ bool MCTPEndpoint::handleGetVersionSupport(
     auto resp =
         castVectorToStruct<mctp_ctrl_resp_get_mctp_ver_support>(response);
 
-    std::vector<version_entry> versions = {};
-
-    if (versionNumbersForUpperLayerResponder.find(req->msg_type_number) ==
-        versionNumbersForUpperLayerResponder.end())
+    auto itVer =
+        versionNumbersForUpperLayerResponder.find(req->msg_type_number);
+    if (itVer == versionNumbersForUpperLayerResponder.end() ||
+        itVer->second.empty())
     {
         resp->completion_code =
             MCTP_CTRL_CC_GET_MCTP_VER_SUPPORT_UNSUPPORTED_TYPE;
+        resp->number_of_entries = 0; // No supported versions
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            ("No supported version available for " +
+             std::to_string(req->msg_type_number))
+                .c_str());
     }
     else
     {
-        versions.push_back(
-            versionNumbersForUpperLayerResponder.at(req->msg_type_number));
         resp->completion_code = MCTP_CTRL_CC_SUCCESS;
+        resp->number_of_entries = static_cast<uint8_t>(itVer->second.size());
+        std::copy(reinterpret_cast<uint8_t*>(itVer->second.data()),
+                  reinterpret_cast<uint8_t*>(itVer->second.data()) +
+                      itVer->second.size() * sizeof(version_entry),
+                  std::back_inserter(response));
     }
-    resp->number_of_entries = static_cast<uint8_t>(versions.size());
-    std::copy(reinterpret_cast<uint8_t*>(versions.data()),
-              reinterpret_cast<uint8_t*>(versions.data() + versions.size()),
-              std::back_inserter(response));
     return true;
 }
 

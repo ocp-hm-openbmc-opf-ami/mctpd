@@ -13,6 +13,10 @@
 using pcie_binding =
     sdbusplus::xyz::openbmc_project::MCTP::Binding::server::PCIe;
 
+constexpr uint8_t deviceFunMask = 0xff;
+constexpr uint16_t busMask = 0xff00;
+constexpr uint8_t deviceFunShift = 0x8;
+
 class PCIeBinding : public MctpBinding,
                     public hw::DeviceObserver,
                     public std::enable_shared_from_this<hw::DeviceObserver>
@@ -56,7 +60,10 @@ class PCIeBinding : public MctpBinding,
     void populateDeviceProperties(
         const mctp_eid_t eid,
         const std::vector<uint8_t>& bindingPrivate) override;
-
+    uint8_t getTransportId() override;
+    std::vector<uint8_t>
+        getPhysicalAddress(const std::vector<uint8_t>& privateData) override;
+    std::vector<uint8_t> getOwnPhysicalAddress() override;
     std::shared_ptr<hw::PCIeDriver> hw;
     std::shared_ptr<hw::DeviceMonitor> hwMonitor;
 

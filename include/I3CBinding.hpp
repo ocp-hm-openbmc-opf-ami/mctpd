@@ -46,11 +46,6 @@ class I3CBinding : public MctpBinding
     bool handleGetVdmSupport(mctp_eid_t endpointEid, void* bindingPrivate,
                              std::vector<uint8_t>& request,
                              std::vector<uint8_t>& response) override;
-
-    void updateRoutingTableEntry(
-        mctpd::RoutingTable::Entry entry,
-        const std::vector<uint8_t>& privateData) override;
-
     void populateDeviceProperties(
         const mctp_eid_t eid,
         const std::vector<uint8_t>& bindingPrivate) override;
@@ -70,7 +65,10 @@ class I3CBinding : public MctpBinding
     boost::posix_time::seconds getRoutingInterval;
     boost::asio::deadline_timer getRoutingTableTimer;
     std::vector<routingTableEntry_t> routingTable;
-
+    std::vector<uint8_t>
+        getPhysicalAddress(const std::vector<uint8_t>& bindingPrivate) override;
+    uint8_t getTransportId() override;
+    std::vector<uint8_t> getOwnPhysicalAddress() override;
     void endpointDiscoveryFlow();
     void updateRoutingTable();
     void processRoutingTableChanges(
@@ -89,8 +87,7 @@ class I3CBinding : public MctpBinding
         size_t entryOffset);
     bool isEntryInRoutingTable(get_routing_table_entry* routingEntry,
                                const std::vector<routingTableEntry_t>& rt);
-    bool isEndOfGetRoutingTableResp(uint8_t entryHandle,
-                                    uint8_t responseCount);
+    bool isEndOfGetRoutingTableResp(uint8_t entryHandle, uint8_t responseCount);
     bool isActiveEntryBehindBridge(get_routing_table_entry* routingEntry,
                                    const std::vector<routingTableEntry_t>& rt);
     bool isEntryBridge(const routingTableEntry_t& routingEntry);

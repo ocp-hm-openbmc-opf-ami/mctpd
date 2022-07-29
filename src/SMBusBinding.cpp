@@ -96,7 +96,6 @@ void SMBusBinding::initializeBinding()
 
     setupPowerMatch(connection, this);
     setupMuxMonitor();
-
     if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
     {
         scanDevices();
@@ -162,4 +161,9 @@ void SMBusBinding::populateDeviceProperties(
                                          smbusBindingPvt->slave_addr);
     smbusIntf->initialize();
     deviceInterface.emplace(eid, std::move(smbusIntf));
+}
+
+std::vector<uint8_t> SMBusBinding::getOwnPhysicalAddress()
+{
+    return std::vector<uint8_t>{bmcSlaveAddr};
 }

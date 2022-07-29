@@ -620,16 +620,20 @@ void I3CBinding::changeDiscoveredFlag(I3CBindingServer::DiscoveryFlags flag)
     }
 }
 
-void I3CBinding::updateRoutingTableEntry(
-    mctpd::RoutingTable::Entry entry,
-    const std::vector<uint8_t>& /*privateData*/)
+uint8_t I3CBinding::getTransportId()
 {
-    constexpr uint8_t transportIdI3C = 0x06;
-    entry.routeEntry.routing_info.phys_transport_binding_id = transportIdI3C;
+    return MCTP_BINDING_I3C;
+}
 
-    entry.routeEntry.phys_address[0] = 0; // 8bit address of I3C controller
-    entry.routeEntry.routing_info.phys_address_size = 1;
+std::vector<uint8_t>
+    I3CBinding::getPhysicalAddress(const std::vector<uint8_t>& /*privateData*/)
+{
+    // TODO update proper physical address
+    return std::vector<uint8_t>{0};
+}
 
-    MCTPDevice::routingTable.updateEntry(
-        entry.routeEntry.routing_info.starting_eid, entry);
+std::vector<uint8_t> I3CBinding::getOwnPhysicalAddress()
+{
+    // TODO update proper physical address
+    return std::vector<uint8_t>{0};
 }

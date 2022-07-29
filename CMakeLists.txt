@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 
-# Set project name here
+#Set project name here
 project(mctpd CXX)
 
 option(BUILD_STANDALONE "Use outside of YOCTO depedencies system" OFF)
@@ -52,7 +52,7 @@ set(CMAKE_C_FLAGS
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
-# Add header and sources here
+#Add header and sources here
 set(SRC_FILES
     ${PROJECT_SOURCE_DIR}/src/main.cpp
     ${PROJECT_SOURCE_DIR}/src/MCTPBinding.cpp
@@ -70,6 +70,7 @@ set(SRC_FILES
     ${PROJECT_SOURCE_DIR}/src/utils/eid_pool.cpp
     ${PROJECT_SOURCE_DIR}/src/utils/smbus_utils.cpp
     ${PROJECT_SOURCE_DIR}/src/utils/i3c_utils.cpp
+    ${PROJECT_SOURCE_DIR}/src/utils/binding_utils.cpp
     ${PROJECT_SOURCE_DIR}/src/routing_table.cpp
     ${PROJECT_SOURCE_DIR}/src/service_scanner.cpp
     ${PROJECT_SOURCE_DIR}/src/mctp_dbus_interfaces.cpp
@@ -110,7 +111,8 @@ if(BUILD_STANDALONE)
   configure_file(CMakeLists.txt.in 3rdparty/CMakeLists.txt)
   execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
                   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/3rdparty)
-  execute_process(COMMAND ${CMAKE_COMMAND} --build .
+  execute_process(COMMAND ${
+    CMAKE_COMMAND} --build .
                   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/3rdparty)
 
   include_directories(SYSTEM ${CMAKE_BINARY_DIR}/libs/sdbusplus/include)
