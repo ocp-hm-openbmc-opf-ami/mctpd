@@ -235,8 +235,12 @@ void I3CBinding::readRoutingTable(
                 getRoutingTableEntryResp.data() + entryOffset);
 
             entryOffset += sizeof(get_routing_table_entry);
-            if (routingTableEntry->phys_transport_binding_id !=
-                MCTP_BINDING_I3C)
+            if ((routingTableEntry->phys_transport_binding_id !=
+                 MCTP_BINDING_I3C) ||
+                (routingTableEntry->phys_media_type_id !=
+                 static_cast<uint8_t>(
+                     mctpd::PhysicalMediumIdentifier::i3c12_5Mhz)))
+
             {
                 entryOffset += routingTableEntry->phys_address_size;
                 continue;
