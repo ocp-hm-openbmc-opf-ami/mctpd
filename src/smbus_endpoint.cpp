@@ -186,6 +186,25 @@ bool SMBusEndpoint::handleGetVdmSupport(mctp_eid_t destEid,
     return true;
 }
 
+bool SMBusEndpoint::handleResolveEndpointId(mctp_eid_t destEid,
+                                            void* bindingPrivate,
+                                            std::vector<uint8_t>& request,
+                                            std::vector<uint8_t>& response)
+{
+    if (!MCTPEndpoint::handleResolveEndpointId(destEid, bindingPrivate, request,
+                                               response))
+        return false;
+
+    auto resp =
+        reinterpret_cast<mctp_ctrl_cmd_resolve_eid_resp*>(response.data());
+    if (resp->bridge_eid == destEid)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "EId's Are same! Not a Bridge, Target Device On Same Bus");
+    }
+    return true;
+}
+
 std::string SMBusEndpoint::convertToString(DiscoveryFlags flag)
 {
     std::string discoveredStr;

@@ -674,6 +674,26 @@ bool PCIeBinding::handleGetVdmSupport(mctp_eid_t destEid, void* bindingPrivate,
     return true;
 }
 
+bool PCIeBinding::handleResolveEndpointId(mctp_eid_t destEid,
+                                          void* bindingPrivate,
+                                          std::vector<uint8_t>& request,
+                                          std::vector<uint8_t>& response)
+{
+    if (!MCTPEndpoint::handleResolveEndpointId(destEid, bindingPrivate, request,
+                                               response))
+    {
+        return false;
+    }
+    auto resp =
+        reinterpret_cast<mctp_ctrl_cmd_resolve_eid_resp*>(response.data());
+    if (resp->bridge_eid == destEid)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "Eid's Are same! Not a Bridge, Target Device On Same Bus");
+    }
+    return true;
+}
+
 void PCIeBinding::initializeBinding()
 {
     int status = 0;
@@ -811,7 +831,8 @@ std::vector<uint8_t>
         reinterpret_cast<const mctp_astpcie_pkt_private*>(privateData.data());
     return std::vector<uint8_t>{
         static_cast<uint8_t>(pcieBindingPvt->remote_id & deviceFunMask),
-        static_cast<uint8_t>((pcieBindingPvt->remote_id & busMask) >> deviceFunShift)};
+        static_cast<uint8_t>((pcieBindingPvt->remote_id & busMask) >>
+                             deviceFunShift)};
 }
 
 std::vector<uint8_t> PCIeBinding::getOwnPhysicalAddress()

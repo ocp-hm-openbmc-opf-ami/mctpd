@@ -120,6 +120,11 @@ void MCTPEndpoint::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
                                                  request, response);
             break;
         }
+        case MCTP_CTRL_CMD_RESOLVE_ENDPOINT_ID: {
+            sendResponse = handleResolveEndpointId(destEid, bindingPrivate,
+                                                   request, response);
+            break;
+        }
         default: {
             std::stringstream commandCodeHex;
             commandCodeHex << std::hex
@@ -387,6 +392,33 @@ bool MCTPEndpoint::handleGetVersionSupport(
     return true;
 }
 
+bool MCTPEndpoint::handleResolveEndpointId(
+    mctp_eid_t eid, void*, [[maybe_unused]] std::vector<uint8_t>& request,
+    std::vector<uint8_t>& response)
+{
+    const uint8_t instance_id = 0x01;
+    uint8_t rq_dgram_inst = instance_id | MCTP_CTRL_HDR_FLAG_REQUEST;
+    struct variable_field address;
+    response.resize(sizeof(mctp_ctrl_cmd_resolve_eid_resp));
+    auto resp =
+        reinterpret_cast<mctp_ctrl_cmd_resolve_eid_resp*>(response.data());
+
+    /*Getting entry related to the Eid from the table
+     this way we can get the structure reference to the particular eid.*/
+    auto& entry = routingTable.getEntry(eid);
+
+    /* The addr size for SMBUS is 8, and for PCIE is 16, So taking higher
+     size as buffer assuming correct value as per binding. */
+    address.data_size = entry.routeEntry.routing_info.phys_address_size;
+    std::memcpy(address.data, entry.routeEntry.phys_address, address.data_size);
+    if (!mctp_encode_ctrl_cmd_resolve_eid_resp(resp, rq_dgram_inst, eid,
+                                               &address))
+    {
+        return false;
+    }
+    return true;
+}
+
 std::vector<uint8_t> MCTPEndpoint::getBindingMsgTypes()
 {
     // TODO: endpoints should expose info about message types
@@ -437,7 +469,8 @@ bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,
         reinterpret_cast<mctp_ctrl_resp_get_routing_table*>(response.data());
 
     bool status = false;
-    const mctpd::RoutingTable::EntryMap& entries = this->routingTable.getAllEntries();
+    const mctpd::RoutingTable::EntryMap& entries =
+        this->routingTable.getAllEntries();
     std::vector<RoutingTableEntry::MCTPLibData> entriesLibFormat;
 
     std::vector<RoutingTableEntry::MCTPLibData> requiredEntriesLibFormat;
