@@ -65,6 +65,7 @@ class I3CBinding : public MctpBinding
     boost::posix_time::seconds getRoutingInterval;
     boost::asio::deadline_timer getRoutingTableTimer;
     std::vector<routingTableEntry_t> routingTable;
+    bool forwaredEIDPoolToEP = false;
     std::vector<uint8_t>
         getPhysicalAddress(const std::vector<uint8_t>& bindingPrivate) override;
     uint8_t getTransportId() override;
@@ -103,4 +104,8 @@ class I3CBinding : public MctpBinding
         getBindingMode(const routingTableEntry_t& routingEntry);
     void changeDiscoveredFlag(I3CBindingServer::DiscoveryFlags flag);
     void onI3CDeviceChangeCallback();
+    virtual bool setEIdPool(uint8_t const startEID,
+                            const uint8_t poolSize) override;
+    void forwardEIDPool(boost::asio::yield_context& yield,
+                        const uint8_t startEID, const uint8_t poolSize);
 };

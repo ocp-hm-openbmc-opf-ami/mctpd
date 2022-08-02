@@ -51,6 +51,7 @@ class MCTPBridge : public MCTPEndpoint
 
   protected:
     mctpd::EidPool eidPool;
+    bool nullEIdMode = true;
     std::optional<uint8_t> requiredEIDPoolSize = std::nullopt;
     mctpd::DeviceWatcher deviceWatcher{};
 
@@ -97,6 +98,12 @@ class MCTPBridge : public MCTPEndpoint
         const mctp_eid_t bridge, const std::vector<uint8_t>& bindingPrivate);
     void sendNewRoutingTableEntryToAllBridges(
         const mctpd::RoutingTable::Entry& entry);
+
+    bool allocateEIDPoolCtrlCmd(
+        boost::asio::yield_context& yield, const mctp_eid_t destEid,
+        const mctp_ctrl_cmd_allocate_eids_req_op operation,
+        const mctp_eid_t startEId, const uint8_t poolSize,
+        std::vector<uint8_t>& resp);
 
   private:
     void logUnsupportedMCTPVersion(

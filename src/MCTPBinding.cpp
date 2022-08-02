@@ -180,6 +180,8 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
             mctpInterface, "BindingMode",
             mctp_server::convertBindingModeTypesToString(bindingModeType));
 
+        registerProperty(mctpInterface, "NetworkID", conf.networkId);
+
         /*
          * msgTag and tagOwner are not currently used, but can't be removed
          * since they are defined for SendMctpMessagePayload() in the current
@@ -344,7 +346,9 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
             });
 
         mctpInterface->register_method(
-            "SetEIDPool", [this](uint8_t startEID, uint8_t poolSize) -> bool {
+            "SetEIDPool",
+            [this](boost::asio::yield_context& yield, uint8_t startEID,
+                   uint8_t poolSize) -> bool {
                 if (bindingModeType != mctp_server::BindingModeTypes::BusOwner)
                 {
                     // Only bus owner roles requires a pool
@@ -368,6 +372,17 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
 
                 // TODO - If the bus was already initialised, then
                 // reinitialisation of the existing Endpoints should happen
+
+                if (this->nullEIdMode)
+                {
+                    // Specific to I3C binding or applicable to all ?
+                    std::vector<uint8_t> resp;
+                    this->allocateEIDPoolCtrlCmd(
+                        yield, MCTP_EID_NULL,
+                        mctp_ctrl_cmd_allocate_eids_req_op::allocate_eids,
+                        startEID, poolSize, resp);
+                }
+
                 return true;
             });
 
@@ -854,4 +869,32 @@ void MctpBinding::onRawMessage(void* data, void* msg, size_t len,
 
     // sendMctpRawPayload will find the destination and do the transfer
     binding->sendMctpRawPayload(payload);
+}
+
+bool MctpBinding::setEIdPool(const uint8_t startEID, const uint8_t poolSize)
+{
+    if (bindingModeType != mctp_server::BindingModeTypes::BusOwner)
+    {
+        // Only bus owner roles requires a pool
+        return false;
+    }
+
+    if (startEID > (0xFF - poolSize))
+    {
+        // Invalid EID range passed to us
+        return false;
+    }
+    std::set<mctp_eid_t> eidRange;
+
+    for (uint8_t i = startEID; i < (startEID + poolSize); i++)
+    {
+        eidRange.insert(i);
+    }
+
+    eidPool.clearEIDPool();
+    eidPool.initializeEidPool(eidRange);
+
+    // TODO - If the bus was already initialised, then
+    // reinitialisation of the existing Endpoints should happen
+    return true;
 }
