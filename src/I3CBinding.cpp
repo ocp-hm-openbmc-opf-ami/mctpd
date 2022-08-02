@@ -16,6 +16,7 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                 mctp_server::BindingTypes::MctpOverI3c),
     hw{std::move(hwParam)}, getRoutingInterval(conf.getRoutingInterval),
     getRoutingTableTimer(ioc, getRoutingInterval), i3cConf(conf)
+    forwaredEIDPoolToEP(conf.forwaredEIDPoolToEP)
 {
     i3cInterface =
         objServer->add_interface(objPath, I3CBindingServer::interface);
@@ -650,4 +651,49 @@ std::vector<uint8_t> I3CBinding::getOwnPhysicalAddress()
 {
     // TODO update proper physical address
     return std::vector<uint8_t>{0};
+}
+
+bool I3CBinding::setEIdPool(const uint8_t startEID, const uint8_t poolSize)
+{
+    if (!MctpBinding::setEIdPool(startEID, poolSize))
+    {
+        return false;
+    }
+    if (this->forwaredEIDPoolToEP)
+    {
+        boost::asio::spawn(
+            this->connection->get_io_context(),
+            [this, startEID, poolSize](boost::asio::yield_context yield) {
+                this->forwardEIDPool(yield, startEID, poolSize);
+            });
+    }
+    return true;
+}
+
+void I3CBinding::forwardEIDPool(boost::asio::yield_context& yield,
+                                const uint8_t startEID, const uint8_t poolSize)
+{
+    std::vector<uint8_t> resp;
+    this->allocateEIDPoolCtrlCmd(
+        yield, MCTP_EID_NULL, mctp_ctrl_cmd_allocate_eids_req_op::allocate_eids,
+        startEID, poolSize, resp);
+
+    mctp_ctrl_cmd_allocate_eids_resp respData;
+    mctp_ctrl_cmd_allocate_eids_resp_op op;
+    mctp_decode_ctrl_cmd_allocate_endpoint_id_resp(
+        reinterpret_cast<mctp_ctrl_cmd_allocate_eids_resp*>(resp.data()),
+        &respData.ctrl_hdr.ic_msg_type, &respData.ctrl_hdr.rq_dgram_inst,
+        &respData.ctrl_hdr.command_code, &respData.completion_code, &op,
+        &respData.eid_pool_size, &respData.first_eid);
+    if (respData.completion_code != MCTP_CTRL_CC_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Allocate EID was not succesful");
+    }
+    if (respData.operation !=
+        mctp_ctrl_cmd_allocate_eids_resp_op::allocation_rejected)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Allocate EID rejected by the endpoint");
+    }
 }
