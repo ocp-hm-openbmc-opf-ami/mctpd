@@ -375,7 +375,6 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
     config.requiredEIDPoolSizeFromBO =
         static_cast<uint8_t>(requiredEIDPoolSizeFromBO);
     config.requiredEIDPoolSize = static_cast<uint8_t>(requiredEIDPoolSize);
-    config.networkId = getNetworkID(map);
     config.forwaredEIDPoolToEP = forwaredEIDPoolToEP;
 
     return config;
