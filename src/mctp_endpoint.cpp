@@ -409,8 +409,9 @@ bool MCTPEndpoint::handleResolveEndpointId(
 
     /* The addr size for SMBUS is 8, and for PCIE is 16, So taking higher
      size as buffer assuming correct value as per binding. */
-    address.data_size = entry.routeEntry.routing_info.phys_address_size;
-    std::memcpy(address.data, entry.routeEntry.phys_address, address.data_size);
+    auto re = entry.routeEntry;
+    address.data_size = re.routing_info.phys_address_size;
+    address.data = re.phys_address;
     if (!mctp_encode_ctrl_cmd_resolve_eid_resp(resp, rq_dgram_inst, eid,
                                                &address))
     {
