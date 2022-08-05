@@ -110,11 +110,13 @@ bool findMCTPI3CDevice(uint8_t busNum, std::optional<uint8_t> pidMask,
         foundPaths = getDevFilePaths(matchString);
         for (auto& path : foundPaths)
         {
-            fs::path targetBusDir = "/sys/bus/i3c/devices/" + std::to_string(busNum-1) + "-target/i3c-target-mctp";
+            fs::path targetBusDir = "/sys/bus/i3c/devices/" +
+                                    std::to_string(busNum - 1) +
+                                    "-target/i3c-target-mctp";
             fs::path devicePath = path.c_str();
             fs::path checkPath = targetBusDir / devicePath.filename();
 
-            if(fs::exists(checkPath))
+            if (fs::exists(checkPath))
             {
                 file.assign(path);
                 return true;

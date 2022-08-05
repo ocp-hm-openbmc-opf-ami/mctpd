@@ -811,7 +811,8 @@ std::vector<uint8_t>
         reinterpret_cast<const mctp_astpcie_pkt_private*>(privateData.data());
     return std::vector<uint8_t>{
         static_cast<uint8_t>(pcieBindingPvt->remote_id & deviceFunMask),
-        static_cast<uint8_t>((pcieBindingPvt->remote_id & busMask) >> deviceFunShift)};
+        static_cast<uint8_t>((pcieBindingPvt->remote_id & busMask) >>
+                             deviceFunShift)};
 }
 
 std::vector<uint8_t> PCIeBinding::getOwnPhysicalAddress()

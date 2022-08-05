@@ -437,7 +437,8 @@ bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,
         reinterpret_cast<mctp_ctrl_resp_get_routing_table*>(response.data());
 
     bool status = false;
-    const mctpd::RoutingTable::EntryMap& entries = this->routingTable.getAllEntries();
+    const mctpd::RoutingTable::EntryMap& entries =
+        this->routingTable.getAllEntries();
     std::vector<RoutingTableEntry::MCTPLibData> entriesLibFormat;
 
     std::vector<RoutingTableEntry::MCTPLibData> requiredEntriesLibFormat;

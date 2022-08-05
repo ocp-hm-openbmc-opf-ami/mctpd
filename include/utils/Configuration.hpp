@@ -19,7 +19,7 @@ struct Configuration
     std::unordered_map<std::string /*busName*/, uint8_t /*poolSize*/>
         downstreamEIDPoolDistribution;
     // Setting for indicating the pool size requirement to upstream bus owner
-    std::uint8_t requiredEIDPoolSizeFromBO = 0; 
+    std::uint8_t requiredEIDPoolSizeFromBO = 0;
     // Setting for the downstream bus owner's pool size
     std::uint8_t requiredEIDPoolSize = 0;
     uint16_t networkId;
