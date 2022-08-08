@@ -405,18 +405,15 @@ bool MCTPEndpoint::handleResolveEndpointId(
 
     /*Getting entry related to the Eid from the table
      this way we can get the structure reference to the particular eid.*/
-    auto& entry = routingTable.getEntry(eid);
+    auto entry = routingTable.getEntry(eid).routeEntry;
 
     /* The addr size for SMBUS is 8, and for PCIE is 16, So taking higher
      size as buffer assuming correct value as per binding. */
-    auto re = entry.routeEntry;
-    address.data_size = re.routing_info.phys_address_size;
-    address.data = re.phys_address;
+    address.data_size = entry.routing_info.phys_address_size;
+    address.data = entry.phys_address;
     if (!mctp_encode_ctrl_cmd_resolve_eid_resp(resp, rq_dgram_inst, eid,
                                                &address))
-    {
         return false;
-    }
     return true;
 }
 
