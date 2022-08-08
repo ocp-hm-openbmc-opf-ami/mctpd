@@ -467,7 +467,7 @@ bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,
         next_entry_handle = 0xFF;
     }
 
-    for (size_t i = startIndex; i <= endIndex; i++)
+    for (size_t i = startIndex; i < endIndex; i++)
     {
         requiredEntriesLibFormat.emplace_back(entriesLibFormat[i]);
     }
