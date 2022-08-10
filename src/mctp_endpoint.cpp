@@ -404,8 +404,18 @@ bool MCTPEndpoint::handleResolveEndpointId(
         reinterpret_cast<mctp_ctrl_cmd_resolve_eid_resp*>(response.data());
 
     /*Getting entry related to the Eid from the table
-     this way we can get the structure reference to the particular eid.*/
-    auto entry = routingTable.getEntry(eid).routeEntry;
+     this way we can get the structure to the particular eid.*/
+    get_routing_table_entry_with_address entry;
+    try
+    {
+        entry = routingTable.getEntry(eid).routeEntry;
+    }
+    catch (const std::exception& e)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Error in fetching the EID");
+        return false;
+    }
 
     /* The addr size for SMBUS is 8, and for PCIE is 16, So taking higher
      size as buffer assuming correct value as per binding. */
