@@ -37,6 +37,17 @@ configure_file(
   install_dir: systemd_system_unit_dir,
   output: 'xyz.openbmc_project.mctpd@.service',
 )
+
+if meson.get_compiler('cpp').has_header_symbol(
+        'nlohmann/json.hpp',
+        'nlohmann::json::string_t',
+        required:false)
+    nlohmann_json_dep = declare_dependency()
+else
+    nlohmann_json_dep = dependency('')
+endif
+
+cli11_dep = dependency('cli11', required: false)
 	 
 threads = dependency('threads')
 
@@ -51,9 +62,11 @@ deps = [
     dependency('phosphor-logging', required: dep_required),
     dependency('sdbusplus', required: dep_required),
     dependency('phosphor-dbus-interfaces', required: dep_required),
+    cli11_dep,
     i2c,
-    udev
-]
+    udev,
+    nlohmann_json_dep
+	]
 
 # TODO: libmctp linking 
 
