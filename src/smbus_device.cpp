@@ -196,14 +196,15 @@ void SMBusDevice::readResponse()
         });
 }
 
-void SMBusDevice::removeDeviceTableEntry(const mctp_eid_t eid)
+std::vector<DeviceTableEntry_t>::iterator
+    SMBusDevice::removeDeviceTableEntry(const mctp_eid_t eid)
 {
-    smbusDeviceTable.erase(std::remove_if(smbusDeviceTable.begin(),
-                                          smbusDeviceTable.end(),
-                                          [eid](auto const& tableEntry) {
-                                              return (tableEntry.first == eid);
-                                          }),
-                           smbusDeviceTable.end());
+    return smbusDeviceTable.erase(
+        std::remove_if(smbusDeviceTable.begin(), smbusDeviceTable.end(),
+                       [eid](auto const& tableEntry) {
+                           return (tableEntry.first == eid);
+                       }),
+        smbusDeviceTable.end());
 }
 
 mctp_eid_t SMBusDevice::getEIDFromDeviceTable(

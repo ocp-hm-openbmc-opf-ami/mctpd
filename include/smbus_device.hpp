@@ -61,7 +61,8 @@ class SMBusDevice : public MctpBinding
                            const mctp_smbus_pkt_private& dataTmp);
     mctp_eid_t
         getEIDFromDeviceTable(const std::vector<uint8_t>& bindingPrivate);
-    void removeDeviceTableEntry(const mctp_eid_t eid);
+    std::vector<DeviceTableEntry_t>::iterator
+        removeDeviceTableEntry(const mctp_eid_t eid);
     uint8_t getTransportId() override;
     std::vector<uint8_t>
         getPhysicalAddress(const std::vector<uint8_t>& bindingPrivate) override;
