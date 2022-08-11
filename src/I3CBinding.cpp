@@ -90,14 +90,18 @@ void I3CBinding::endpointDiscoveryFlow()
 
     boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
         bool discoverNoftifyDone = false;
-        while (
-            !discoverNoftifyDone &&
-            (discoveredFlag == I3CBindingServer::DiscoveryFlags::Undiscovered))
+        constexpr const uint8_t maxRetryCount = 3;
+        uint8_t retryCount = 0;
+        while (!discoverNoftifyDone &&
+               (discoveredFlag ==
+                I3CBindingServer::DiscoveryFlags::Undiscovered) &&
+               (retryCount < maxRetryCount))
         {
             if (!discoveryNotifyCtrlCmd(yield, prvData, MCTP_EID_NULL))
             {
                 phosphor::logging::log<phosphor::logging::level::ERR>(
                     "Discovery Notify failed");
+                retryCount++;
             }
             else
             {
