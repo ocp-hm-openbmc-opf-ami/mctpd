@@ -1,0 +1,25 @@
+From 961ba7b9e636e0430992d86fd1f9dd115532ed79 Mon Sep 17 00:00:00 2001
+From: abc xyz <abc.xyz@intel.com>
+Date: Tue, 2 Aug 2022 14:34:34 +0000
+Subject: [PATCH] Edit maxint
+
+---
+ yaml/xyz/openbmc_project/Inventory/Item/Drive.interface.yaml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/yaml/xyz/openbmc_project/Inventory/Item/Drive.interface.yaml b/yaml/xyz/openbmc_project/Inventory/Item/Drive.interface.yaml
+index 12fa508..7aff3ac 100644
+--- a/yaml/xyz/openbmc_project/Inventory/Item/Drive.interface.yaml
++++ b/yaml/xyz/openbmc_project/Inventory/Item/Drive.interface.yaml
+@@ -29,7 +29,7 @@ properties:
+           Indicates if the data on the drive is accessible.
+           This does not correspond to write locked
+     - name: PredictedMediaLifeLeftPercent
+-      default: maxint
++      default: 0
+       type: byte
+       description: >
+           How much of the drives life is remaining in a percentage from 0-100 .
+-- 
+2.17.1
+

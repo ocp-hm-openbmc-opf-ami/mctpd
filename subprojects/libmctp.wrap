@@ -1,0 +1,6 @@
+[wrap-git]
+url = https://github.com/intel-collab/firmware.bmc.openbmc.libraries.libmctp
+revision = 2f71e4c9a0d74f5f1225b33867c328351c9a392a
+
+[provide]
+libmctp = libmctp_dep

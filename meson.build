@@ -5,7 +5,7 @@ project(
     version: '0.1',
     default_options: [
         'warning_level=0',
-        'werror=true',
+        'werror=false',
         'cpp_std=c++17'
     ],
 )
@@ -24,6 +24,40 @@ incdir = include_directories(
 
 boost = dependency('boost', required: dep_required, version : '>=1.71',
         modules: [ 'coroutine', 'context'])
+if not boost.found()
+     boost_proj = subproject('boost_1_71_0', required: true)
+     boost = boost_proj.get_variable('boost_dep')
+endif
+
+sdbusplus = dependency('sdbusplus', required: dep_required)
+if not sdbusplus.found()
+    sdbusplus_proj = subproject('sdbusplus', required: true)
+    sdbusplus = sdbusplus_proj.get_variable('sdbusplus_dep')
+endif
+sdbusplus_dep = sdbusplus.partial_dependency(link_args: true,
+     includes : true, links: true)
+
+cpp = meson.get_compiler('cpp')
+
+if cpp.has_header('phosphor-logging/log.hpp')
+    phosphorlog_dep = dependency('phosphor-logging', required: dep_required)
+else
+    subproject('phosphor-logging', required: true)
+    phosphorlog_dep = declare_dependency(
+        include_directories: 'subprojects/phosphor-logging'
+    )
+endif
+
+cmake = import('cmake')
+
+libmctp = dependency('libmctp', required: dep_required)
+if not libmctp.found()
+    libmctp_proj = cmake.subproject('libmctp', required: true)
+    libmctp = libmctp_proj.dependency('mctp_intel')
+endif
+
+libmctp_dep = libmctp.partial_dependency(link_args: true,
+     includes : true, links: true)
 	 
 systemd = dependency('systemd', required: dep_required)
 systemd_system_unit_dir = systemd.get_pkgconfig_variable(
@@ -38,18 +72,45 @@ configure_file(
   output: 'xyz.openbmc_project.mctpd@.service',
 )
 
-if meson.get_compiler('cpp').has_header_symbol(
-        'nlohmann/json.hpp',
-        'nlohmann::json::string_t',
-        required:false)
-    nlohmann_json_dep = declare_dependency()
+if cpp.has_header('nlohmann/json.hpp')
+    nlohmann_json = declare_dependency()
+    message('nlohmann json already found')
 else
-    nlohmann_json_dep = dependency('')
+    nlohmann_json = dependency('', required: yocto_build.enabled())
+    subproject('nlohmann', required: true)
+    nlohmann_json = declare_dependency(
+        include_directories: [
+              'subprojects/nlohmann/single_include',
+              'subprojects/nlohmann/single_include/nlohmann'])
 endif
 
 cli11_dep = dependency('cli11', required: false)
+has_cli11 = meson.get_compiler('cpp').has_header_symbol(
+    'CLI/CLI.hpp',
+    'CLI::App',
+    dependencies: cli11_dep,
+    required: false)
+if not has_cli11
+    cli11_proj = subproject('cli11', required: false)
+    assert(cli11_proj.found(), 'CLI11 is required')
+    cli11_dep = cli11_proj.get_variable('CLI11_dep')
+endif
+
+phosphorlog_dep = dependency('phosphor-logging').partial_dependency(compile_args : false, link_args: true,
+     includes : true, links: true)
 	 
+phosphor_dbus_interfaces = dependency('phosphor-dbus-interfaces', required: dep_required)
+if not phosphor_dbus_interfaces.found()
+    phosphor_dbus_interfaces_proj = subproject('phosphor-dbus-interfaces', required: true)
+    phosphor_dbus_interfaces = phosphor_dbus_interfaces_proj.get_variable('phosphor_dbus_interfaces_dep')
+endif
+
+phosphor_dbus_interfaces_dep = phosphor_dbus_interfaces.partial_dependency(link_args: true,
+     includes : true, links: true)
+	  
 threads = dependency('threads')
+
+gtest_dep = dependency('gtest', required:dep_required)
 
 i2c = meson.get_compiler('cpp').find_library('i2c')
 
@@ -58,15 +119,16 @@ udev = meson.get_compiler('cpp').find_library('udev')
 deps = [
     boost,
     threads,
-    dependency('libmctp', required: dep_required),
-    dependency('phosphor-logging', required: dep_required),
-    dependency('sdbusplus', required: dep_required),
-    dependency('phosphor-dbus-interfaces', required: dep_required),
-    cli11_dep,
+    sdbusplus_dep,
+    libmctp_dep,
+    phosphorlog_dep,
+    phosphor_dbus_interfaces_dep,
     i2c,
     udev,
-    nlohmann_json_dep
-	]
+    gtest_dep,
+    cli11_dep,
+    nlohmann_json
+]
 
 # TODO: libmctp linking 
 
@@ -95,7 +157,8 @@ src_files = [
 	'src/smbus_bridge.cpp',
 	'src/I3CBinding.cpp',
 	'src/utils/i3c_utils.cpp',
-	'src/hw/aspeed/I3CDriver.cpp'
+	'src/hw/aspeed/I3CDriver.cpp',
+	'src/utils/binding_utils.cpp'
 ]
 
 exe_options = ['warning_level=3']
