@@ -90,14 +90,18 @@ void I3CBinding::endpointDiscoveryFlow()
 
     boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
         bool discoverNoftifyDone = false;
-        while (
-            !discoverNoftifyDone &&
-            (discoveredFlag == I3CBindingServer::DiscoveryFlags::Undiscovered))
+        constexpr const uint8_t maxRetryCount = 3;
+        uint8_t retryCount = 0;
+        while (!discoverNoftifyDone &&
+               (discoveredFlag ==
+                I3CBindingServer::DiscoveryFlags::Undiscovered) &&
+               (retryCount < maxRetryCount))
         {
             if (!discoveryNotifyCtrlCmd(yield, prvData, MCTP_EID_NULL))
             {
                 phosphor::logging::log<phosphor::logging::level::ERR>(
                     "Discovery Notify failed");
+                retryCount++;
             }
             else
             {
@@ -235,8 +239,12 @@ void I3CBinding::readRoutingTable(
                 getRoutingTableEntryResp.data() + entryOffset);
 
             entryOffset += sizeof(get_routing_table_entry);
-            if (routingTableEntry->phys_transport_binding_id !=
-                MCTP_BINDING_I3C)
+            if ((routingTableEntry->phys_transport_binding_id !=
+                 MCTP_BINDING_I3C) ||
+                (routingTableEntry->phys_media_type_id !=
+                 static_cast<uint8_t>(
+                     mctpd::PhysicalMediumIdentifier::i3c12_5Mhz)))
+
             {
                 entryOffset += routingTableEntry->phys_address_size;
                 continue;
@@ -620,16 +628,20 @@ void I3CBinding::changeDiscoveredFlag(I3CBindingServer::DiscoveryFlags flag)
     }
 }
 
-void I3CBinding::updateRoutingTableEntry(
-    mctpd::RoutingTable::Entry entry,
-    const std::vector<uint8_t>& /*privateData*/)
+uint8_t I3CBinding::getTransportId()
 {
-    constexpr uint8_t transportIdI3C = 0x06;
-    entry.routeEntry.routing_info.phys_transport_binding_id = transportIdI3C;
+    return MCTP_BINDING_I3C;
+}
 
-    entry.routeEntry.phys_address[0] = 0; // 8bit address of I3C controller
-    entry.routeEntry.routing_info.phys_address_size = 1;
+std::vector<uint8_t>
+    I3CBinding::getPhysicalAddress(const std::vector<uint8_t>& /*privateData*/)
+{
+    // TODO update proper physical address
+    return std::vector<uint8_t>{0};
+}
 
-    MCTPDevice::routingTable.updateEntry(
-        entry.routeEntry.routing_info.starting_eid, entry);
+std::vector<uint8_t> I3CBinding::getOwnPhysicalAddress()
+{
+    // TODO update proper physical address
+    return std::vector<uint8_t>{0};
 }

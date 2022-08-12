@@ -16,6 +16,7 @@
 
 #include "service_scanner.hpp"
 
+#include "utils/binding_utils.hpp"
 #include "utils/dbus_helper.hpp"
 
 #include <unistd.h>
@@ -174,7 +175,16 @@ void MCTPServiceScanner::scanForEIDs(const std::string& serviceName,
                 yield, *connection, serviceName, objectPath,
                 "xyz.openbmc_project.MCTP.Endpoint", "Mode");
             ep.service = getMctpServiceDetails(yield, serviceName);
-            this->onNewEid(ep, false);
+            if (updatePhysicalDetails(connection, yield, objectPath,
+                                      serviceName, ep))
+            {
+                this->onNewEid(ep, false);
+            }
+            else
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    "Scan device failed to get physical address details");
+            }
         }
     }
     catch (const std::exception& e)
@@ -352,7 +362,8 @@ void MCTPServiceScanner::onHotPluggedEid(sdbusplus::message::message& message)
             std::get<std::string>(endpointIntf->second.at("Mode"));
         boost::asio::spawn(
             connection->get_io_context(),
-            [this, ep, message](boost::asio::yield_context yield) mutable {
+            [this, ep, object_path,
+             message](boost::asio::yield_context yield) mutable {
                 try
                 {
                     std::string serviceName = message.get_sender();
@@ -369,7 +380,18 @@ void MCTPServiceScanner::onHotPluggedEid(sdbusplus::message::message& message)
                     }
                     ep.service = this->getMctpServiceDetails(
                         yield, message.get_sender());
-                    this->onNewEid(ep, true);
+                    if (updatePhysicalDetails(connection, yield, object_path,
+                                              serviceName, ep))
+                    {
+                        this->onNewEid(ep, true);
+                    }
+                    else
+                    {
+                        phosphor::logging::log<
+                            phosphor::logging::level::WARNING>(
+                            "onHotPlugged failed to get physical address "
+                            "details");
+                    }
                 }
                 catch (const std::exception& e)
                 {

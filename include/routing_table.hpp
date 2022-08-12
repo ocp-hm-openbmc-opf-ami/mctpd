@@ -41,6 +41,8 @@ EndPointType convertToEndpointType(const std::string& endpointType);
 
 EndPointType convertToEndpointType(mctp_server::BindingModeTypes endpointType);
 
+std::optional<uint8_t> getTransportBindingId(mctp_server::BindingTypes binding);
+
 constexpr bool isBridge(EndPointType type)
 {
     return type == EndPointType::BridgeAndEndPoints ||
@@ -75,14 +77,36 @@ class RoutingTable
     struct Entry
     {
         using MCTPLibData = get_routing_table_entry_with_address;
-        inline Entry(mctp_eid_t eid, std::string service, EndPointType type,
-                     uint8_t addrSize = 1) :
+        inline Entry(mctp_eid_t eid, std::string service, EndPointType type) :
             serviceName(std::move(service))
         {
             routeEntry.routing_info.eid_range_size = 1; // Fixed for now
             routeEntry.routing_info.entry_type = static_cast<uint8_t>(type);
             routeEntry.routing_info.starting_eid = eid;
-            routeEntry.routing_info.phys_address_size = addrSize;
+        }
+        inline Entry(mctp_eid_t eid, std::string service, EndPointType type,
+                     uint8_t mediumId, uint8_t transportId,
+                     const std::vector<uint8_t>& phyAddr) :
+            Entry(eid, service, type)
+        {
+            routeEntry.routing_info.phys_media_type_id = mediumId;
+            routeEntry.routing_info.phys_transport_binding_id = transportId;
+            updatePhyaddress(phyAddr);
+        }
+
+        void updatePhyaddress(const std::vector<uint8_t>& physicalAddr)
+        {
+            if (physicalAddr.size() > MAX_PHYSICAL_ADDRESS_SIZE)
+            {
+                routeEntry.routing_info.phys_address_size = 0;
+            }
+            else
+            {
+                std::copy_n(physicalAddr.begin(), physicalAddr.size(),
+                            routeEntry.phys_address);
+                routeEntry.routing_info.phys_address_size =
+                    static_cast<uint8_t>(physicalAddr.size());
+            }
         }
         constexpr bool isBridge() const
         {
