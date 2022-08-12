@@ -183,7 +183,8 @@ int SMBusDevice::getBusNumByFd(const int fd)
 void SMBusDevice::readResponse()
 {
     smbusReceiverFd.async_wait(
-        boost::asio::posix::descriptor_base::wait_error, [this](auto& ec) {
+        boost::asio::posix::stream_descriptor::wait_error,
+        [this](const boost::system::error_code& ec) {
             if (ec)
             {
                 phosphor::logging::log<phosphor::logging::level::ERR>(
