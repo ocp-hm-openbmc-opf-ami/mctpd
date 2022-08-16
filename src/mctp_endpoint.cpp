@@ -261,11 +261,15 @@ bool MCTPEndpoint::handleAllocateEID(std::vector<uint8_t>& request,
                 }
                 else
                 {
-                    resp->completion_code = MCTP_CTRL_CC_SUCCESS;
-                    resp->operation = allocation_accepted;
-                    resp->eid_pool_size = eidPoolSize;
-                    resp->first_eid = firstEID;
-
+                    if (!mctp_encode_ctrl_cmd_allocate_endpoint_id_resp(
+                            resp, &req->ctrl_msg_hdr, allocation_accepted,
+                            eidPoolSize, firstEID))
+                    {
+                        phosphor::logging::log<phosphor::logging::level::ERR>(
+                            "Encode allocate EID failed");
+                        resp->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
+                        return true;
+                    }
                     setDownStreamEIDPools(eidPoolSize, firstEID);
                     allocatedPoolSize = eidPoolSize;
                     allocatedPoolFirstEID = firstEID;
@@ -273,9 +277,15 @@ bool MCTPEndpoint::handleAllocateEID(std::vector<uint8_t>& request,
                 break;
             }
             case get_allocation_info: {
-                resp->completion_code = MCTP_CTRL_CC_SUCCESS;
-                resp->eid_pool_size = allocatedPoolSize;
-                resp->first_eid = allocatedPoolFirstEID;
+                if (!mctp_encode_ctrl_cmd_allocate_endpoint_id_resp(
+                        resp, &req->ctrl_msg_hdr, allocation_accepted,
+                        allocatedPoolSize, allocatedPoolFirstEID))
+                {
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "Encode allocate EID failed");
+                    resp->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
+                    return true;
+                }
                 break;
             }
 
