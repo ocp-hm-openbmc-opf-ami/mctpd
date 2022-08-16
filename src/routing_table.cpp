@@ -111,6 +111,27 @@ PhysicalMediumIdentifier convertToPhysicalMediumIdentifier(
     return id;
 }
 
+static const std::unordered_map<mctp_server::BindingTypes, uint8_t>
+    transportIndentifier = {
+        {mctp_server::BindingTypes::MctpOverSmbus, MCTP_BINDING_SMBUS},
+        {mctp_server::BindingTypes::MctpOverPcieVdm, MCTP_BINDING_PCIE},
+        {mctp_server::BindingTypes::MctpOverUsb, MCTP_BINDING_USB},
+        {mctp_server::BindingTypes::MctpOverKcs, MCTP_BINDING_KCS},
+        {mctp_server::BindingTypes::MctpOverSerial, MCTP_BINDING_SERIAL},
+        {mctp_server::BindingTypes::MctpOverI3c, MCTP_BINDING_I3C},
+        {mctp_server::BindingTypes::VendorDefined,
+         MCTP_BINDING_VENDOR_DEFINED}};
+
+std::optional<uint8_t> getTransportBindingId(mctp_server::BindingTypes binding)
+{
+    auto it = transportIndentifier.find(binding);
+    if (transportIndentifier.end() != it)
+    {
+        return it->second;
+    }
+    return std::nullopt;
+}
+
 } // namespace mctpd
 
 using RoutingTable = mctpd::RoutingTable;

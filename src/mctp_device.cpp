@@ -79,12 +79,6 @@ std::optional<std::string>
     return std::nullopt;
 }
 
-void MCTPDevice::updateRoutingTableEntry(mctpd::RoutingTable::Entry,
-                                         const std::vector<uint8_t>&)
-{
-    // Do nothing
-}
-
 bool MCTPDevice::sendMctpCtrlMessage(mctp_eid_t destEid,
                                      std::vector<uint8_t> req, bool tagOwner,
                                      uint8_t msgTag,
@@ -471,4 +465,17 @@ void MCTPDevice::unregisterEndpoint(mctp_eid_t eid)
             ("Device Unregistered: EID = " + std::to_string(eid)).c_str());
     }
     routingTable.removeEntry(eid);
+}
+
+void MCTPDevice::addOwnEIDToRoutingTable()
+{
+    if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
+    {
+        const auto phyMediumId = static_cast<uint8_t>(
+            mctpd::convertToPhysicalMediumIdentifier(bindingMediumID));
+        mctpd::RoutingTable::Entry entry(
+            ownEid, getDbusName(), mctpd::EndPointType::BridgeOnly, phyMediumId,
+            getTransportId(), getOwnPhysicalAddress());
+        routingTable.updateEntry(ownEid, entry);
+    }
 }

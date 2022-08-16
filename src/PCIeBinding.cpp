@@ -798,3 +798,26 @@ void PCIeBinding::changeDiscoveredFlag(pcie_binding::DiscoveryFlags flag)
         getRoutingTableTimer.expires_from_now(boost::posix_time::seconds{0});
     }
 }
+
+uint8_t PCIeBinding::getTransportId()
+{
+    return MCTP_BINDING_PCIE;
+}
+
+std::vector<uint8_t>
+    PCIeBinding::getPhysicalAddress(const std::vector<uint8_t>& privateData)
+{
+    auto pcieBindingPvt =
+        reinterpret_cast<const mctp_astpcie_pkt_private*>(privateData.data());
+    return std::vector<uint8_t>{
+        static_cast<uint8_t>(pcieBindingPvt->remote_id & deviceFunMask),
+        static_cast<uint8_t>((pcieBindingPvt->remote_id & busMask) >>
+                             deviceFunShift)};
+}
+
+std::vector<uint8_t> PCIeBinding::getOwnPhysicalAddress()
+{
+    return std::vector<uint8_t>{
+        static_cast<uint8_t>(bdf & deviceFunMask),
+        static_cast<uint8_t>((bdf & busMask) >> deviceFunShift)};
+}

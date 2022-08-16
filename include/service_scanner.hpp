@@ -27,6 +27,9 @@
 
 using mctp_eid_t = uint8_t;
 
+constexpr uint8_t deviceBitMask = 3;
+constexpr uint8_t functionBitMask = 7;
+
 namespace bridging
 {
 class MCTPServiceScanner
@@ -45,6 +48,9 @@ class MCTPServiceScanner
     {
         mctp_eid_t eid;
         std::string endpointType;
+        std::vector<uint8_t> physicalAddress;
+        uint8_t transportTypeId;
+        uint8_t mediumTypeId;
         MCTPService service;
     };
     using Callback = std::function<void(EndPoint, bool)>;
