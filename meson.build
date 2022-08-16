@@ -6,7 +6,7 @@ project(
     default_options: [
         'warning_level=0',
         'werror=true',
-        'cpp_std=c++17'
+        'cpp_std=c++20'
     ],
 )
 
