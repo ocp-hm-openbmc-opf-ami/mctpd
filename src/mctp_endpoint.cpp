@@ -400,8 +400,7 @@ bool MCTPEndpoint::handleResolveEndpointId(
     uint8_t rq_dgram_inst = instance_id | MCTP_CTRL_HDR_FLAG_REQUEST;
     struct variable_field address;
     response.resize(sizeof(mctp_ctrl_cmd_resolve_eid_resp));
-    auto resp =
-        reinterpret_cast<mctp_ctrl_cmd_resolve_eid_resp*>(response.data());
+    auto resp = castVectorToStruct<mctp_ctrl_cmd_resolve_eid_resp>(response);
 
     /*Getting entry related to the Eid from the table
      this way we can get the structure to the particular eid.*/
@@ -419,8 +418,19 @@ bool MCTPEndpoint::handleResolveEndpointId(
 
     /* The addr size for SMBUS is 8, and for PCIE is 16, So taking higher
      size as buffer assuming correct value as per binding. */
-    address.data_size = entry.routing_info.phys_address_size;
-    address.data = entry.phys_address;
+    auto e = routingTable.getEntry(eid);
+    std::vector<unsigned char> physAddr;
+    if (e.isUpstream)
+    {
+        physAddr = getOwnPhysicalAddress();
+        address.data_size = physAddr.size();
+        address.data = physAddr.data();
+    }
+    else
+    {
+        address.data_size = entry.routing_info.phys_address_size;
+        address.data = entry.phys_address;
+    }
     if (!mctp_encode_ctrl_cmd_resolve_eid_resp(resp, rq_dgram_inst, eid,
                                                &address))
         return false;
