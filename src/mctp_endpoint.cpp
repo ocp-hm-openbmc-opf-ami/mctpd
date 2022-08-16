@@ -115,6 +115,10 @@ void MCTPEndpoint::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
             sendResponse = handleAllocateEID(request, response);
             break;
         }
+        case MCTP_CTRL_CMD_GET_ENDPOINT_UUID: {
+            sendResponse = handleGetUUID(request, response);
+            break;
+        }
         case MCTP_CTRL_CMD_DISCOVERY_NOTIFY: {
             sendResponse = handleDiscoveryNotify(destEid, bindingPrivate,
                                                  request, response);
@@ -285,6 +289,32 @@ bool MCTPEndpoint::handleAllocateEID(std::vector<uint8_t>& request,
             "Allocate EID is not supported for this simple endpoint");
         resp->completion_code = MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD;
     }
+    return true;
+}
+
+bool MCTPEndpoint::handleGetUUID(std::vector<uint8_t>& request,
+                                 std::vector<uint8_t>& response)
+{
+    response.resize(sizeof(mctp_ctrl_resp_get_uuid));
+    auto resp = reinterpret_cast<mctp_ctrl_resp_get_uuid*>(response.data());
+    auto req = reinterpret_cast<mctp_ctrl_cmd_get_uuid*>(request.data());
+
+    if (uuid.size() < sizeof(guid_t))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Invalid size of UUID");
+        return false;
+    }
+
+    if (!mctp_encode_ctrl_cmd_get_uuid_resp(
+            resp, &req->ctrl_msg_hdr,
+            (reinterpret_cast<const guid_t*>(uuid.data()))))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Encode get uuid failed");
+        return false;
+    }
+
     return true;
 }
 
@@ -507,7 +537,7 @@ bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,
         next_entry_handle = 0xFF;
     }
 
-    for (size_t i = startIndex; i <= endIndex; i++)
+    for (size_t i = startIndex; i < endIndex; i++)
     {
         requiredEntriesLibFormat.emplace_back(entriesLibFormat[i]);
     }

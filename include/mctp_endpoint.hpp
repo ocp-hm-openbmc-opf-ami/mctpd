@@ -35,6 +35,7 @@ class MCTPEndpoint : public MCTPDevice
     std::unordered_map<std::string, uint8_t> downstreamEIDPools;
     uint8_t allocatedPoolSize = 0;
     uint8_t allocatedPoolFirstEID = 0;
+    std::vector<uint8_t> uuid;
     void setDownStreamEIDPools(uint8_t eidPoolSize, uint8_t firstEID);
     virtual bool isReceivedPrivateDataCorrect(const void* bindingPrivate);
     virtual bool handleEndpointDiscovery(mctp_eid_t destEid,
@@ -63,6 +64,8 @@ class MCTPEndpoint : public MCTPDevice
                                        std::vector<uint8_t>& response);
     virtual bool handleAllocateEID(std::vector<uint8_t>& request,
                                    std::vector<uint8_t>& response);
+    virtual bool handleGetUUID(std::vector<uint8_t>& request,
+                               std::vector<uint8_t>& response);
     virtual bool handleDiscoveryNotify(mctp_eid_t destEid, void* bindingPrivate,
                                        std::vector<uint8_t>& request,
                                        std::vector<uint8_t>& response);

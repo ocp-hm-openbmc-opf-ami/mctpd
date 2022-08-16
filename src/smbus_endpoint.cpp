@@ -54,6 +54,17 @@ bool SMBusEndpoint::handleEndpointDiscovery(
     return encode_cc_only_response(MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD, resp);
 }
 
+bool SMBusEndpoint::handleDiscoveryNotify(
+    [[maybe_unused]] mctp_eid_t destEid, [[maybe_unused]] void* bindingPrivate,
+    [[maybe_unused]] std::vector<uint8_t>& request,
+    std::vector<uint8_t>& response)
+{
+    phosphor::logging::log<phosphor::logging::level::ERR>(
+        "Discovery Notify command not supported");
+    auto resp = castVectorToStruct<mctp_ctrl_resp_completion_code>(response);
+    return encode_cc_only_response(MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD, resp);
+}
+
 // TODO: This method is a placeholder and has not been tested
 bool SMBusEndpoint::handleGetEndpointId(mctp_eid_t destEid,
                                         void* bindingPrivate,

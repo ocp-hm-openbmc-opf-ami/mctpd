@@ -506,6 +506,31 @@ void SMBusBridge::initEndpointDiscovery(boost::asio::yield_context& yield)
     // all the mux ports
     scanMuxBus(registerDeviceMap);
 
+    // Unregister devices that is no longer available
+    auto it = smbusDeviceTable.begin();
+    while (it != smbusDeviceTable.end())
+    {
+        const mctp_smbus_pkt_private& bindingPvt = it->second;
+        auto deviceIter = std::find_if(
+            registerDeviceMap.begin(), registerDeviceMap.end(),
+            [&bindingPvt](const auto& device) {
+                return device.first == bindingPvt.fd &&
+                       device.second == (bindingPvt.slave_addr >> 1);
+            });
+
+        if (deviceIter == registerDeviceMap.end())
+        {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                ("SMBus device EID = " + std::to_string(it->first) +
+                 " is no longer available")
+                    .c_str());
+            unregisterEndpoint(it->first);
+            it = removeDeviceTableEntry(it->first);
+            continue;
+        }
+        it++;
+    }
+
     /* Since i2c muxes restrict that only one command needs to be
      * in flight, we cannot register multiple endpoints in parallel.
      * Thus, in a single yield_context, all the discovered devices
@@ -582,16 +607,5 @@ void SMBusBridge::initEndpointDiscovery(boost::asio::yield_context& yield)
                 logDeviceDetails();
             }
         }
-    }
-
-    if (registerDeviceMap.empty())
-    {
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
-            "No device found");
-        for (auto& deviceTableEntry : smbusDeviceTable)
-        {
-            unregisterEndpoint(std::get<0>(deviceTableEntry));
-        }
-        smbusDeviceTable.clear();
     }
 }

@@ -95,7 +95,6 @@ class MctpBinding : public MCTPBridge
 
   private:
     bool staticEid;
-    std::vector<uint8_t> uuid;
     mctp_server::BindingTypes bindingID{};
 
     void createUuid();
