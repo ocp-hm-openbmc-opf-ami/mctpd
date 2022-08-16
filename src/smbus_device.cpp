@@ -183,7 +183,8 @@ int SMBusDevice::getBusNumByFd(const int fd)
 void SMBusDevice::readResponse()
 {
     smbusReceiverFd.async_wait(
-        boost::asio::posix::descriptor_base::wait_error, [this](auto& ec) {
+        boost::asio::posix::stream_descriptor::wait_error,
+        [this](const boost::system::error_code& ec) {
             if (ec)
             {
                 phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -196,14 +197,15 @@ void SMBusDevice::readResponse()
         });
 }
 
-void SMBusDevice::removeDeviceTableEntry(const mctp_eid_t eid)
+std::vector<DeviceTableEntry_t>::iterator
+    SMBusDevice::removeDeviceTableEntry(const mctp_eid_t eid)
 {
-    smbusDeviceTable.erase(std::remove_if(smbusDeviceTable.begin(),
-                                          smbusDeviceTable.end(),
-                                          [eid](auto const& tableEntry) {
-                                              return (tableEntry.first == eid);
-                                          }),
-                           smbusDeviceTable.end());
+    return smbusDeviceTable.erase(
+        std::remove_if(smbusDeviceTable.begin(), smbusDeviceTable.end(),
+                       [eid](auto const& tableEntry) {
+                           return (tableEntry.first == eid);
+                       }),
+        smbusDeviceTable.end());
 }
 
 mctp_eid_t SMBusDevice::getEIDFromDeviceTable(

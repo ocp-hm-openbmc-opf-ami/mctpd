@@ -476,6 +476,9 @@ void MCTPDevice::addOwnEIDToRoutingTable()
         mctpd::RoutingTable::Entry entry(
             ownEid, getDbusName(), mctpd::EndPointType::BridgeOnly, phyMediumId,
             getTransportId(), getOwnPhysicalAddress());
+        entry.routeEntry.routing_info.entry_type = 0;
+        SET_ROUTING_ENTRY_TYPE(entry.routeEntry.routing_info.entry_type,
+                               MCTP_ROUTING_ENTRY_BRIDGE);
         routingTable.updateEntry(ownEid, entry);
     }
 }
