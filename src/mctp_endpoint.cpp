@@ -25,6 +25,8 @@
 
 using RoutingTableEntry = mctpd::RoutingTable::Entry;
 
+constexpr int maxNumRoutingEntries = 256;
+
 MCTPEndpoint::MCTPEndpoint(std::shared_ptr<sdbusplus::asio::connection> conn,
                            boost::asio::io_context& ioc,
                            std::shared_ptr<object_server>& objServer) :
@@ -118,6 +120,10 @@ void MCTPEndpoint::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
             sendResponse = handleAllocateEID(request, response);
             break;
         }
+        case MCTP_CTRL_CMD_GET_ENDPOINT_UUID: {
+            sendResponse = handleGetUUID(request, response);
+            break;
+        }
         case MCTP_CTRL_CMD_DISCOVERY_NOTIFY: {
             sendResponse = handleDiscoveryNotify(destEid, bindingPrivate,
                                                  request, response);
@@ -204,7 +210,7 @@ void MCTPEndpoint::setDownStreamEIDPools(uint8_t eidPoolSize, uint8_t firstEID)
             boost::system::error_code ec;
 
             // Check if startEID + poolsize overruns 255 EID
-            if (startEID  > (0xFF - poolSize))
+            if (startEID > (0xFF - poolSize))
             {
                 phosphor::logging::log<phosphor::logging::level::WARNING>(
                     ("EID pool crossing EID range on bus:" + busName).c_str());
@@ -272,11 +278,15 @@ bool MCTPEndpoint::handleAllocateEID(std::vector<uint8_t>& request,
                 }
                 else
                 {
-                    resp->completion_code = MCTP_CTRL_CC_SUCCESS;
-                    resp->operation = allocation_accepted;
-                    resp->eid_pool_size = eidPoolSize;
-                    resp->first_eid = firstEID;
-
+                    if (!mctp_encode_ctrl_cmd_allocate_endpoint_id_resp(
+                            resp, &req->ctrl_msg_hdr, allocation_accepted,
+                            eidPoolSize, firstEID))
+                    {
+                        phosphor::logging::log<phosphor::logging::level::ERR>(
+                            "Encode allocate EID failed");
+                        resp->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
+                        return true;
+                    }
                     setDownStreamEIDPools(eidPoolSize, firstEID);
                     allocatedPoolSize = eidPoolSize;
                     allocatedPoolFirstEID = firstEID;
@@ -284,9 +294,15 @@ bool MCTPEndpoint::handleAllocateEID(std::vector<uint8_t>& request,
                 break;
             }
             case get_allocation_info: {
-                resp->completion_code = MCTP_CTRL_CC_SUCCESS;
-                resp->eid_pool_size = allocatedPoolSize;
-                resp->first_eid = allocatedPoolFirstEID;
+                if (!mctp_encode_ctrl_cmd_allocate_endpoint_id_resp(
+                        resp, &req->ctrl_msg_hdr, allocation_accepted,
+                        allocatedPoolSize, allocatedPoolFirstEID))
+                {
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "Encode allocate EID failed");
+                    resp->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
+                    return true;
+                }
                 break;
             }
 
@@ -300,6 +316,32 @@ bool MCTPEndpoint::handleAllocateEID(std::vector<uint8_t>& request,
             "Allocate EID is not supported for this simple endpoint");
         resp->completion_code = MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD;
     }
+    return true;
+}
+
+bool MCTPEndpoint::handleGetUUID(std::vector<uint8_t>& request,
+                                 std::vector<uint8_t>& response)
+{
+    response.resize(sizeof(mctp_ctrl_resp_get_uuid));
+    auto resp = reinterpret_cast<mctp_ctrl_resp_get_uuid*>(response.data());
+    auto req = reinterpret_cast<mctp_ctrl_cmd_get_uuid*>(request.data());
+
+    if (uuid.size() < sizeof(guid_t))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Invalid size of UUID");
+        return false;
+    }
+
+    if (!mctp_encode_ctrl_cmd_get_uuid_resp(
+            resp, &req->ctrl_msg_hdr,
+            (reinterpret_cast<const guid_t*>(uuid.data()))))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Encode get uuid failed");
+        return false;
+    }
+
     return true;
 }
 
@@ -382,32 +424,42 @@ bool MCTPEndpoint::handleGetVersionSupport(
     auto resp =
         castVectorToStruct<mctp_ctrl_resp_get_mctp_ver_support>(response);
 
-    std::vector<version_entry> versions = {};
-
-    if (versionNumbersForUpperLayerResponder.find(req->msg_type_number) ==
-        versionNumbersForUpperLayerResponder.end())
+    auto itVer =
+        versionNumbersForUpperLayerResponder.find(req->msg_type_number);
+    if (itVer == versionNumbersForUpperLayerResponder.end() ||
+        itVer->second.empty())
     {
         resp->completion_code =
             MCTP_CTRL_CC_GET_MCTP_VER_SUPPORT_UNSUPPORTED_TYPE;
+        resp->number_of_entries = 0; // No supported versions
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            ("No supported version available for " +
+             std::to_string(req->msg_type_number))
+                .c_str());
     }
     else
     {
-        versions.push_back(
-            versionNumbersForUpperLayerResponder.at(req->msg_type_number));
         resp->completion_code = MCTP_CTRL_CC_SUCCESS;
+        resp->number_of_entries = static_cast<uint8_t>(itVer->second.size());
+        std::copy(reinterpret_cast<uint8_t*>(itVer->second.data()),
+                  reinterpret_cast<uint8_t*>(itVer->second.data()) +
+                      itVer->second.size() * sizeof(version_entry),
+                  std::back_inserter(response));
     }
-    resp->number_of_entries = static_cast<uint8_t>(versions.size());
-    std::copy(reinterpret_cast<uint8_t*>(versions.data()),
-              reinterpret_cast<uint8_t*>(versions.data() + versions.size()),
-              std::back_inserter(response));
     return true;
 }
 
 std::vector<uint8_t> MCTPEndpoint::getBindingMsgTypes()
 {
-    // TODO: endpoints should expose info about message types
-    // supported by upper layer applications
-    std::vector<uint8_t> bindingMsgTypes = {MCTP_MESSAGE_TYPE_MCTP_CTRL};
+    std::vector<uint8_t> bindingMsgTypes;
+    for (const auto& [type, ver] : versionNumbersForUpperLayerResponder)
+    {
+        if (type == MCTP_GET_VERSION_SUPPORT_BASE_INFO)
+        {
+            continue;
+        }
+        bindingMsgTypes.emplace_back(type);
+    }
     return bindingMsgTypes;
 }
 
@@ -451,7 +503,25 @@ bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,
             request.data());
     auto dest =
         reinterpret_cast<mctp_ctrl_resp_get_routing_table*>(response.data());
-    if (getRoutingTableRequest->entry_handle != 0x00)
+
+    bool status = false;
+    const mctpd::RoutingTable::EntryMap& entries =
+        this->routingTable.getAllEntries();
+    std::vector<RoutingTableEntry::MCTPLibData> entriesLibFormat;
+
+    std::vector<RoutingTableEntry::MCTPLibData> requiredEntriesLibFormat;
+
+    // TODO. Combine EIDs in a range.
+    for (const auto& [eid, data] : entries)
+    {
+        entriesLibFormat.emplace_back(data.routeEntry);
+    }
+    size_t startIndex =
+        maxNumRoutingEntries * getRoutingTableRequest->entry_handle;
+    size_t endIndex = startIndex + maxNumRoutingEntries - 1;
+    uint8_t next_entry_handle = getRoutingTableRequest->entry_handle + 1;
+
+    if (entriesLibFormat.size() < startIndex + 1)
     {
         response.resize(errRespSize);
         dest->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
@@ -459,26 +529,29 @@ bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,
         // Return true so that a response will be sent with error code
         return true;
     }
-
-    bool status = false;
-    auto& entries = this->routingTable.getAllEntries();
-    std::vector<RoutingTableEntry::MCTPLibData> entriesLibFormat;
-    // TODO. Combine EIDs in a range.
-    for (const auto& [eid, data] : entries)
+    if (entriesLibFormat.size() < endIndex + 1)
     {
-        entriesLibFormat.emplace_back(data.routeEntry);
+        endIndex = entriesLibFormat.size();
+        next_entry_handle = 0xFF;
     }
 
-    size_t estSize =
-        sizeof(mctp_ctrl_resp_get_routing_table) +
-        entries.size() * sizeof(get_routing_table_entry_with_address);
+    for (size_t i = startIndex; i < endIndex; i++)
+    {
+        requiredEntriesLibFormat.emplace_back(entriesLibFormat[i]);
+    }
+
+    size_t estSize = sizeof(mctp_ctrl_resp_get_routing_table) +
+                     requiredEntriesLibFormat.size() *
+                         sizeof(get_routing_table_entry_with_address);
+
     response.resize(estSize);
     size_t formattedRespSize = 0;
     dest = reinterpret_cast<mctp_ctrl_resp_get_routing_table*>(response.data());
-    // TODO. Split if entries > 255
-    if (!mctp_encode_ctrl_cmd_rsp_get_routing_table(
-            dest, entriesLibFormat.data(),
-            static_cast<uint8_t>(entriesLibFormat.size()), &formattedRespSize))
+
+    if (!mctp_encode_ctrl_cmd_get_routing_table_resp(
+            dest, requiredEntriesLibFormat.data(),
+            static_cast<uint8_t>(requiredEntriesLibFormat.size()),
+            &formattedRespSize, next_entry_handle))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Error formatting get routing table");

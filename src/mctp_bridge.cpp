@@ -744,10 +744,12 @@ std::optional<mctp_eid_t> MCTPBridge::busOwnerRegisterEndpoint(
 
     // Pass eid, service name & Type.
     auto endpointType = mctpd::convertToEndpointType(epProperties.mode);
-    mctpd::RoutingTable::Entry entry(eid, getDbusName(), endpointType);
-    entry.routeEntry.routing_info.phys_media_type_id = static_cast<uint8_t>(
+    auto phyMediumId = static_cast<uint8_t>(
         mctpd::convertToPhysicalMediumIdentifier(bindingMediumID));
-    updateRoutingTableEntry(entry, bindingPrivate);
+    mctpd::RoutingTable::Entry entry(eid, getDbusName(), endpointType,
+                                     phyMediumId, getTransportId(),
+                                     getPhysicalAddress(bindingPrivate));
+    routingTable.updateEntry(eid, entry);
     if (mctpd::isBridge(endpointType))
     {
         sendRoutingTableEntriesToBridge(eid, bindingPrivate);

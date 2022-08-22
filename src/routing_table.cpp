@@ -65,9 +65,18 @@ PhysicalMediumIdentifier convertToPhysicalMediumIdentifier(
     auto id = PhysicalMediumIdentifier::unspecified;
     switch (medium)
     {
-        case mctp_server::MctpPhysicalMediumIdentifiers::Smbus:
-        case mctp_server::MctpPhysicalMediumIdentifiers::SmbusI2c:
-        case mctp_server::MctpPhysicalMediumIdentifiers::I2cCompatible:
+        case mctp_server::MctpPhysicalMediumIdentifiers::Smbus: {
+            id = PhysicalMediumIdentifier::smbus20_100KHz;
+            break;
+        }
+        case mctp_server::MctpPhysicalMediumIdentifiers::SmbusI2c: {
+            id = PhysicalMediumIdentifier::smbus20AndI2C100kHz;
+            break;
+        }
+        case mctp_server::MctpPhysicalMediumIdentifiers::I2cCompatible: {
+            id = PhysicalMediumIdentifier::i2C100kHz;
+            break;
+        }
         case mctp_server::MctpPhysicalMediumIdentifiers::
             Smbus3OrI2c400khzCompatible: {
             id = PhysicalMediumIdentifier::smbus30orI2C400kHz;
@@ -109,6 +118,27 @@ PhysicalMediumIdentifier convertToPhysicalMediumIdentifier(
             break;
     }
     return id;
+}
+
+static const std::unordered_map<mctp_server::BindingTypes, uint8_t>
+    transportIndentifier = {
+        {mctp_server::BindingTypes::MctpOverSmbus, MCTP_BINDING_SMBUS},
+        {mctp_server::BindingTypes::MctpOverPcieVdm, MCTP_BINDING_PCIE},
+        {mctp_server::BindingTypes::MctpOverUsb, MCTP_BINDING_USB},
+        {mctp_server::BindingTypes::MctpOverKcs, MCTP_BINDING_KCS},
+        {mctp_server::BindingTypes::MctpOverSerial, MCTP_BINDING_SERIAL},
+        {mctp_server::BindingTypes::MctpOverI3c, MCTP_BINDING_I3C},
+        {mctp_server::BindingTypes::VendorDefined,
+         MCTP_BINDING_VENDOR_DEFINED}};
+
+std::optional<uint8_t> getTransportBindingId(mctp_server::BindingTypes binding)
+{
+    auto it = transportIndentifier.find(binding);
+    if (transportIndentifier.end() != it)
+    {
+        return it->second;
+    }
+    return std::nullopt;
 }
 
 } // namespace mctpd

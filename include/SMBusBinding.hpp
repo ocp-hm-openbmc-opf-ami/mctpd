@@ -18,4 +18,5 @@ class SMBusBinding : public SMBusBridge
         const std::vector<uint8_t>& bindingPrivate) override;
     std::optional<std::string>
         getLocationCode(const std::vector<uint8_t>& bindingPrivate) override;
+    std::vector<uint8_t> getOwnPhysicalAddress() override;
 };

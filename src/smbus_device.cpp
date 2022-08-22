@@ -183,7 +183,8 @@ int SMBusDevice::getBusNumByFd(const int fd)
 void SMBusDevice::readResponse()
 {
     smbusReceiverFd.async_wait(
-        boost::asio::posix::descriptor_base::wait_error, [this](auto& ec) {
+        boost::asio::posix::stream_descriptor::wait_error,
+        [this](const boost::system::error_code& ec) {
             if (ec)
             {
                 phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -196,14 +197,15 @@ void SMBusDevice::readResponse()
         });
 }
 
-void SMBusDevice::removeDeviceTableEntry(const mctp_eid_t eid)
+std::vector<DeviceTableEntry_t>::iterator
+    SMBusDevice::removeDeviceTableEntry(const mctp_eid_t eid)
 {
-    smbusDeviceTable.erase(std::remove_if(smbusDeviceTable.begin(),
-                                          smbusDeviceTable.end(),
-                                          [eid](auto const& tableEntry) {
-                                              return (tableEntry.first == eid);
-                                          }),
-                           smbusDeviceTable.end());
+    return smbusDeviceTable.erase(
+        std::remove_if(smbusDeviceTable.begin(), smbusDeviceTable.end(),
+                       [eid](auto const& tableEntry) {
+                           return (tableEntry.first == eid);
+                       }),
+        smbusDeviceTable.end());
 }
 
 mctp_eid_t SMBusDevice::getEIDFromDeviceTable(
@@ -337,17 +339,15 @@ void SMBusDevice::processRoutingTableChanges(
     }
 }
 
-void SMBusDevice::updateRoutingTableEntry(
-    mctpd::RoutingTable::Entry entry, const std::vector<uint8_t>& privateData)
+uint8_t SMBusDevice::getTransportId()
 {
-    constexpr uint8_t transportIdSmbus = 0x01;
-    entry.routeEntry.routing_info.phys_transport_binding_id = transportIdSmbus;
+    return MCTP_BINDING_SMBUS;
+}
 
+std::vector<uint8_t>
+    SMBusDevice::getPhysicalAddress(const std::vector<uint8_t>& privateData)
+{
     auto smbusData =
         reinterpret_cast<const mctp_smbus_pkt_private*>(privateData.data());
-    entry.routeEntry.phys_address[0] = smbusData->slave_addr; // 8bit address
-    entry.routeEntry.routing_info.phys_address_size =
-        sizeof(smbusData->slave_addr);
-
-    routingTable.updateEntry(entry.routeEntry.routing_info.starting_eid, entry);
+    return std::vector<uint8_t>{smbusData->slave_addr};
 }
