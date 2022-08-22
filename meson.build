@@ -52,6 +52,9 @@ cli11_dep = dependency('cli11', required: false)
 threads = dependency('threads')
 
 i2c = meson.get_compiler('cpp').find_library('i2c')
+#if not i2c.found()
+#	assert('i2c is required')
+#endif
 
 udev = meson.get_compiler('cpp').find_library('udev')
 
@@ -84,6 +87,7 @@ src_files = [
 	'src/utils/transmission_queue.cpp',
 	'src/utils/eid_pool.cpp',
 	'src/utils/smbus_utils.cpp',
+	'src/utils/binding_utils.cpp',
 	'src/routing_table.cpp',
 	'src/service_scanner.cpp',
 	'src/mctp_dbus_interfaces.cpp',
