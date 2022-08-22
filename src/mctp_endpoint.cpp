@@ -479,9 +479,15 @@ bool MCTPEndpoint::handleResolveEndpointId(
 
 std::vector<uint8_t> MCTPEndpoint::getBindingMsgTypes()
 {
-    // TODO: endpoints should expose info about message types
-    // supported by upper layer applications
-    std::vector<uint8_t> bindingMsgTypes = {MCTP_MESSAGE_TYPE_MCTP_CTRL};
+    std::vector<uint8_t> bindingMsgTypes;
+    for (const auto& [type, ver] : versionNumbersForUpperLayerResponder)
+    {
+        if (type == MCTP_GET_VERSION_SUPPORT_BASE_INFO)
+        {
+            continue;
+        }
+        bindingMsgTypes.emplace_back(type);
+    }
     return bindingMsgTypes;
 }
 
