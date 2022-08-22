@@ -65,9 +65,18 @@ PhysicalMediumIdentifier convertToPhysicalMediumIdentifier(
     auto id = PhysicalMediumIdentifier::unspecified;
     switch (medium)
     {
-        case mctp_server::MctpPhysicalMediumIdentifiers::Smbus:
-        case mctp_server::MctpPhysicalMediumIdentifiers::SmbusI2c:
-        case mctp_server::MctpPhysicalMediumIdentifiers::I2cCompatible:
+        case mctp_server::MctpPhysicalMediumIdentifiers::Smbus: {
+            id = PhysicalMediumIdentifier::smbus20_100KHz;
+            break;
+        }
+        case mctp_server::MctpPhysicalMediumIdentifiers::SmbusI2c: {
+            id = PhysicalMediumIdentifier::smbus20AndI2C100kHz;
+            break;
+        }
+        case mctp_server::MctpPhysicalMediumIdentifiers::I2cCompatible: {
+            id = PhysicalMediumIdentifier::i2C100kHz;
+            break;
+        }
         case mctp_server::MctpPhysicalMediumIdentifiers::
             Smbus3OrI2c400khzCompatible: {
             id = PhysicalMediumIdentifier::smbus30orI2C400kHz;
