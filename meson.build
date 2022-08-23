@@ -51,10 +51,10 @@ cli11_dep = dependency('cli11', required: false)
 	 
 threads = dependency('threads')
 
-i2c = meson.get_compiler('cpp').find_library('i2c')
-#if not i2c.found()
-#	assert('i2c is required')
-#endif
+i2c=meson.get_compiler('cpp').find_library('i2c')
+if not i2c.found()
+	error('i2c is required')
+endif
 
 udev = meson.get_compiler('cpp').find_library('udev')
 
