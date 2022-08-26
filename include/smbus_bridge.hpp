@@ -61,7 +61,8 @@ class SMBusBridge : public SMBusEndpoint
     void monitorMuxChange();
     void scanMuxBus(std::set<std::pair<int, uint8_t>>& deviceMap);
     void initEndpointDiscovery(boost::asio::yield_context& yield);
-    bool reserveBandwidth(const mctp_eid_t eid,
+    bool reserveBandwidth(boost::asio::yield_context yield,
+                          const mctp_eid_t eid,
                           const uint16_t timeout) override;
     void startTimerAndReleaseBW(const uint16_t interval,
                                 const mctp_smbus_pkt_private prvt);

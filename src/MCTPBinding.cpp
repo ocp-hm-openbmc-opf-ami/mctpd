@@ -229,8 +229,9 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
 
         mctpInterface->register_method(
             "ReserveBandwidth",
-            [this](const mctp_eid_t eid, const uint16_t timeout) {
-                if (!reserveBandwidth(eid, timeout))
+            [this](boost::asio::yield_context yield, const mctp_eid_t eid,
+                   const uint16_t timeout) {
+                if (!reserveBandwidth(yield, eid, timeout))
                 {
                     phosphor::logging::log<phosphor::logging::level::WARNING>(
                         ("Reserve bandwidth failed for EID: " +
@@ -503,7 +504,8 @@ void MctpBinding::handleMCTPControlRequests(uint8_t srcEid, void* data,
     binding.handleCtrlReq(srcEid, bindingPrivate, msg, len, msgTag);
 }
 
-bool MctpBinding::reserveBandwidth(const mctp_eid_t /*eid*/,
+bool MctpBinding::reserveBandwidth(boost::asio::yield_context /*yield*/,
+                                   const mctp_eid_t /*eid*/,
                                    const uint16_t /*timeout*/)
 {
     return true;
