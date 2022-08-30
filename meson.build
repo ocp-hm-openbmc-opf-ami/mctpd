@@ -112,7 +112,10 @@ threads = dependency('threads')
 
 gtest_dep = dependency('gtest', required:dep_required)
 
-i2c = meson.get_compiler('cpp').find_library('i2c')
+i2c=meson.get_compiler('cpp').find_library('i2c')
+if not i2c.found()
+	error('i2c is required')
+endif
 
 udev = meson.get_compiler('cpp').find_library('udev')
 
@@ -146,6 +149,7 @@ src_files = [
 	'src/utils/transmission_queue.cpp',
 	'src/utils/eid_pool.cpp',
 	'src/utils/smbus_utils.cpp',
+	'src/utils/binding_utils.cpp',
 	'src/routing_table.cpp',
 	'src/service_scanner.cpp',
 	'src/mctp_dbus_interfaces.cpp',
