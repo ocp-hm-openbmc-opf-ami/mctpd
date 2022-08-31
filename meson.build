@@ -5,10 +5,59 @@ project(
     version: '0.1',
     default_options: [
         'warning_level=0',
-        'werror=false',
+        'werror=true',
         'cpp_std=c++20'
     ],
 )
+cpp = meson.get_compiler('cpp')
+
+add_project_arguments(
+  cpp.get_supported_arguments([
+  '-Wold-style-cast',
+  '-Wcast-align',
+  '-Wunused',
+  '-Woverloaded-virtual',
+  '-Wconversion',
+  '-Wsign-conversion',
+  '-Wno-attributes',
+   ]),
+  language: 'cpp'
+)
+
+add_project_arguments(
+  cpp.get_supported_arguments([
+    '-Weverything',
+    '-Wno-c++98-compat',
+    '-Wno-c++98-compat-pedantic',
+    '-Wno-global-constructors',
+    '-Wno-exit-time-destructors',
+    '-Wno-shadow',
+    '-Wno-used-but-marked-unused',
+    '-Wno-documentation-unknown-command',
+    '-Wno-weak-vtables',
+    '-Wno-documentation',
+    '-Wno-padded',
+    '-Wno-pedantic',
+    '-Wno-error=pedantic',
+    '-Wunused-parameter',
+    '-Wcovered-switch-default',
+    '-Wcomma',
+    '-Wextra-semi',
+    '-Wno-zero-as-null-pointer-constant',
+    '-Wswitch-enum',
+    '-Wnull-dereference',
+    '-Wdouble-promotion',
+    '-Wno-sign-conversion',
+    '-Wno-conversion',
+    '-Wno-old-style-cast',
+    '-Wno-extra-semi',
+    '-Wno-unused-parameter',
+    '-Wno-switch-enum',
+    '-Wno-overloaded-virtual',
+    '-Wall',
+    '-Wformat=2',
+  ]),
+  language:'cpp')
 
 yocto_build = get_option('yocto_dep')
 
@@ -36,8 +85,6 @@ if not sdbusplus.found()
 endif
 sdbusplus_dep = sdbusplus.partial_dependency(link_args: true,
      includes : true, links: true)
-
-cpp = meson.get_compiler('cpp')
 
 if cpp.has_header('phosphor-logging/log.hpp')
     phosphorlog_dep = dependency('phosphor-logging', required: dep_required)
