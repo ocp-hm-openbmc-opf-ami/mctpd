@@ -67,6 +67,7 @@ class I3CBinding : public MctpBinding
     I3CConfiguration i3cConf{};
     std::vector<routingTableEntry_t> routingTable;
     bool forwaredEIDPoolToEP = false;
+    bool blockDiscoveryNotify = false;
     std::vector<uint8_t>
         getPhysicalAddress(const std::vector<uint8_t>& bindingPrivate) override;
     uint8_t getTransportId() override;
