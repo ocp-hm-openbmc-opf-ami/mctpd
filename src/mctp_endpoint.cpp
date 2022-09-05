@@ -436,31 +436,27 @@ bool MCTPEndpoint::handleResolveEndpointId(
     mctp_eid_t eid, void*, [[maybe_unused]] std::vector<uint8_t>& request,
     std::vector<uint8_t>& response)
 {
-    const uint8_t instance_id = 0x01;
-    uint8_t rq_dgram_inst = instance_id | MCTP_CTRL_HDR_FLAG_REQUEST;
-    struct variable_field address;
-    response.resize(sizeof(mctp_ctrl_cmd_resolve_eid_resp));
+    const uint8_t instanceId = 0x01;
+    uint8_t rqDgramInst = instanceId | MCTP_CTRL_HDR_FLAG_REQUEST;
+    variable_field address;
     auto resp = castVectorToStruct<mctp_ctrl_cmd_resolve_eid_resp>(response);
 
     /*Getting entry related to the Eid from the table
      this way we can get the structure to the particular eid.*/
-    get_routing_table_entry_with_address entry;
+    std::optional<mctpd::RoutingTable::Entry> entry;
     try
     {
-        entry = routingTable.getEntry(eid).routeEntry;
+        entry = routingTable.getEntry(eid);
     }
     catch (const std::exception& e)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Error in fetching the EID");
+            "EID is not present in the Routing table");
         return false;
     }
 
-    /* The addr size for SMBUS is 8, and for PCIE is 16, So taking higher
-     size as buffer assuming correct value as per binding. */
-    auto e = routingTable.getEntry(eid);
     std::vector<unsigned char> physAddr;
-    if (e.isUpstream)
+    if (entry->isUpstream)
     {
         physAddr = getOwnPhysicalAddress();
         address.data_size = physAddr.size();
@@ -468,12 +464,14 @@ bool MCTPEndpoint::handleResolveEndpointId(
     }
     else
     {
-        address.data_size = entry.routing_info.phys_address_size;
-        address.data = entry.phys_address;
+        address.data_size = entry->routeEntry.routing_info.phys_address_size;
+        address.data = entry->routeEntry.phys_address;
     }
-    if (!mctp_encode_ctrl_cmd_resolve_eid_resp(resp, rq_dgram_inst, eid,
+    if (!mctp_encode_ctrl_cmd_resolve_eid_resp(resp, rqDgramInst, eid,
                                                &address))
+    {
         return false;
+    }
     return true;
 }
 

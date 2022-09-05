@@ -684,8 +684,7 @@ bool PCIeBinding::handleResolveEndpointId(mctp_eid_t destEid,
     {
         return false;
     }
-    auto resp =
-        reinterpret_cast<mctp_ctrl_cmd_resolve_eid_resp*>(response.data());
+    auto resp = castVectorToStruct<mctp_ctrl_cmd_resolve_eid_resp>(response);
     if (resp->bridge_eid == destEid)
     {
         phosphor::logging::log<phosphor::logging::level::INFO>(
