@@ -163,7 +163,8 @@ std::map<int, int> SMBusBridge::getMuxFds(const std::string& rootPort)
     return muxes;
 }
 
-bool SMBusBridge::reserveBandwidth(const mctp_eid_t eid, const uint16_t timeout)
+bool SMBusBridge::reserveBandwidth(boost::asio::yield_context yield,
+                                   const mctp_eid_t eid, const uint16_t timeout)
 {
     if (rsvBWActive && eid != reservedEID)
     {
@@ -202,6 +203,19 @@ bool SMBusBridge::reserveBandwidth(const mctp_eid_t eid, const uint16_t timeout)
         setMuxIdleMode(MuxIdleModes::muxIdleModeConnect);
         rsvBWActive = true;
         reservedEID = eid;
+    }
+
+    // initiate new method call to pfr to write black out flag
+    boost::system::error_code ec;
+    auto rc = connection->yield_method_call<bool>(
+        yield, ec, "xyz.openbmc_project.PFR.Manager",
+        "/xyz/openbmc_project/pfr", "xyz.openbmc_project.PFR.Mailbox",
+        "InitiateBMCBusyPeriod");
+
+    if (ec || !rc)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "reserveBandwidth: initiate BMCBusyPeriod failed");
     }
 
     startTimerAndReleaseBW(timeout, *prvt);
