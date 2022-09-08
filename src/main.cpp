@@ -58,7 +58,7 @@ int main(int argc, char* argv[])
 {
     CLI::App app("MCTP Daemon");
     std::string binding;
-    std::string configPath = "/usr/share/mctp/mctp_config.json";
+    std::string configPath = "/usr/share/mctpd/mctp_config.json";
     std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
         mctpdConfigurationPair;
 
