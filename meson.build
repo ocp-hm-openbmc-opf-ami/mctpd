@@ -29,6 +29,11 @@ systemd = dependency('systemd', required: dep_required)
 systemd_system_unit_dir = systemd.get_pkgconfig_variable(
     'systemdsystemunitdir',
     define_variable: ['prefix', get_option('prefix')])
+packagedir = join_paths(
+    get_option('prefix'),
+    get_option('datadir'),
+    meson.project_name(),
+)
 
 configure_file(
   copy: true,
@@ -117,3 +122,15 @@ executable(
       install_dir: get_option('bindir'),
       override_options : exe_options)
 
+configs = [
+    'mctp_config.json'
+	]
+	
+file = join_paths('configurations', configs)
+    install_data(
+        file,
+        install_dir: join_paths(
+            packagedir,
+            'configurations',
+        )
+    )
