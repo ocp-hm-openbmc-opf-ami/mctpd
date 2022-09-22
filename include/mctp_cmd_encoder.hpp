@@ -68,6 +68,15 @@ bool getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
         mctp_encode_ctrl_cmd_get_uuid(getUuid, getRqDgramInst());
         return true;
     }
+    else if constexpr (cmd == MCTP_CTRL_CMD_GET_NETWORK_ID)
+    {
+        req.resize(sizeof(mctp_ctrl_cmd_get_networkid_req));
+        mctp_ctrl_cmd_get_networkid_req* getNetworkId =
+            reinterpret_cast<mctp_ctrl_cmd_get_networkid_req*>(req.data());
+
+        mctp_encode_ctrl_cmd_get_networkid_req(getNetworkId, getRqDgramInst());
+        return true;
+    }
     else if constexpr (cmd == MCTP_CTRL_CMD_GET_VERSION_SUPPORT)
     {
         req.resize(sizeof(mctp_ctrl_cmd_get_mctp_ver_support));

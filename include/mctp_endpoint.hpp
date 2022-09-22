@@ -66,6 +66,8 @@ class MCTPEndpoint : public MCTPDevice
                                    std::vector<uint8_t>& response);
     virtual bool handleGetUUID(std::vector<uint8_t>& request,
                                std::vector<uint8_t>& response);
+    virtual bool handleGetNetworkId([[maybe_unused]] mctp_eid_t destEid, void*,
+                                    std::vector<uint8_t>& response);
     virtual bool handleDiscoveryNotify(mctp_eid_t destEid, void* bindingPrivate,
                                        std::vector<uint8_t>& request,
                                        std::vector<uint8_t>& response);

@@ -166,6 +166,23 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
 
         registerProperty(mctpInterface, "StaticEid", staticEid);
 
+        if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
+        {
+            // NetworkId Interface
+            std::string mctpDevObj1 = "/xyz/openbmc_project/mctp/";
+            std::shared_ptr<dbus_interface> networkIdIntf;
+            networkIdIntf = objectServer->add_interface(
+                mctpDevObj1, "xyz.openbmc_project.MCTP.network");
+            registerProperty(networkInterface, "NetworkId", conf.network_guid);
+            mctp_ctrl_get_networkid_resp getNetworkId;
+            mctp_set_networkid(mctp, &(getNetworkId.networkid));
+            if (networkIdIntf->initialize() == false)
+            {
+                throw std::system_error(
+                    std::make_error_code(std::errc::function_not_supported));
+            }
+        }
+
         registerProperty(mctpInterface, "Uuid", uuid);
 
         registerProperty(mctpInterface, "BindingID",
@@ -698,10 +715,55 @@ std::optional<mctp_eid_t>
         epProperties.uuid = formatUUID(getUuidRespPtr->uuid);
     }
 
+    std::vector<uint8_t> getNetworkIdResp;
+    getNetworkIdResp.resize(sizeof(mctp_ctrl_get_networkid_resp));
+    if (eid == busOwnerEid)
+    {
+        // NetworkId Interface
+        std::string mctpDevObj1 = "/xyz/openbmc_project/mctp/";
+        std::shared_ptr<dbus_interface> networkIdIntf;
+        networkIdIntf = objectServer->add_interface(
+            mctpDevObj1, "xyz.openbmc_project.MCTP.network");
+
+        if (!(getNetworkIdCtrlCmd(yield, bindingPrivate, eid,
+                                  getNetworkIdResp)))
+        {
+            /* In case EP doesn't support Get NetworkID set to all 0 */
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Get NetworkID failed");
+            registerProperty(networkIdIntf, "NetworkId",
+                             "00000000-0000-0000-0000-000000000000");
+            networkIdIntf.initialize();
+        }
+        else
+        {
+            epProperties.networkId = "00000000-0000-0000-0000-000000000000";
+            std::vector<uint8_t> getNetworkId_value;
+            getNetworkIdResp.resize(sizeof(mctp_ctrl_get_networkid_resp));
+            if((getNetworkIdCtrlCmd(yield, bindingPrivate, eid, getNetworkIdResp))
+            {
+                getNetworkId_value = getNetworkIdResp;
+                mctp_ctrl_get_networkid_resp* getNetworkIdResp_value =
+                    reinterpret_cast<mctp_ctrl_get_networkid_resp*>(
+                        getNetworkIdResp.data());
+                epProperties.networkId =
+                    formatUUID(getNetworkIdResp_value->networkid);
+            }
+            registerProperty(networkIdIntf, "NetworkId",epProperties.networkId);
+            
+            networkIdIntf->initialize();
+            return true;
+        }
+        mctp_ctrl_get_networkid_resp getNetworkId;
+        if (!mctp_set_networkid(mctp, &(getNetworkId.networkid)))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Message failed");
+        }
+    }
     epProperties.endpointEid = eid;
     epProperties.mode = bindingMode;
     // TODO:get Network ID, now set it to 0
-    epProperties.networkId = 0x00;
     epProperties.endpointMsgTypes = getMsgTypes(msgTypeSupportResp.msgType);
 
     getVendorDefinedMessageTypes(yield, bindingPrivate, eid, epProperties);

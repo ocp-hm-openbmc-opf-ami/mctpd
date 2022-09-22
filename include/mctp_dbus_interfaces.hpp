@@ -45,7 +45,7 @@ struct EndpointProperties
     uint8_t endpointEid;
     std::string uuid;
     mctp_server::BindingModeTypes mode;
-    uint16_t networkId;
+    std::string networkId;
     MsgTypes endpointMsgTypes;
     // Vendor PCI ID Support
     std::vector<uint16_t> vendorIdCapabilitySets;
@@ -75,6 +75,7 @@ class MCTPDBusInterfaces
     std::string serviceName = "xyz.openbmc_project.MCTP";
     std::shared_ptr<object_server> objectServer;
     std::shared_ptr<dbus_interface> mctpInterface;
+    std::shared_ptr<dbus_interface> networkInterface;
     // vendor PCI Msg Interface
     endpointInterfaceMap vendorIdInterface;
     // Location code Interface
