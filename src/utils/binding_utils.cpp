@@ -39,6 +39,7 @@ bool updatePhysicalDetails(
         static_cast<uint8_t>(mctpd::convertToPhysicalMediumIdentifier(
             mctp_server::convertMctpPhysicalMediumIdentifiersFromString(
                 ep.service.bindingMediumID)));
+    size_t phyAddress;
     try
     {
 
@@ -46,12 +47,11 @@ bool updatePhysicalDetails(
             "xyz.openbmc_project.Inventory.Decorator.I2CDevice";
         static const std::string pcieIntf =
             "xyz.openbmc_project.Inventory.Decorator.PCIDevice";
-
-        // TODO Read physical address from I3C services
+        static const std::string i3cIntf =
+            "xyz.openbmc_project.Inventory.Decorator.I3CDevice";
         switch (ep.transportTypeId)
         {
             case MCTP_BINDING_SMBUS:
-                size_t phyAddress;
                 phyAddress =
                     readPropertyValue<size_t>(yield, *connection, serviceName,
                                               object_path, i2cIntf, "Address");
@@ -74,6 +74,13 @@ bool updatePhysicalDetails(
                 function = function & functionBitMask;
                 ep.physicalAddress.push_back(device | function);
                 ep.physicalAddress.push_back(bus);
+                break;
+            case MCTP_BINDING_I3C:
+                // TODO I3C address needs to be tested
+                phyAddress =
+                    readPropertyValue<size_t>(yield, *connection, serviceName,
+                                              object_path, i3cIntf, "Address");
+                ep.physicalAddress.push_back(static_cast<uint8_t>(phyAddress));
                 break;
             default:
                 phosphor::logging::log<phosphor::logging::level::ERR>(
