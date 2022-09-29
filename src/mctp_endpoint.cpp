@@ -375,11 +375,13 @@ bool MCTPEndpoint::handleSetEndpointId(mctp_eid_t destEid,
                                        std::vector<uint8_t>& request,
                                        std::vector<uint8_t>& response)
 {
-    if (bindingModeType != mctp_server::BindingModeTypes::Endpoint)
-    {
-        return false;
-    }
     auto resp = castVectorToStruct<mctp_ctrl_resp_set_eid>(response);
+    if (bindingModeType != mctp_server::BindingModeTypes::Endpoint ||
+        !is_eid_valid(destEid))
+    {
+        resp->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
+        return true;
+    }
     auto req = reinterpret_cast<mctp_ctrl_cmd_set_eid*>(request.data());
 
     mctp_ctrl_cmd_set_endpoint_id(mctp, destEid, req, resp);
