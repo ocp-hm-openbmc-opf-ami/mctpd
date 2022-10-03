@@ -64,6 +64,7 @@ class I3CBinding : public MctpBinding
     I3CBindingServer::DiscoveryFlags discoveredFlag{};
     boost::posix_time::seconds getRoutingInterval;
     boost::asio::deadline_timer getRoutingTableTimer;
+    I3CConfiguration i3cConf{};
     std::vector<routingTableEntry_t> routingTable;
     std::vector<uint8_t>
         getPhysicalAddress(const std::vector<uint8_t>& bindingPrivate) override;
