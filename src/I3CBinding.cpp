@@ -15,7 +15,7 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
     MctpBinding(conn, objServer, objPath, conf, ioc,
                 mctp_server::BindingTypes::MctpOverI3c),
     hw{std::move(hwParam)}, getRoutingInterval(conf.getRoutingInterval),
-    getRoutingTableTimer(ioc, getRoutingInterval)
+    getRoutingTableTimer(ioc, getRoutingInterval), i3cConf(conf)
 {
     i3cInterface =
         objServer->add_interface(objPath, I3CBindingServer::interface);
@@ -564,7 +564,13 @@ void I3CBinding::initializeBinding()
         throw std::system_error(
             std::make_error_code(std::errc::not_enough_memory));
     }
+
     status = mctp_register_bus_dynamic_eid(mctp, binding);
+    if (is_eid_valid(i3cConf.defaultEid))
+    {
+        mctp_dynamic_eid_set(binding, i3cConf.defaultEid);
+    }
+
     if (status < 0)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
