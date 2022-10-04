@@ -146,45 +146,6 @@ bool MCTPBridge::getUuidCtrlCmd(boost::asio::yield_context& yield,
     return true;
 }
 
-bool MCTPBridge::getNetworkIdCtrlCmd(boost::asio::yield_context yield,
-                                     const std::vector<uint8_t>& bindingPrivate,
-                                     const mctp_eid_t destEid,
-                                     std::vector<uint8_t>& resp)
-{
-    std::vector<uint8_t> req = {};
-
-    if (!getFormattedReq<MCTP_CTRL_CMD_GET_NETWORK_ID>(req))
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Get NETWORKID: Request formatting failed");
-        return false;
-    }
-
-    if (PacketState::receivedResponse !=
-        sendAndRcvMctpCtrl(yield, req, destEid, bindingPrivate, resp))
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Get NETWORKID: Unable to get response");
-        return false;
-    }
-
-    if (!checkRespSizeAndCompletionCode<mctp_ctrl_get_networkid_resp>(resp))
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Get NETWORKID failed: Invalid response size/CC");
-        return false;
-    }
-
-    const std::string nilUUID = "00000000-0000-0000-0000-000000000000";
-    mctp_ctrl_get_networkid_resp* getNetworkIDRespPtr =
-        reinterpret_cast<mctp_ctrl_get_networkid_resp*>(resp.data());
-    std::string networkidResp = formatUUID(getNetworkIDRespPtr->networkid);
-
-    phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        ("Get networkID success: " + networkidResp).c_str());
-    return true;
-}
-
 bool MCTPBridge::getMsgTypeSupportCtrlCmd(
     boost::asio::yield_context& yield,
     const std::vector<uint8_t>& bindingPrivate, const mctp_eid_t destEid,

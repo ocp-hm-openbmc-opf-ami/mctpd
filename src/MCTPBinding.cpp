@@ -143,7 +143,6 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
         });
 
     mctpInterface = objServer->add_interface(objPath, mctp_server::interface);
-    
 
     /*initialize the map*/
     versionNumbersForUpperLayerResponder.emplace(
@@ -173,8 +172,8 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
             std::string mctpDevObj1 = "/xyz/openbmc_project/mctp/";
             std::shared_ptr<dbus_interface> networkIdIntf;
             networkIdIntf = objectServer->add_interface(
-                mctpDevObj1, "xyz.openbmc_project.MCTP.network");
-            registerProperty(networkInterface, "NetworkId", conf.network_guid);
+                mctpDevObj1, "xyz.openbmc_project.MCTP.Network");
+            registerProperty(networkInterface, "NetworkId", conf.networkGUID);
             mctp_ctrl_get_networkid_resp getNetworkId;
             mctp_set_networkid(mctp, &(getNetworkId.networkid));
             if (networkIdIntf->initialize() == false)
@@ -714,45 +713,6 @@ std::optional<mctp_eid_t>
         mctp_ctrl_resp_get_uuid* getUuidRespPtr =
             reinterpret_cast<mctp_ctrl_resp_get_uuid*>(getUuidResp.data());
         epProperties.uuid = formatUUID(getUuidRespPtr->uuid);
-    }
-    
-    if (eid == busOwnerEid)
-    {
-        // NetworkId Interface
-        std::string mctpDevObj1 = "/xyz/openbmc_project/mctp/";
-        std::shared_ptr<dbus_interface> networkIdIntf;
-        networkIdIntf = objectServer->add_interface(
-            mctpDevObj1, "xyz.openbmc_project.MCTP.network");
-        epProperties.networkId = "00000000-0000-0000-0000-000000000000";
-        std::vector<uint8_t> getNetworkId_value;
-        getNetworkId_value.resize(sizeof(mctp_ctrl_get_networkid_resp));
-        std::vector<uint8_t> getNetworkIdResp;
-        getNetworkIdResp.resize(sizeof(mctp_ctrl_get_networkid_resp));
-
-        if(getNetworkIdCtrlCmd(yield, bindingPrivate, eid, getNetworkIdResp))
-        {
-                getNetworkId_value = getNetworkIdResp;
-                mctp_ctrl_get_networkid_resp* getNetworkIdResp_value =
-                    reinterpret_cast<mctp_ctrl_get_networkid_resp*>(getNetworkIdResp.data());
-                if(getNetworkIdResp_value)
-                epProperties.networkId =
-                    formatUUID(getNetworkIdResp_value->networkid);
-        }
-        else
-        {
-            /* In case EP doesn't support Get NetworkID set to all 0 */
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Get NetworkID failed");
-            mctp_ctrl_get_networkid_resp getNetworkId;
-            if (!mctp_set_networkid(mctp, &(getNetworkId.networkid)))
-            {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Message failed");
-            }
-        }
-        registerProperty(networkInterface, "NetworkId",epProperties.networkId);
-        networkIdIntf->initialize();
-        return true;  
     }
     
     epProperties.endpointEid = eid;
