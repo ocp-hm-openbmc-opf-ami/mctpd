@@ -674,9 +674,15 @@ void I3CBinding::forwardEIDPool(boost::asio::yield_context& yield,
                                 const uint8_t startEID, const uint8_t poolSize)
 {
     std::vector<uint8_t> resp;
-    this->allocateEIDPoolCtrlCmd(
-        yield, MCTP_EID_NULL, mctp_ctrl_cmd_allocate_eids_req_op::allocate_eids,
-        startEID, poolSize, resp);
+    if (!this->allocateEIDPoolCtrlCmd(
+            yield, MCTP_EID_NULL,
+            mctp_ctrl_cmd_allocate_eids_req_op::allocate_eids, startEID,
+            poolSize, resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Error while sending Allocate EID during forward eid pool");
+        return;
+    }
 
     mctp_ctrl_cmd_allocate_eids_resp respData;
     mctp_ctrl_cmd_allocate_eids_resp_op op;

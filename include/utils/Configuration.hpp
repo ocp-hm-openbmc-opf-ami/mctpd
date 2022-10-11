@@ -55,7 +55,7 @@ struct I3CConfiguration : Configuration
     bool requiresCpuPidMask = true;
     uint8_t provisionalIdMask;
     uint8_t getRoutingInterval = 0;
-    bool forwaredEIDPoolToEP = true;
+    bool forwaredEIDPoolToEP = false;
 
     ~I3CConfiguration() override;
 };
