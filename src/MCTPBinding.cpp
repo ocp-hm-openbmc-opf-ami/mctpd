@@ -346,7 +346,7 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
 
         mctpInterface->register_method(
             "SetEIDPool", [this](uint8_t startEID, uint8_t poolSize) -> bool {
-                return this->setEIdPool(startEID, poolSize);
+                return this->setEIDPool(startEID, poolSize);
             });
 
         // register VDPCI responder with MCTP for upper layers
@@ -835,17 +835,19 @@ void MctpBinding::onRawMessage(void* data, void* msg, size_t len,
     binding->sendMctpRawPayload(payload);
 }
 
-bool MctpBinding::setEIdPool(const uint8_t startEID, const uint8_t poolSize)
+bool MctpBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
 {
     if (bindingModeType != mctp_server::BindingModeTypes::BusOwner)
     {
-        // Only bus owner roles requires a pool
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Not a busowner to accept eid pool");
         return false;
     }
 
     if (startEID > (0xFF - poolSize))
     {
-        // Invalid EID range passed to us
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Invalid EID range passed to us");
         return false;
     }
     std::set<mctp_eid_t> eidRange;
@@ -860,5 +862,8 @@ bool MctpBinding::setEIdPool(const uint8_t startEID, const uint8_t poolSize)
 
     // TODO - If the bus was already initialised, then
     // reinitialisation of the existing Endpoints should happen
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        ("Setting EID pool " + std::to_string(startEID) + " + " +
+         std::to_string(poolSize)).c_str());
     return true;
 }

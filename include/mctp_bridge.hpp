@@ -99,9 +99,9 @@ class MCTPBridge : public MCTPEndpoint
         const mctpd::RoutingTable::Entry& entry);
 
     bool allocateEIDPoolCtrlCmd(
-        boost::asio::yield_context& yield, const mctp_eid_t destEid,
+        boost::asio::yield_context& yield, const mctp_eid_t destEID,
         const mctp_ctrl_cmd_allocate_eids_req_op operation,
-        const mctp_eid_t startEId, const uint8_t poolSize,
+        const mctp_eid_t startEID, const uint8_t poolSize,
         std::vector<uint8_t>& resp);
 
   private:

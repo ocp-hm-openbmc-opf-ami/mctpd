@@ -94,7 +94,7 @@ class MctpBinding : public MCTPBridge
     bool setMediumId(uint8_t value,
                      mctp_server::MctpPhysicalMediumIdentifiers& mediumId);
 
-    virtual bool setEIdPool(const uint8_t startEID, const uint8_t poolSize);
+    virtual bool setEIDPool(const uint8_t startEID, const uint8_t poolSize);
 
   private:
     bool staticEid;

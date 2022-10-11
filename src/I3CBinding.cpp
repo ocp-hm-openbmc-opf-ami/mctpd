@@ -15,7 +15,7 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
     MctpBinding(conn, objServer, objPath, conf, ioc,
                 mctp_server::BindingTypes::MctpOverI3c),
     hw{std::move(hwParam)}, getRoutingInterval(conf.getRoutingInterval),
-    getRoutingTableTimer(ioc, getRoutingInterval), i3cConf(conf)
+    getRoutingTableTimer(ioc, getRoutingInterval), i3cConf(conf),
     forwaredEIDPoolToEP(conf.forwaredEIDPoolToEP)
 {
     i3cInterface =
@@ -653,9 +653,9 @@ std::vector<uint8_t> I3CBinding::getOwnPhysicalAddress()
     return std::vector<uint8_t>{0};
 }
 
-bool I3CBinding::setEIdPool(const uint8_t startEID, const uint8_t poolSize)
+bool I3CBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
 {
-    if (!MctpBinding::setEIdPool(startEID, poolSize))
+    if (!MctpBinding::setEIDPool(startEID, poolSize))
     {
         return false;
     }
@@ -680,11 +680,16 @@ void I3CBinding::forwardEIDPool(boost::asio::yield_context& yield,
 
     mctp_ctrl_cmd_allocate_eids_resp respData;
     mctp_ctrl_cmd_allocate_eids_resp_op op;
-    mctp_decode_ctrl_cmd_allocate_endpoint_id_resp(
-        reinterpret_cast<mctp_ctrl_cmd_allocate_eids_resp*>(resp.data()),
-        &respData.ctrl_hdr.ic_msg_type, &respData.ctrl_hdr.rq_dgram_inst,
-        &respData.ctrl_hdr.command_code, &respData.completion_code, &op,
-        &respData.eid_pool_size, &respData.first_eid);
+    if (!mctp_decode_ctrl_cmd_allocate_endpoint_id_resp(
+            reinterpret_cast<mctp_ctrl_cmd_allocate_eids_resp*>(resp.data()),
+            &respData.ctrl_hdr.ic_msg_type, &respData.ctrl_hdr.rq_dgram_inst,
+            &respData.ctrl_hdr.command_code, &respData.completion_code, &op,
+            &respData.eid_pool_size, &respData.first_eid))
+    {
+
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Allocate EID decode error");
+    }
     if (respData.completion_code != MCTP_CTRL_CC_SUCCESS)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(

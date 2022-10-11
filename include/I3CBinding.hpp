@@ -105,7 +105,7 @@ class I3CBinding : public MctpBinding
         getBindingMode(const routingTableEntry_t& routingEntry);
     void changeDiscoveredFlag(I3CBindingServer::DiscoveryFlags flag);
     void onI3CDeviceChangeCallback();
-    virtual bool setEIdPool(uint8_t const startEID,
+    virtual bool setEIDPool(uint8_t const startEID,
                             const uint8_t poolSize) override;
     void forwardEIDPool(boost::asio::yield_context& yield,
                         const uint8_t startEID, const uint8_t poolSize);
