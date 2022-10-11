@@ -15,7 +15,7 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
     MctpBinding(conn, objServer, objPath, conf, ioc,
                 mctp_server::BindingTypes::MctpOverI3c),
     hw{std::move(hwParam)}, getRoutingInterval(conf.getRoutingInterval),
-    getRoutingTableTimer(ioc, getRoutingInterval), i3cConf(conf),
+    getRoutingTableTimer(ioc, boost::posix_time::seconds(10)),i3cConf(conf),
     forwaredEIDPoolToEP(conf.forwaredEIDPoolToEP),
     blockDiscoveryNotify(conf.blockDiscoveryNotify)
 {
@@ -64,6 +64,8 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
 
         if (bindingModeType != mctp_server::BindingModeTypes::BusOwner)
         {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Scheduling update routing table");
             getRoutingTableTimer.async_wait(
                 std::bind(&I3CBinding::updateRoutingTable, this));
         }
@@ -331,14 +333,15 @@ void I3CBinding::processBridgeEntries(
 void I3CBinding::updateRoutingTable()
 {
     struct mctp_asti3c_pkt_private pktPrv;
-    getRoutingTableTimer.expires_from_now(getRoutingInterval);
+    auto interval = MctpBinding::routingTable.getAllEntries().size() > 0 ? getRoutingInterval : boost::posix_time::seconds(10);
+    getRoutingTableTimer.expires_from_now(interval);
     getRoutingTableTimer.async_wait(
         std::bind(&I3CBinding::updateRoutingTable, this));
 
     if (!this->blockDiscoveryNotify &&
         discoveredFlag != I3CBindingServer::DiscoveryFlags::Discovered)
     {
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        phosphor::logging::log<phosphor::logging::level::INFO>(
             "Get Routing Table failed, undiscovered");
         return;
     }
@@ -418,6 +421,7 @@ void I3CBinding::processRoutingTableChanges(
             {
                 continue;
             }
+
             if (this->blockDiscoveryNotify)
             {
                 phosphor::logging::log<phosphor::logging::level::INFO>(
@@ -434,6 +438,7 @@ void I3CBinding::processRoutingTableChanges(
                 populateEndpointProperties(epProperties);
                 continue;
             }
+
             std::vector<uint8_t> prvDataCopy = prvData;
             registerEndpoint(yield, prvDataCopy, remoteEid,
                              getBindingMode(routingEntry));
@@ -465,6 +470,10 @@ bool I3CBinding::handleDiscoveryNotify(
         // Create a co-routine and register the endpoint
         boost::asio::spawn(
             io, [this, destEid](boost::asio::yield_context yield) {
+                boost::asio::steady_timer registrationDelay(io, boost::asio::chrono::milliseconds(300));
+                phosphor::logging::log<phosphor::logging::level::INFO>("Discovery notify found. Endpoint will be registered after 120 ms");
+                registrationDelay.async_wait(yield);
+
                 mctp_asti3c_pkt_private pktPrv;
                 pktPrv.fd = mctpI3CFd;
                 uint8_t* pktPrvPtr = reinterpret_cast<uint8_t*>(&pktPrv);
@@ -749,5 +758,7 @@ bool I3CBinding::forwardEIDPool(boost::asio::yield_context& yield,
             "Allocate EID rejected by the endpoint");
         return false;
     }
+    phosphor::logging::log<phosphor::logging::level::ERR>(
+        "Forwarded EID pool to endpoint");
     return true;
 }

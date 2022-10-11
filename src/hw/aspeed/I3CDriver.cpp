@@ -58,6 +58,7 @@ mctp_binding* I3CDriver::binding()
 
 void I3CDriver::pollRx()
 {
+    phosphor::logging::log<phosphor::logging::level::ERR>("Start polling I3C file");
     streamMonitor.async_wait(
         boost::asio::posix::stream_descriptor::wait_read,
         [this](const boost::system::error_code& ec) {
@@ -67,10 +68,12 @@ void I3CDriver::pollRx()
                     "Error reading I3C response");
                 return;
             }
-            if (mctp_asti3c_rx(i3c, streamMonitorFd))
+            phosphor::logging::log<phosphor::logging::level::ERR>("Polling wait returned for I3C file");
+            int status = mctp_asti3c_rx(i3c, streamMonitorFd);
+            if (status != 0)
             {
-                phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                    "Error reading I3C response");
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    ("Error reading mctp_asti3c_rx " + std::to_string(status)).c_str());
             }
             pollRx();
         });
@@ -78,12 +81,15 @@ void I3CDriver::pollRx()
 
 I3CDriver::~I3CDriver()
 {
+    phosphor::logging::log<phosphor::logging::level::ERR>("Freeing streamMonitor");
     streamMonitor.release();
 
+    phosphor::logging::log<phosphor::logging::level::ERR>("Freeing mctp_asti3c");
     if (i3c)
     {
         mctp_asti3c_free(i3c);
     }
+    phosphor::logging::log<phosphor::logging::level::ERR>("I3C driver destructor complete");
 }
 
 } // namespace aspeed

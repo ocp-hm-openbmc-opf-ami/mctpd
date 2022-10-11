@@ -206,7 +206,7 @@ void MCTPEndpoint::setDownStreamEIDPools(uint8_t eidPoolSize, uint8_t firstEID)
                 yield, ec, busName, "/xyz/openbmc_project/mctp",
                 mctp_server::interface, "SetEIDPool", startEID, poolSize);
 
-            for (uint8_t i = 0; i <= poolSize; i++)
+            for (uint8_t i = 0; i < poolSize; i++)
             {
                 // Endpoint details will be invalid since these eids are not yet
                 // assigned.
@@ -233,6 +233,9 @@ void MCTPEndpoint::setDownStreamEIDPools(uint8_t eidPoolSize, uint8_t firstEID)
 bool MCTPEndpoint::handleAllocateEID(std::vector<uint8_t>& request,
                                      std::vector<uint8_t>& response)
 {
+    
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "Allocate EID");
     auto req =
         reinterpret_cast<mctp_ctrl_cmd_allocate_eids_req*>(request.data());
     uint8_t icMsgType;
@@ -250,18 +253,24 @@ bool MCTPEndpoint::handleAllocateEID(std::vector<uint8_t>& request,
             req, &icMsgType, &rqDgramInstanceID, &commandCode, &op,
             &eidPoolSize, &firstEID))
     {
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "Decode allocate EID failed");
         resp->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
         return true;
     }
 
     if (requiredEIDPoolSizeFromBO.has_value())
     {
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "requiredEIDPoolSizeFromBO has value");
         switch (op)
         {
             case allocate_eids:
             case force_allocation: {
                 if (eidPoolSize > requiredEIDPoolSizeFromBO.value())
                 {
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "requiredEIDPoolSizeFromBO is less");
                     resp->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
                     resp->operation = allocation_rejected;
                 }
@@ -301,10 +310,12 @@ bool MCTPEndpoint::handleAllocateEID(std::vector<uint8_t>& request,
     }
     else
     {
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        phosphor::logging::log<phosphor::logging::level::INFO>(
             "Allocate EID is not supported for this simple endpoint");
         resp->completion_code = MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD;
     }
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "Allocate EID success");
     return true;
 }
 

@@ -51,7 +51,8 @@ MCTPDevice::~MCTPDevice()
 void MCTPDevice::initializeLogging(void)
 {
     // Default log level
-    mctp_set_log_stdio(MCTP_LOG_INFO);
+    mctp_set_log_stdio(MCTP_LOG_DEBUG);
+    mctp_set_tracing_enabled(true);
 
     if (auto envPtr = std::getenv("MCTP_TRACES"))
     {
@@ -252,6 +253,21 @@ void MCTPDevice::pushToCtrlTxQueue(
     }
 }
 
+static void delayIfProdigyDebug(boost::asio::io_context& io, boost::asio::yield_context& yield)
+{
+    if (auto envPtr = std::getenv("CTRL_DELAY"))
+    {
+        std::string value(envPtr);
+        int delay = std::stoi(value);
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("Prodigy delay " + value).c_str());
+
+        boost::asio::steady_timer registrationDelay(
+            io, boost::asio::chrono::milliseconds(delay));
+        registrationDelay.async_wait(yield);
+    }
+}
+
 PacketState MCTPDevice::sendAndRcvMctpCtrl(
     boost::asio::yield_context& yield, const std::vector<uint8_t>& req,
     const mctp_eid_t destEid, const std::vector<uint8_t>& bindingPrivate,
@@ -281,6 +297,7 @@ PacketState MCTPDevice::sendAndRcvMctpCtrl(
                     .c_str());
         };
 
+    delayIfProdigyDebug(io, yield);
     pushToCtrlTxQueue(pktState, destEid, bindingPrivate, req, callback);
 
     // Wait for the state to change

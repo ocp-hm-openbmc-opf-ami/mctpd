@@ -83,9 +83,10 @@ bool updatePhysicalDetails(
                 ep.physicalAddress.push_back(static_cast<uint8_t>(phyAddress));
                 break;
             default:
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "Invalid Transport Type Id");
-                return false;
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    "Ignoring endpoint type to enable bridging");
+                ep.physicalAddress.push_back(0);
+                return true;
         }
     }
     catch (const std::exception& e)

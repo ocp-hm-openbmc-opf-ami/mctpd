@@ -188,6 +188,7 @@ bool RoutingTable::updateEntry(const mctp_eid_t eid, RoutingTable::Entry entry)
 
     auto& table = getAllEntries();
     // TODO. Enable printing routing table only in debug mode.
+    phosphor::logging::log<phosphor::logging::level::INFO>("RoutingTable");
     for (auto& [i, e] : table)
     {
         std::stringstream ss;
@@ -204,7 +205,7 @@ bool RoutingTable::updateEntry(const mctp_eid_t eid, RoutingTable::Entry entry)
         {
             ss << addr << ' ';
         }
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        phosphor::logging::log<phosphor::logging::level::INFO>(
             ss.str().c_str());
     }
     return status;

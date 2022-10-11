@@ -747,7 +747,7 @@ MctpStatus MctpBinding::sendMctpRawPayload(const std::vector<uint8_t>& payload)
             ss << byte << ',';
         }
         ss << ']';
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        phosphor::logging::log<phosphor::logging::level::INFO>(
             ss.str().c_str());
     }
 
@@ -837,6 +837,9 @@ void MctpBinding::onRawMessage(void* data, void* msg, size_t len,
 
 bool MctpBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
 {
+    phosphor::logging::log<phosphor::logging::level::ERR>(
+        ("Setting EID pool " + std::to_string(startEID) + " + " +
+         std::to_string(poolSize)).c_str());
     if (bindingModeType != mctp_server::BindingModeTypes::BusOwner)
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
