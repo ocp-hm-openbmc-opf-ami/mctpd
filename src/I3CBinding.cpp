@@ -670,7 +670,7 @@ bool I3CBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
                 }
                 // Add forwarded eid entries in routing table with physical
                 // details of i3c target device
-                for (uint8_t i = 0; i <= poolSize; i++)
+                for (uint8_t i = 0; i < poolSize; i++)
                 {
                     // Endpoint details will be invalid since these eids are not
                     // yet assigned.
@@ -696,7 +696,7 @@ bool I3CBinding::forwardEIDPool(boost::asio::yield_context& yield,
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Error while sending Allocate EID during forward eid pool");
-        return;
+        return false;
     }
 
     mctp_ctrl_cmd_allocate_eids_resp respData;
@@ -710,6 +710,7 @@ bool I3CBinding::forwardEIDPool(boost::asio::yield_context& yield,
 
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Allocate EID decode error");
+        return false;
     }
     if (respData.completion_code != MCTP_CTRL_CC_SUCCESS)
     {
