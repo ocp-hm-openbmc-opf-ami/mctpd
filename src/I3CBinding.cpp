@@ -335,7 +335,8 @@ void I3CBinding::updateRoutingTable()
     getRoutingTableTimer.async_wait(
         std::bind(&I3CBinding::updateRoutingTable, this));
 
-    if (discoveredFlag != I3CBindingServer::DiscoveryFlags::Discovered)
+    if (!this->blockDiscoveryNotify &&
+        discoveredFlag != I3CBindingServer::DiscoveryFlags::Discovered)
     {
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "Get Routing Table failed, undiscovered");
