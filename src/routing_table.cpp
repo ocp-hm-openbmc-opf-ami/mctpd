@@ -175,6 +175,15 @@ const RoutingTable::EntryMap& RoutingTable::getAllEntries() const noexcept
 
 bool RoutingTable::updateEntry(const mctp_eid_t eid, RoutingTable::Entry entry)
 {
+    auto itEid = entries.find(eid);
+    if (itEid != entries.end() && itEid->second.serviceName != "")
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>((
+            "EID " + std::to_string(eid) + " is already present at " +
+            itEid->second.serviceName).c_str());
+        return false;
+    }
+    
     auto status = entries.insert_or_assign(eid, std::move(entry)).second;
 
     auto& table = getAllEntries();

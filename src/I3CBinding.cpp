@@ -418,7 +418,22 @@ void I3CBinding::processRoutingTableChanges(
             {
                 continue;
             }
-
+            if (this->blockDiscoveryNotify)
+            {
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    ("Registering EID without asking anything. " +
+                     std::to_string(remoteEid))
+                        .c_str());
+                EndpointProperties epProperties;
+                epProperties.endpointEid = remoteEid;
+                epProperties.mode = sdbusplus::xyz::openbmc_project::MCTP::
+                    server::Base::BindingModeTypes::Endpoint;
+                mctpd::RoutingTable::Entry entry(
+                    remoteEid, getDbusName(), mctpd::EndPointType::EndPoint);
+                MctpBinding::routingTable.updateEntry(remoteEid, entry);
+                populateEndpointProperties(epProperties);
+                continue;
+            }
             std::vector<uint8_t> prvDataCopy = prvData;
             registerEndpoint(yield, prvDataCopy, remoteEid,
                              getBindingMode(routingEntry));
