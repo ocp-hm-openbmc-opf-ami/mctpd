@@ -698,10 +698,50 @@ std::optional<mctp_eid_t>
         epProperties.uuid = formatUUID(getUuidRespPtr->uuid);
     }
 
+    if (eid == busOwnerEid)
+    {
+        // NetworkId Interface
+        std::string mctpDevObj1 = "/xyz/openbmc_project/mctp/";
+        std::shared_ptr<dbus_interface> networkIdIntf;
+        networkIdIntf = objectServer->add_interface(
+            mctpDevObj1, "xyz.openbmc_project.MCTP.network");
+
+        epProperties.networkId = "00000000-0000-0000-0000-000000000000";
+        std::vector<uint8_t> getNetworkId_value;
+        getNetworkId_value.resize(sizeof(mctp_ctrl_get_networkid_resp));
+        std::vector<uint8_t> getNetworkIdResp;
+        getNetworkIdResp.resize(sizeof(mctp_ctrl_get_networkid_resp));
+
+        if (getNetworkIdCtrlCmd(yield, bindingPrivate, eid, getNetworkIdResp))
+        {
+            getNetworkId_value = getNetworkIdResp;
+            mctp_ctrl_get_networkid_resp* getNetworkIdResp_value =
+                reinterpret_cast<mctp_ctrl_get_networkid_resp*>(
+                    getNetworkIdResp.data());
+            if (getNetworkIdResp_value)
+                epProperties.networkId =
+                    formatUUID(getNetworkIdResp_value->networkid);
+        }
+        else
+        {
+            /* In case EP doesn't support Get NetworkID set to all 0 */
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Get NetworkID failed");
+            mctp_ctrl_get_networkid_resp getNetworkId;
+            if (!mctp_set_networkid(mctp, &(getNetworkId.networkid)))
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Message failed");
+            }
+        }
+        registerProperty(networkInterface, "NetworkId", epProperties.networkId);
+        networkIdIntf->initialize();
+        return true;
+    }
+
     epProperties.endpointEid = eid;
     epProperties.mode = bindingMode;
-    // TODO:get Network ID, now set it to 0
-    epProperties.networkId = 0x00;
+
     epProperties.endpointMsgTypes = getMsgTypes(msgTypeSupportResp.msgType);
 
     getVendorDefinedMessageTypes(yield, bindingPrivate, eid, epProperties);
