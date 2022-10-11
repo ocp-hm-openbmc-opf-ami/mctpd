@@ -348,11 +348,7 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
         I3CAddress = 0;
     }
 
-    if (!getField(map, "ForwardEIDPool", forwaredEIDPoolToEP))
-    {
-        phosphor::logging::log<phosphor::logging::level::INFO>(
-            "EID pool received using SetEIDPool will be forwarded to EP");
-    }
+    getField(map, "ForwardEIDPool", forwaredEIDPoolToEP);
 
     I3CConfiguration config;
     config.mediumId = stringToMediumID.at(physicalMediumID);
