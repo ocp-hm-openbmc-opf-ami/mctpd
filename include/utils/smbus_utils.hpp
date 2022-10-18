@@ -28,4 +28,6 @@ bool getBusNumFromPath(const std::string& path, std::string& busStr);
 
 bool getRootBus(const std::string& muxBus, std::string& rootBus);
 
+bool getTopMostRootBus(const std::string& muxBus, std::string& rootBus);
+
 bool isMuxBus(const std::string& bus);
