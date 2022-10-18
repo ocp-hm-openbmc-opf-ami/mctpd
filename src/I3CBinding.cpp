@@ -48,7 +48,7 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                 downstreamEIDPools = conf.downstreamEIDPoolDistribution;
             }
         }
-
+        ownI3cDAA = hw->getOwnAddress();
         registerProperty(i3cInterface, "Address", ownI3cDAA);
 
         registerProperty(
@@ -360,15 +360,16 @@ void I3CBinding::updateRoutingTable()
 void I3CBinding::populateDeviceProperties(
     const mctp_eid_t eid, const std::vector<uint8_t>& /*bindingPrivate*/)
 {
+    uint8_t deviceAddress = 0;
     std::string mctpEpObj =
         "/xyz/openbmc_project/mctp/device/" + std::to_string(eid);
-
     std::shared_ptr<dbus_interface> i3cIntf;
     // TODO: Read symlinks and find the DAA getDAAfromFd()
     i3cIntf = objectServer->add_interface(
         mctpEpObj, "xyz.openbmc_project.Inventory.Decorator.I3CDevice");
-    i3cIntf->register_property("Bus", bus);
-    i3cIntf->register_property("Address", ownI3cDAA);
+    i3cIntf->register_property("Bus", i3cConf.bus);
+    deviceAddress = hw->getDeviceAddress();
+    i3cIntf->register_property("Address", deviceAddress);
     i3cIntf->initialize();
     deviceInterface.emplace(eid, std::move(i3cIntf));
 }
@@ -429,6 +430,10 @@ bool I3CBinding::handleDiscoveryNotify(
 {
     response.resize(sizeof(mctp_ctrl_msg_hdr));
 
+    // If we are I3C secondary device, our DAA might be updated when we receive
+    // Discovery notify Thus update the our own DAA on D-Bus
+    ownI3cDAA = hw->getOwnAddress();
+    i3cInterface->set_property("Address", ownI3cDAA);
     bool busownerMode =
         bindingModeType == mctp_server::BindingModeTypes::BusOwner ? true
                                                                    : false;
@@ -642,12 +647,12 @@ uint8_t I3CBinding::getTransportId()
 std::vector<uint8_t>
     I3CBinding::getPhysicalAddress(const std::vector<uint8_t>& /*privateData*/)
 {
-    // TODO update proper physical address
-    return std::vector<uint8_t>{0};
+    // Update proper physical address
+    return std::vector<uint8_t>{hw->getDeviceAddress()};
 }
 
 std::vector<uint8_t> I3CBinding::getOwnPhysicalAddress()
 {
-    // TODO update proper physical address
-    return std::vector<uint8_t>{0};
+    // Update proper physical address
+    return std::vector<uint8_t>{hw->getOwnAddress()};
 }
