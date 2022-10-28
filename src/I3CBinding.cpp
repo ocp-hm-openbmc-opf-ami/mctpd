@@ -15,7 +15,8 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
     MctpBinding(conn, objServer, objPath, conf, ioc,
                 mctp_server::BindingTypes::MctpOverI3c),
     hw{std::move(hwParam)}, getRoutingInterval(conf.getRoutingInterval),
-    getRoutingTableTimer(ioc, getRoutingInterval), i3cConf(conf)
+    getRoutingTableTimer(ioc, getRoutingInterval), i3cConf(conf),
+    forwaredEIDPoolToEP(conf.forwaredEIDPoolToEP)
 {
     i3cInterface =
         objServer->add_interface(objPath, I3CBindingServer::interface);
@@ -48,7 +49,7 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                 downstreamEIDPools = conf.downstreamEIDPoolDistribution;
             }
         }
-
+        ownI3cDAA = hw->getOwnAddress();
         registerProperty(i3cInterface, "Address", ownI3cDAA);
 
         registerProperty(
@@ -360,15 +361,16 @@ void I3CBinding::updateRoutingTable()
 void I3CBinding::populateDeviceProperties(
     const mctp_eid_t eid, const std::vector<uint8_t>& /*bindingPrivate*/)
 {
+    uint8_t deviceAddress = 0;
     std::string mctpEpObj =
         "/xyz/openbmc_project/mctp/device/" + std::to_string(eid);
-
     std::shared_ptr<dbus_interface> i3cIntf;
     // TODO: Read symlinks and find the DAA getDAAfromFd()
     i3cIntf = objectServer->add_interface(
         mctpEpObj, "xyz.openbmc_project.Inventory.Decorator.I3CDevice");
-    i3cIntf->register_property("Bus", bus);
-    i3cIntf->register_property("Address", ownI3cDAA);
+    i3cIntf->register_property("Bus", i3cConf.bus);
+    deviceAddress = hw->getDeviceAddress();
+    i3cIntf->register_property("Address", deviceAddress);
     i3cIntf->initialize();
     deviceInterface.emplace(eid, std::move(i3cIntf));
 }
@@ -429,6 +431,10 @@ bool I3CBinding::handleDiscoveryNotify(
 {
     response.resize(sizeof(mctp_ctrl_msg_hdr));
 
+    // If we are I3C secondary device, our DAA might be updated when we receive
+    // Discovery notify Thus update the our own DAA on D-Bus
+    ownI3cDAA = hw->getOwnAddress();
+    i3cInterface->set_property("Address", ownI3cDAA);
     bool busownerMode =
         bindingModeType == mctp_server::BindingModeTypes::BusOwner ? true
                                                                    : false;
@@ -642,12 +648,70 @@ uint8_t I3CBinding::getTransportId()
 std::vector<uint8_t>
     I3CBinding::getPhysicalAddress(const std::vector<uint8_t>& /*privateData*/)
 {
-    // TODO update proper physical address
-    return std::vector<uint8_t>{0};
+    // Update proper physical address
+    return std::vector<uint8_t>{hw->getDeviceAddress()};
 }
 
 std::vector<uint8_t> I3CBinding::getOwnPhysicalAddress()
 {
-    // TODO update proper physical address
-    return std::vector<uint8_t>{0};
+    // Update proper physical address
+    return std::vector<uint8_t>{hw->getOwnAddress()};
+}
+
+bool I3CBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
+{
+    if (!MctpBinding::setEIDPool(startEID, poolSize))
+    {
+        return false;
+    }
+    if (this->forwaredEIDPoolToEP)
+    {
+        boost::asio::spawn(
+            this->connection->get_io_context(),
+            [this, startEID, poolSize](boost::asio::yield_context yield) {
+                this->forwardEIDPool(yield, startEID, poolSize);
+            });
+    }
+    return true;
+}
+
+void I3CBinding::forwardEIDPool(boost::asio::yield_context& yield,
+                                const uint8_t startEID, const uint8_t poolSize)
+{
+    std::vector<uint8_t> resp;
+    if (!this->allocateEIDPoolCtrlCmd(
+            yield, MCTP_EID_NULL,
+            mctp_ctrl_cmd_allocate_eids_req_op::allocate_eids, startEID,
+            poolSize, resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Error while sending Allocate EID during forward eid pool");
+        return;
+    }
+
+    mctp_ctrl_cmd_allocate_eids_resp respData;
+    mctp_ctrl_cmd_allocate_eids_resp_op op;
+    if (!mctp_decode_ctrl_cmd_allocate_endpoint_id_resp(
+            reinterpret_cast<mctp_ctrl_cmd_allocate_eids_resp*>(resp.data()),
+            &respData.ctrl_hdr.ic_msg_type, &respData.ctrl_hdr.rq_dgram_inst,
+            &respData.ctrl_hdr.command_code, &respData.completion_code, &op,
+            &respData.eid_pool_size, &respData.first_eid))
+    {
+
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Allocate EID decode error");
+        return;
+    }
+    if (respData.completion_code != MCTP_CTRL_CC_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Allocate EID was not succesful");
+        return;
+    }
+    if (respData.operation !=
+        mctp_ctrl_cmd_allocate_eids_resp_op::allocation_accepted)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Allocate EID rejected by the endpoint");
+    }
 }

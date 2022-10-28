@@ -84,7 +84,12 @@ bool SMBusEndpoint::handleGetEndpointId(mctp_eid_t destEid,
         std::copy(bindingPvtVect->begin(), bindingPvtVect->end(), ptr);
         return true;
     }
-    return false;
+
+    // By making the return value as "true", we will make a best case effort to
+    // transmit the response using rootport instead of entirely dropping the
+    // packet. This logic works for devices that are on rootbus (like the
+    // validation team's Aardvarks) and PFR.
+    return true;
 }
 
 bool SMBusEndpoint::handleSetEndpointId(mctp_eid_t destEid,

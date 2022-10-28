@@ -140,7 +140,7 @@ std::map<int, int> SMBusBridge::getMuxFds(const std::string& rootPort)
             continue; // we found regular i2c port
         }
 
-        if (!getRootBus(i2cPort, rootBus))
+        if (!getTopMostRootBus(i2cPort, rootBus))
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "Error getting root port for the bus",

@@ -274,6 +274,7 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
     uint64_t getRoutingInterval = 0;
     uint64_t requiredEIDPoolSize = 0;
     uint64_t requiredEIDPoolSizeFromBO = 0;
+    bool forwaredEIDPoolToEP = false;
 
     if (!getField(map, "PhysicalMediumID", physicalMediumID))
     {
@@ -347,6 +348,8 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
         I3CAddress = 0;
     }
 
+    getField(map, "ForwardEIDPool", forwaredEIDPoolToEP);
+
     I3CConfiguration config;
     config.mediumId = stringToMediumID.at(physicalMediumID);
     config.mode = mode;
@@ -368,6 +371,7 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
     config.requiredEIDPoolSizeFromBO =
         static_cast<uint8_t>(requiredEIDPoolSizeFromBO);
     config.requiredEIDPoolSize = static_cast<uint8_t>(requiredEIDPoolSize);
+    config.forwaredEIDPoolToEP = forwaredEIDPoolToEP;
 
     return config;
 }

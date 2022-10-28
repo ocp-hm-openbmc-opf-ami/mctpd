@@ -128,6 +128,15 @@ bool getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
         {
             return false;
         }
+    }
+    else if constexpr (cmd == MCTP_CTRL_CMD_ALLOCATE_ENDPOINT_IDS)
+    {
+        req.resize(sizeof(mctp_ctrl_cmd_allocate_eids_req));
+        mctp_ctrl_cmd_allocate_eids_req* getRoutingTable =
+            reinterpret_cast<mctp_ctrl_cmd_allocate_eids_req*>(req.data());
+
+        mctp_encode_ctrl_cmd_allocate_endpoint_id_req(
+            getRoutingTable, getRqDgramInst(), std::forward<Args>(reqParam)...);
         return true;
     }
     else

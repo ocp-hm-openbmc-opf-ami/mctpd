@@ -39,46 +39,91 @@ std::vector<std::string> getDevFilePaths(std::string& matchString)
     return foundPaths;
 }
 
+static std::optional<std::string> getI3CSysPath(std::string& devPath)
+{
+    struct stat statBuf;
+    if (stat(devPath.c_str(), &statBuf))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("Stat failed for path: " + devPath).c_str());
+        return std::nullopt;
+    }
+
+    auto deviceMajor = MAJOR(statBuf.st_rdev);
+    auto deviceMinor = MINOR(statBuf.st_rdev);
+
+    std::string i3cDevice("/sys/dev/char/" + std::to_string(deviceMajor) + ":" +
+                          std::to_string(deviceMinor) + "/device");
+
+    return i3cDevice;
+}
+
+bool getPID(std::string& path, std::string& pidStr)
+{
+
+    std::optional<std::string> i3cDevice = getI3CSysPath(path);
+    if (!i3cDevice.has_value())
+    {
+        return false;
+    }
+    std::string pidFile =
+        i3cDevice.value() + "/dynamic_address"; // TODO: To be changed to PID
+
+    std::ifstream readFile(pidFile.c_str());
+    std::getline(readFile, pidStr);
+    return true;
+}
+
+bool getAddr(std::string& path, uint8_t& addr)
+{
+    std::optional<std::string> i3cDevice = getI3CSysPath(path);
+    if (!i3cDevice.has_value())
+    {
+        return false;
+    }
+
+    std::string addrFile = i3cDevice.value() + "/dynamic_address";
+    std::string addrStr{};
+
+    std::ifstream readFile(addrFile.c_str());
+    std::getline(readFile, addrStr);
+
+    try
+    {
+        addr = static_cast<uint8_t>(std::stoul(addrStr, nullptr, 16));
+    }
+    catch (...)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Address not read");
+        return false;
+    }
+
+    return true;
+}
+
 bool findMCTPI3CDevice(uint8_t busNum, std::optional<uint8_t> pidMask,
                        std::string& file)
 {
-    std::vector<std::string> foundPaths;
-
     /* MCTP binding configured on a I3C master */
     if (pidMask.has_value())
     {
         auto matchString = std::string(R"(i3c-mctp-\d+$)");
-        struct stat statBuf;
-        uint8_t devicePid;
 
-        foundPaths = getDevFilePaths(matchString);
+        std::vector<std::string> foundPaths = getDevFilePaths(matchString);
 
         for (auto& path : foundPaths)
         {
-
-            if (stat(path.c_str(), &statBuf))
+            std::string pidStr{};
+            if (!getPID(path, pidStr))
             {
-                phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                    ("Stat failed for path: " + path).c_str());
                 continue;
             }
 
-            auto deviceMajor = MAJOR(statBuf.st_rdev);
-            auto deviceMinor = MINOR(statBuf.st_rdev);
-
-            std::string i3cDevice("/sys/dev/char/" +
-                                  std::to_string(deviceMajor) + ":" +
-                                  std::to_string(deviceMinor) + "/device");
-
-            std::string pidFile =
-                i3cDevice + "/dynamic_address"; // TODO: To be changed to PID
-
-            std::ifstream readFile(pidFile.c_str());
-            std::string pidStr;
-            std::getline(readFile, pidStr);
-
+            uint8_t devicePid = 0;
             try
             {
+                // TODO: PID be changed to a 48 bit value
                 devicePid =
                     static_cast<uint8_t>(std::stoul(pidStr, nullptr, 16));
             }
@@ -107,7 +152,7 @@ bool findMCTPI3CDevice(uint8_t busNum, std::optional<uint8_t> pidMask,
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "Opening I3C target driver");
         auto matchString = std::string(R"(i3c-mctp-target-\d+$)");
-        foundPaths = getDevFilePaths(matchString);
+        std::vector<std::string> foundPaths = getDevFilePaths(matchString);
         for (auto& path : foundPaths)
         {
             fs::path targetBusDir = "/sys/bus/i3c/devices/" +
