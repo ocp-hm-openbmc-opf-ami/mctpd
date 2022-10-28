@@ -18,6 +18,8 @@ class I3CDriver
     virtual void pollRx() = 0;
     virtual mctp_binding* binding() = 0;
     virtual int getDriverFd() = 0;
+    virtual uint8_t getOwnAddress() = 0;
+    virtual uint8_t getDeviceAddress() = 0;
 
     virtual ~I3CDriver() = default;
 };

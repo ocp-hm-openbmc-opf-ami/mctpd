@@ -872,3 +872,47 @@ void MCTPBridge::sendRoutingTableEntriesToBridge(
     }
     sendRoutingTableEntries(libmctpEntries, bindingPrivate, bridge);
 }
+
+bool MCTPBridge::allocateEIDPoolCtrlCmd(
+    boost::asio::yield_context& yield, const mctp_eid_t destEid,
+    const mctp_ctrl_cmd_allocate_eids_req_op operation,
+    const mctp_eid_t startEId, const uint8_t poolSize,
+    std::vector<uint8_t>& resp)
+{
+    std::vector<uint8_t> req = {};
+
+    if (!getFormattedReq<MCTP_CTRL_CMD_ALLOCATE_ENDPOINT_IDS>(
+            req, operation, poolSize, startEId))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Allocate EID: Request formatting failed");
+        return false;
+    }
+
+    auto bindingPrivateData = getBindingPrivateData(destEid);
+    if (!bindingPrivateData)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Allocate EID: Binding needs private data to send packet");
+        return false;
+    }
+
+    if (PacketState::receivedResponse !=
+        sendAndRcvMctpCtrl(yield, req, destEid, *bindingPrivateData, resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Allocate EID: Unable to get response");
+        return false;
+    }
+
+    if (!checkRespSizeAndCompletionCode<mctp_ctrl_cmd_allocate_eids_resp>(resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Allocate EID failed");
+        return false;
+    }
+
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "Allocate EID success");
+    return true;
+}

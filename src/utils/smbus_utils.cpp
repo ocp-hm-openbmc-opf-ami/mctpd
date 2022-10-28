@@ -89,6 +89,34 @@ bool getRootBus(const std::string& muxBus, std::string& rootBus)
     return false;
 }
 
+bool getTopMostRootBus(const std::string& muxBus, std::string& rootBus)
+{
+    // Provide true status once a valid root-Bus has been located.
+    // Then locate its main root bus.
+    // If current root-Bus is topmost then in next call-back all arguments will
+    // be intact. If current root-Bus is not the topmost then next call-back
+    // will update it to its parent root-Bus and continue.
+    constexpr int maxItr = 4;
+    int counter = maxItr;
+    std::string curMuxBus = muxBus;
+    bool status = false;
+
+    while (counter-- > 0)
+    {
+        if (getRootBus(curMuxBus, rootBus))
+        {
+            curMuxBus = rootBus;
+            status = true;
+            continue;
+        }
+        else
+        {
+            return status;
+        }
+    }
+    return status;
+}
+
 bool isMuxBus(const std::string& bus)
 {
     return is_symlink(

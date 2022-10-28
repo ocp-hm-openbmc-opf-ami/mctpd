@@ -25,11 +25,16 @@ class I3CDriver : public hw::I3CDriver
     void pollRx() override;
     mctp_binding* binding() override;
     int getDriverFd() override;
+    uint8_t getOwnAddress() override;
+    uint8_t getDeviceAddress() override;
 
   private:
     boost::asio::posix::stream_descriptor streamMonitor;
     int streamMonitorFd;
     mctp_binding_asti3c* i3c{};
+    bool isController = false;
+    uint8_t cpuPidMask;
+    std::string i3cDeviceFile;
 };
 
 } // namespace aspeed
