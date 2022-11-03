@@ -107,6 +107,6 @@ class I3CBinding : public MctpBinding
     void onI3CDeviceChangeCallback();
     virtual bool setEIDPool(uint8_t const startEID,
                             const uint8_t poolSize) override;
-    void forwardEIDPool(boost::asio::yield_context& yield,
+    bool forwardEIDPool(boost::asio::yield_context& yield,
                         const uint8_t startEID, const uint8_t poolSize);
 };

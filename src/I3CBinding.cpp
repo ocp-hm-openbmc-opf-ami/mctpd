@@ -669,13 +669,28 @@ bool I3CBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
         boost::asio::spawn(
             this->connection->get_io_context(),
             [this, startEID, poolSize](boost::asio::yield_context yield) {
-                this->forwardEIDPool(yield, startEID, poolSize);
+                if (!this->forwardEIDPool(yield, startEID, poolSize))
+                {
+                    return;
+                }
+                // Add forwarded eid entries in routing table with physical
+                // details of i3c target device
+                for (uint8_t i = 0; i < poolSize; i++)
+                {
+                    // Endpoint details will be invalid since these eids are not
+                    // yet assigned.
+                    uint8_t eid = startEID + i;
+                    mctpd::RoutingTable::Entry entry(
+                        eid, getDbusName(), mctpd::EndPointType::EndPoint);
+                    entry.isUpstream = false;
+                    this->MctpBinding::routingTable.updateEntry(eid, entry);
+                }
             });
     }
     return true;
 }
 
-void I3CBinding::forwardEIDPool(boost::asio::yield_context& yield,
+bool I3CBinding::forwardEIDPool(boost::asio::yield_context& yield,
                                 const uint8_t startEID, const uint8_t poolSize)
 {
     std::vector<uint8_t> resp;
@@ -686,7 +701,7 @@ void I3CBinding::forwardEIDPool(boost::asio::yield_context& yield,
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Error while sending Allocate EID during forward eid pool");
-        return;
+        return false;
     }
 
     mctp_ctrl_cmd_allocate_eids_resp respData;
@@ -700,18 +715,20 @@ void I3CBinding::forwardEIDPool(boost::asio::yield_context& yield,
 
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Allocate EID decode error");
-        return;
+        return false;
     }
     if (respData.completion_code != MCTP_CTRL_CC_SUCCESS)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Allocate EID was not succesful");
-        return;
+        return false;
     }
     if (respData.operation !=
         mctp_ctrl_cmd_allocate_eids_resp_op::allocation_accepted)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Allocate EID rejected by the endpoint");
+        return false;
     }
+    return true;
 }
