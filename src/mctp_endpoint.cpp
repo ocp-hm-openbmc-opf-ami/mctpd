@@ -379,9 +379,10 @@ bool MCTPEndpoint::handleGetEndpointId(
                                                                    : false;
     mctp_ctrl_cmd_get_endpoint_id(mctp, destEid, busownerMode, resp);
 
-    if (requiredEIDPoolSizeFromBO.has_value())
+    if (requiredEIDPoolSizeFromBO.has_value() || busownerMode)
     {
-        resp->eid_type = 1;
+        resp->eid_type =
+            (ENDPOINT_TYPE_BUS_OWNER_BRIDGE << ENDPOINT_TYPE_SHIFT);
     }
     return true;
 }

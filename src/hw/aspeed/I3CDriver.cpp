@@ -2,7 +2,7 @@
 
 #include "utils/i3c_utils.hpp"
 
-#include <iostream>
+#include <string>
 
 namespace hw
 {
@@ -13,7 +13,14 @@ I3CDriver::I3CDriver(boost::asio::io_context& ioc, uint8_t busNum,
                      std::optional<uint8_t> pidMask) :
     streamMonitor(ioc)
 {
-    std::string i3cDeviceFile;
+    if (pidMask.has_value())
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "BMC is a I3C Primary ");
+        isController = true;
+        cpuPidMask = pidMask.value();
+    }
+
     if (findMCTPI3CDevice(busNum, pidMask, i3cDeviceFile))
     {
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
@@ -86,5 +93,40 @@ I3CDriver::~I3CDriver()
     }
 }
 
+uint8_t I3CDriver::getOwnAddress()
+{
+    // If BMC is I3C Primary, return 0
+    uint8_t ownDAA = 0;
+
+    // Else, go through sysfs file paths and determine BMC's device address
+    if (!isController)
+    {
+        if (!getAddr(i3cDeviceFile, ownDAA))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Error reading own I3C Addr");
+        }
+    }
+
+    return ownDAA;
+}
+
+uint8_t I3CDriver::getDeviceAddress()
+{
+    // If BMC is secondary, then the remote I3C device is an I3C Controller -
+    // thus return 0
+    uint8_t deviceDAA = 0;
+    // If remote I3C device is a I3C secondary, then go through sysfs paths and
+    // determine device's address from i3c-mctp-x
+    if (isController)
+    {
+        if (!getAddr(i3cDeviceFile, deviceDAA))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Error reading device I3C Addr");
+        }
+    }
+    return deviceDAA;
+}
 } // namespace aspeed
 } // namespace hw

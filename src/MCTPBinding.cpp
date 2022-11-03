@@ -363,30 +363,7 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
 
         mctpInterface->register_method(
             "SetEIDPool", [this](uint8_t startEID, uint8_t poolSize) -> bool {
-                if (bindingModeType != mctp_server::BindingModeTypes::BusOwner)
-                {
-                    // Only bus owner roles requires a pool
-                    return false;
-                }
-
-                if (startEID > (0xFF - poolSize))
-                {
-                    // Invalid EID range passed to us
-                    return false;
-                }
-                std::set<mctp_eid_t> eidRange;
-
-                for (uint8_t i = startEID; i < (startEID + poolSize); i++)
-                {
-                    eidRange.insert(i);
-                }
-
-                eidPool.clearEIDPool();
-                eidPool.initializeEidPool(eidRange);
-
-                // TODO - If the bus was already initialised, then
-                // reinitialisation of the existing Endpoints should happen
-                return true;
+                return this->setEIDPool(startEID, poolSize);
             });
 
         // register VDPCI responder with MCTP for upper layers
@@ -872,4 +849,37 @@ void MctpBinding::onRawMessage(void* data, void* msg, size_t len,
 
     // sendMctpRawPayload will find the destination and do the transfer
     binding->sendMctpRawPayload(payload);
+}
+
+bool MctpBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
+{
+    if (bindingModeType != mctp_server::BindingModeTypes::BusOwner)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Not a busowner to accept eid pool");
+        return false;
+    }
+
+    if (startEID > (0xFF - poolSize))
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Invalid EID range passed to us");
+        return false;
+    }
+    std::set<mctp_eid_t> eidRange;
+
+    for (uint8_t i = startEID; i < (startEID + poolSize); i++)
+    {
+        eidRange.insert(i);
+    }
+
+    eidPool.clearEIDPool();
+    eidPool.initializeEidPool(eidRange);
+
+    // TODO - If the bus was already initialised, then
+    // reinitialisation of the existing Endpoints should happen
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        ("Setting EID pool " + std::to_string(startEID) + " + " +
+         std::to_string(poolSize)).c_str());
+    return true;
 }
