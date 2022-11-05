@@ -24,6 +24,7 @@ class I3CBinding : public MctpBinding
                std::unique_ptr<hw::I3CDriver>&& hw);
     ~I3CBinding() override;
     void initializeBinding() override;
+    void triggerDeviceDiscovery() override;
 
   protected:
     std::shared_ptr<hw::I3CDriver> hw;

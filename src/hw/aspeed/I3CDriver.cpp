@@ -2,6 +2,9 @@
 
 #include "utils/i3c_utils.hpp"
 
+#include <unistd.h>
+
+#include <fstream>
 #include <string>
 
 namespace hw
@@ -9,16 +12,87 @@ namespace hw
 namespace aspeed
 {
 
-I3CDriver::I3CDriver(boost::asio::io_context& ioc, uint8_t busNum,
-                     std::optional<uint8_t> pidMask) :
-    streamMonitor(ioc)
+std::unordered_map<uint8_t, std::string> i3cBusMap{
+    {0, "1e7a2000.i3c0"}, {1, "1e7a3000.i3c1"}, {2, "1e7a4000.i3c2"},
+    {3, "1e7a5000.i3c3"}, {4, "1e7a6000.i3c4"}, {5, "1e7a7000.i3c5"}};
+
+I3CDriver::I3CDriver(boost::asio::io_context& ioc, uint8_t i3cBusNum,
+                     std::optional<uint8_t> cpuPidMask) :
+    streamMonitor(ioc),
+    pidMask(cpuPidMask), busNum(i3cBusNum)
 {
     if (pidMask.has_value())
     {
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "BMC is a I3C Primary ");
         isController = true;
-        cpuPidMask = pidMask.value();
+    }
+}
+
+void I3CDriver::rescanI3CBus()
+{
+    auto search = i3cBusMap.find(busNum);
+    if (search != i3cBusMap.end())
+    {
+        std::string unbindFile =
+            "/sys/bus/platform/drivers/dw-i3c-master/unbind";
+        std::string bindFile = "/sys/bus/platform/drivers/dw-i3c-master/bind";
+
+        std::string busName = search->second;
+        std::fstream deviceFile;
+
+        // Unbind the driver
+        deviceFile.open(unbindFile, std::ios::out);
+        if (deviceFile.is_open())
+        {
+            deviceFile << busName;
+            deviceFile.close();
+        }
+        else
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Error unbinding I3C driver");
+            return;
+        }
+
+        // Blocking wait necessary here
+        sleep(1);
+
+        // Bind the driver
+        deviceFile.open(bindFile, std::ios::out);
+        if (deviceFile.is_open())
+        {
+            deviceFile << busName;
+            deviceFile.close();
+        }
+        else
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Error binding I3C driver");
+        }
+    }
+}
+
+void I3CDriver::discoverI3CDevices()
+{
+    streamMonitor.release();
+    if (isController)
+    {
+        // Multiple daemon instances serve on the same I3C
+        // bus. To avoid rescanning from all the buses, rescan
+        // only from the first instance and simply do a block
+        // wait in other daemon instances
+        if (pidMask.has_value())
+        {
+            if (pidMask == 0)
+            {
+                rescanI3CBus();
+            }
+            else
+            {
+                sleep(5);
+            }
+        }
     }
 
     if (findMCTPI3CDevice(busNum, pidMask, i3cDeviceFile))
@@ -26,6 +100,12 @@ I3CDriver::I3CDriver(boost::asio::io_context& ioc, uint8_t busNum,
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             ("I3C device file: " + i3cDeviceFile).c_str());
         streamMonitorFd = open(i3cDeviceFile.c_str(), O_RDWR);
+        if (streamMonitorFd < 0)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Error opening I3C device file");
+            return;
+        }
         streamMonitor.assign(streamMonitorFd);
     }
     else
@@ -35,8 +115,10 @@ I3CDriver::I3CDriver(boost::asio::io_context& ioc, uint8_t busNum,
     }
 }
 
+// Discovers I3C devices on sysfs, opens file and returns fd
 int I3CDriver::getDriverFd()
 {
+    discoverI3CDevices();
     return streamMonitorFd;
 }
 

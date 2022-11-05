@@ -1,4 +1,5 @@
 #include "I3CBinding.hpp"
+#include "utils/utils.hpp"
 
 #include <phosphor-logging/log.hpp>
 
@@ -78,6 +79,24 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
 
 void I3CBinding::onI3CDeviceChangeCallback()
 {
+}
+
+void I3CBinding::triggerDeviceDiscovery()
+{
+     phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Triggering device discovery");
+    if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
+    {
+        discoveredFlag = I3CBindingServer::DiscoveryFlags::Undiscovered;
+        for (auto& routingEntry : routingTable)
+        {
+            unregisterEndpoint(std::get<0>(routingEntry));
+        }
+        routingTable = {};
+        mctpI3CFd = hw->getDriverFd();
+        hw->pollRx();
+        endpointDiscoveryFlow();
+    }
 }
 
 void I3CBinding::endpointDiscoveryFlow()
@@ -591,6 +610,8 @@ void I3CBinding::initializeBinding()
     mctp_set_rx_ctrl(mctp, &MctpBinding::handleMCTPControlRequests,
                      static_cast<MctpBinding*>(this));
     mctp_binding_set_tx_enabled(binding, true);
+
+    setupHostResetMatch(connection, this);
 
     hw->pollRx();
 
