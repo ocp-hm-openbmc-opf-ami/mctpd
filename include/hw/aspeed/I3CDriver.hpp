@@ -17,8 +17,8 @@ namespace aspeed
 class I3CDriver : public hw::I3CDriver
 {
   public:
-    I3CDriver(boost::asio::io_context& ioc, uint8_t busNum,
-              std::optional<uint8_t> pidMask = 0);
+    I3CDriver(boost::asio::io_context& ioc, uint8_t i3cBusNum,
+              std::optional<uint8_t> cpuPidMask = 0);
     ~I3CDriver() override;
 
     void init() override;
@@ -33,8 +33,11 @@ class I3CDriver : public hw::I3CDriver
     int streamMonitorFd;
     mctp_binding_asti3c* i3c{};
     bool isController = false;
-    uint8_t cpuPidMask;
     std::string i3cDeviceFile;
+    std::optional<uint8_t> pidMask;
+    uint8_t busNum;
+    void discoverI3CDevices();
+    void rescanI3CBus();
 };
 
 } // namespace aspeed

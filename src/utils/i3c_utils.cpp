@@ -12,6 +12,7 @@ extern "C" {
 #include <optional>
 #include <phosphor-logging/log.hpp>
 #include <regex>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -67,7 +68,7 @@ bool getPID(std::string& path, std::string& pidStr)
         return false;
     }
     std::string pidFile =
-        i3cDevice.value() + "/dynamic_address"; // TODO: To be changed to PID
+        i3cDevice.value() + "/pid";
 
     std::ifstream readFile(pidFile.c_str());
     std::getline(readFile, pidStr);
@@ -120,12 +121,15 @@ bool findMCTPI3CDevice(uint8_t busNum, std::optional<uint8_t> pidMask,
                 continue;
             }
 
-            uint8_t devicePid = 0;
+            uint64_t devicePid = 0;
+            uint8_t instanceId = 255;
             try
             {
-                // TODO: PID be changed to a 48 bit value
-                devicePid =
-                    static_cast<uint8_t>(std::stoul(pidStr, nullptr, 16));
+                std::stringstream ss;
+                ss << std::hex << pidStr;
+                ss >> devicePid;
+                //Bits 15:12 is the instance ID
+                instanceId = (devicePid >> 12) & 0xF;
             }
 
             catch (...)
@@ -135,9 +139,7 @@ bool findMCTPI3CDevice(uint8_t busNum, std::optional<uint8_t> pidMask,
                 continue;
             }
 
-            // TODO: Extract the 8 bit instance id from the PID and compare with
-            // pidMask
-            if (devicePid == pidMask.value())
+            if (instanceId == pidMask.value())
             {
                 file.assign(path);
                 return true;
