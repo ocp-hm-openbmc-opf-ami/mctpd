@@ -7,6 +7,7 @@
 #include <sdbusplus/bus/match.hpp>
 
 static std::unique_ptr<sdbusplus::bus::match::match> powerMatch = nullptr;
+static std::unique_ptr<sdbusplus::bus::match::match> hostResetMatch = nullptr;
 
 namespace power
 {
@@ -14,6 +15,13 @@ const static constexpr char* interface = "xyz.openbmc_project.State.Host";
 const static constexpr char* path = "/xyz/openbmc_project/state/host0";
 const static constexpr char* property = "CurrentHostState";
 } // namespace power
+
+namespace platform_state
+{
+const static constexpr char* interface = "xyz.openbmc_project.State.Host.Misc";
+const static constexpr char* path = "/xyz/openbmc_project/misc/platform_state";
+const static constexpr char* platResetProperty = "ESpiPlatformReset";
+} // namespace platform_state
 
 namespace properties
 {
@@ -70,6 +78,69 @@ void setupPowerMatch(std::shared_ptr<sdbusplus::asio::connection> conn,
                     // Host resets more than once while booting. This results in
                     // receiving more than one on/off signal during power on. In
                     // this case first instance of the timer will be aborted.
+                    return;
+                }
+                if (ec)
+                {
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        (std::string("Timer error: ") + ec.message()).c_str());
+
+                    return;
+                }
+                bindingPtr->triggerDeviceDiscovery();
+            });
+        });
+}
+
+template <class T>
+void setupHostResetMatch(std::shared_ptr<sdbusplus::asio::connection> conn,
+                         const T& bindingPtr)
+{
+    if (hostResetMatch || bindingPtr == nullptr || conn == nullptr)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Unable to setup host Reset match");
+        return;
+    }
+
+    static boost::asio::steady_timer timer(conn->get_io_context());
+    std::string matchString =
+        sdbusplus::bus::match::rules::type::signal() +
+        sdbusplus::bus::match::rules::interface(properties::interface) +
+        sdbusplus::bus::match::rules::path(platform_state::path) +
+        sdbusplus::bus::match::rules::argN(0, platform_state::interface);
+
+    hostResetMatch = std::make_unique<sdbusplus::bus::match::match>(
+        static_cast<sdbusplus::bus::bus&>(*conn), matchString,
+        [bindingPtr](sdbusplus::message::message& message) {
+            std::string objectName;
+            boost::container::flat_map<std::string,
+                                       std::variant<bool, std::string>>
+                values;
+            message.read(objectName, values);
+            auto findState = values.find(platform_state::platResetProperty);
+            if (findState == values.end())
+            {
+                return;
+            }
+
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "Host Reset. Triggering device discovery");
+
+            bool resetState = std::get<bool>(findState->second);
+
+            if (!resetState)
+            {
+                // nothing to do
+                return;
+            }
+
+            // wait for a second
+            int delayInSec = 1;
+            timer.expires_after(std::chrono::seconds(delayInSec));
+            timer.async_wait([&](boost::system::error_code ec) {
+                if (ec == boost::asio::error::operation_aborted)
+                {
                     return;
                 }
                 if (ec)
