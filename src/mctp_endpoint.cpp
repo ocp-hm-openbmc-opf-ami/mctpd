@@ -218,6 +218,17 @@ void MCTPEndpoint::setDownStreamEIDPools(uint8_t eidPoolSize, uint8_t firstEID)
                 continue;
             }
 
+            for (uint8_t i = 0; i < poolSize; i++)
+            {
+                // Endpoint details will be invalid since these eids are not yet
+                // assigned.
+                uint8_t eid = startEID + i;
+                mctpd::RoutingTable::Entry entry(eid, busName,
+                                                 mctpd::EndPointType::EndPoint);
+                entry.isUpstream = true;
+                this->routingTable.updateEntry(eid, entry);
+            }
+
             startEID += poolSize;
             remainingPoolSize -= poolSize;
         }
