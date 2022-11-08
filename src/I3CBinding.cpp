@@ -17,7 +17,8 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                 mctp_server::BindingTypes::MctpOverI3c),
     hw{std::move(hwParam)}, getRoutingInterval(conf.getRoutingInterval),
     getRoutingTableTimer(ioc, getRoutingInterval), i3cConf(conf),
-    forwaredEIDPoolToEP(conf.forwaredEIDPoolToEP)
+    forwaredEIDPoolToEP(conf.forwaredEIDPoolToEP),
+    blockDiscoveryNotify(conf.blockDiscoveryNotify)
 {
     i3cInterface =
         objServer->add_interface(objPath, I3CBindingServer::interface);
@@ -107,6 +108,13 @@ void I3CBinding::endpointDiscoveryFlow()
     std::vector<uint8_t> prvData =
         std::vector<uint8_t>(pktPrvPtr, pktPrvPtr + sizeof(pktPrv));
     changeDiscoveredFlag(I3CBindingServer::DiscoveryFlags::Undiscovered);
+
+    if (this->blockDiscoveryNotify)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "Discovery notify sending disabled using config value");
+        return;
+    }
 
     boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
         bool discoverNoftifyDone = false;
@@ -346,7 +354,8 @@ void I3CBinding::updateRoutingTable()
     getRoutingTableTimer.async_wait(
         std::bind(&I3CBinding::updateRoutingTable, this));
 
-    if (discoveredFlag != I3CBindingServer::DiscoveryFlags::Discovered)
+    if (!this->blockDiscoveryNotify &&
+        discoveredFlag != I3CBindingServer::DiscoveryFlags::Discovered)
     {
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "Get Routing Table failed, undiscovered");
