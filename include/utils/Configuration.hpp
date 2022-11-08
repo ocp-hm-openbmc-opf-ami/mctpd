@@ -57,6 +57,7 @@ struct I3CConfiguration : Configuration
     uint8_t provisionalIdMask;
     uint8_t getRoutingInterval = 0;
     bool forwaredEIDPoolToEP = false;
+    bool blockDiscoveryNotify = false;
 
     ~I3CConfiguration() override;
 };
