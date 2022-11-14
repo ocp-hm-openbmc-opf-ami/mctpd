@@ -438,7 +438,34 @@ void I3CBinding::processRoutingTableChanges(
             {
                 continue;
             }
+            if (this->blockDiscoveryNotify &&
+                !MctpBinding::routingTable.contains(remoteEid))
+            {
+                // EID already existing in routing table indicates that it came
+                // as part of allocate eid command
+                if (remoteEid == MCTP_EID_NULL ||
+                    remoteEid == MCTP_EID_BROADCAST)
+                {
+                    continue;
+                }
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    ("Registering EID without asking anything. " +
+                     std::to_string(remoteEid))
+                        .c_str());
+                EndpointProperties epProperties;
+                epProperties.endpointEid = remoteEid;
+                epProperties.mode = sdbusplus::xyz::openbmc_project::MCTP::
+                    server::Base::BindingModeTypes::Endpoint;
 
+                const auto phyMediumId = static_cast<uint8_t>(
+                    mctpd::convertToPhysicalMediumIdentifier(bindingMediumID));
+                mctpd::RoutingTable::Entry entry(
+                    remoteEid, getDbusName(), mctpd::EndPointType::EndPoint, phyMediumId,
+                    getTransportId(), std::vector<uint8_t>({std::get<1>(routingEntry)}));
+                MctpBinding::routingTable.updateEntry(remoteEid, entry);
+                populateEndpointProperties(epProperties);
+                continue;
+            }
             std::vector<uint8_t> prvDataCopy = prvData;
             registerEndpoint(yield, prvDataCopy, remoteEid,
                              getBindingMode(routingEntry));
