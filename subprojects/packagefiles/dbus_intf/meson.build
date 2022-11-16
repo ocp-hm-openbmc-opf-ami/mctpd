@@ -16,8 +16,6 @@ r = run_command('git', 'apply', '0032-update-meson-build-for-MCTP-interfaces.pat
 assert(r.returncode() == 0, 'Applying MCTP-interfaces patch failed')
 r = run_command('git', 'apply', '0035-Add-I3C-Binding-related-interfaces.patch', check: true)
 assert(r.returncode() == 0, 'Applying I3C-Binding-related-interfaces patch failed')
-r = run_command('git', 'apply', '0036-edit-maxint.patch', check: true)
-assert(r.returncode() == 0, 'Applying edit int max patch')
 
 # Get sdbusplus dependency.
 sdbusplus_dep = dependency('sdbusplus', required: false)
