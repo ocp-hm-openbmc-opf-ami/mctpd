@@ -1,4 +1,5 @@
 #include "I3CBinding.hpp"
+
 #include "utils/utils.hpp"
 
 #include <phosphor-logging/log.hpp>
@@ -84,8 +85,8 @@ void I3CBinding::onI3CDeviceChangeCallback()
 
 void I3CBinding::triggerDeviceDiscovery()
 {
-     phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "Triggering device discovery");
+    phosphor::logging::log<phosphor::logging::level::ERR>(
+        "Triggering device discovery");
     if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
     {
         discoveredFlag = I3CBindingServer::DiscoveryFlags::Undiscovered;
@@ -460,8 +461,9 @@ void I3CBinding::processRoutingTableChanges(
                 const auto phyMediumId = static_cast<uint8_t>(
                     mctpd::convertToPhysicalMediumIdentifier(bindingMediumID));
                 mctpd::RoutingTable::Entry entry(
-                    remoteEid, getDbusName(), mctpd::EndPointType::EndPoint, phyMediumId,
-                    getTransportId(), std::vector<uint8_t>({std::get<1>(routingEntry)}));
+                    remoteEid, getDbusName(), mctpd::EndPointType::EndPoint,
+                    phyMediumId, getTransportId(),
+                    std::vector<uint8_t>({std::get<1>(routingEntry)}));
                 MctpBinding::routingTable.updateEntry(remoteEid, entry);
                 populateEndpointProperties(epProperties);
                 continue;
@@ -763,10 +765,14 @@ bool I3CBinding::forwardEIDPool(boost::asio::yield_context& yield,
 
     mctp_ctrl_cmd_allocate_eids_resp respData;
     mctp_ctrl_cmd_allocate_eids_resp_op op;
-    if (!mctp_decode_ctrl_cmd_allocate_endpoint_id_resp(
-            reinterpret_cast<mctp_ctrl_cmd_allocate_eids_resp*>(resp.data()),
-            &respData.ctrl_hdr.ic_msg_type, &respData.ctrl_hdr.rq_dgram_inst,
-            &respData.ctrl_hdr.command_code, &respData.completion_code, &op,
+
+    auto response =
+        reinterpret_cast<mctp_ctrl_cmd_allocate_eids_resp*>(resp.data());
+    mctp_msg* mctp_resp = reinterpret_cast<mctp_msg*>(response);
+
+    if (mctp_decode_allocate_endpoint_id_resp(
+            mctp_resp, sizeof(struct mctp_ctrl_cmd_allocate_eids_resp),
+            &respData.ctrl_hdr, &respData.completion_code, &op,
             &respData.eid_pool_size, &respData.first_eid))
     {
 

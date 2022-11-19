@@ -10,6 +10,8 @@
 #include <boost/asio/deadline_timer.hpp>
 #include <xyz/openbmc_project/MCTP/Binding/I3C/server.hpp>
 
+#include "libmctp-decode-response.h"
+
 using I3CBindingServer =
     sdbusplus::xyz::openbmc_project::MCTP::Binding::server::I3C;
 
