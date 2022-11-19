@@ -246,23 +246,29 @@ bool MCTPEndpoint::handleAllocateEID(std::vector<uint8_t>& request,
 {
     auto req =
         reinterpret_cast<mctp_ctrl_cmd_allocate_eids_req*>(request.data());
-    uint8_t icMsgType;
     uint8_t rqDgramInstanceID;
-    uint8_t commandCode;
     mctp_ctrl_cmd_allocate_eids_req_op op;
     uint8_t eidPoolSize;
     uint8_t firstEID;
 
+    mctp_ctrl_msg_hdr ctrl_hdr;
+    mctp_msg* mctp_req = reinterpret_cast<mctp_msg*>(req);
+
     response.resize(sizeof(mctp_ctrl_cmd_allocate_eids_resp));
     auto resp =
         reinterpret_cast<mctp_ctrl_cmd_allocate_eids_resp*>(response.data());
+    mctp_msg* mctp_resp = reinterpret_cast<mctp_msg*>(resp);
 
-    if (!mctp_decode_ctrl_cmd_allocate_endpoint_id_req(
-            req, &icMsgType, &rqDgramInstanceID, &commandCode, &op,
+    if (mctp_decode_allocate_endpoint_id_req(
+            mctp_req, sizeof(mctp_ctrl_cmd_allocate_eids_req), &ctrl_hdr, &op,
             &eidPoolSize, &firstEID))
     {
         resp->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
         return true;
+    }
+    else
+    {
+        rqDgramInstanceID = ctrl_hdr.rq_dgram_inst;
     }
 
     if (requiredEIDPoolSizeFromBO.has_value())
@@ -278,9 +284,10 @@ bool MCTPEndpoint::handleAllocateEID(std::vector<uint8_t>& request,
                 }
                 else
                 {
-                    if (!mctp_encode_ctrl_cmd_allocate_endpoint_id_resp(
-                            resp, &req->ctrl_msg_hdr, allocation_accepted,
-                            eidPoolSize, firstEID))
+                    if (mctp_encode_allocate_endpoint_id_resp(
+                            mctp_resp, sizeof(mctp_ctrl_cmd_allocate_eids_resp),
+                            rqDgramInstanceID, allocation_accepted, eidPoolSize,
+                            firstEID))
                     {
                         phosphor::logging::log<phosphor::logging::level::ERR>(
                             "Encode allocate EID failed");
@@ -294,8 +301,9 @@ bool MCTPEndpoint::handleAllocateEID(std::vector<uint8_t>& request,
                 break;
             }
             case get_allocation_info: {
-                if (!mctp_encode_ctrl_cmd_allocate_endpoint_id_resp(
-                        resp, &req->ctrl_msg_hdr, allocation_accepted,
+                if (mctp_encode_allocate_endpoint_id_resp(
+                        mctp_resp, sizeof(mctp_ctrl_cmd_allocate_eids_resp),
+                        rqDgramInstanceID, allocation_accepted,
                         allocatedPoolSize, allocatedPoolFirstEID))
                 {
                     phosphor::logging::log<phosphor::logging::level::ERR>(

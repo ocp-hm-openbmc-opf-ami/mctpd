@@ -19,6 +19,7 @@
 #include <phosphor-logging/log.hpp>
 
 #include "libmctp-cmds.h"
+#include "libmctp-encode-request.h"
 
 constexpr size_t minCmdRespSize = 4;
 
@@ -121,11 +122,13 @@ bool getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
     else if constexpr (cmd == MCTP_CTRL_CMD_ALLOCATE_ENDPOINT_IDS)
     {
         req.resize(sizeof(mctp_ctrl_cmd_allocate_eids_req));
-        mctp_ctrl_cmd_allocate_eids_req* getRoutingTable =
+        mctp_ctrl_cmd_allocate_eids_req* request =
             reinterpret_cast<mctp_ctrl_cmd_allocate_eids_req*>(req.data());
+        mctp_msg* mctp_req = reinterpret_cast<mctp_msg*>(request);
 
-        mctp_encode_ctrl_cmd_allocate_endpoint_id_req(
-            getRoutingTable, getRqDgramInst(), std::forward<Args>(reqParam)...);
+        mctp_encode_allocate_endpoint_id_req(
+            mctp_req, sizeof(struct mctp_ctrl_cmd_allocate_eids_req),
+            getRqDgramInst(), std::forward<Args>(reqParam)...);
         return true;
     }
     else
