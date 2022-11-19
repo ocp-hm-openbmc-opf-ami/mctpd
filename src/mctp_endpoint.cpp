@@ -554,9 +554,11 @@ bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,
     response.resize(estSize);
     size_t formattedRespSize = 0;
     dest = reinterpret_cast<mctp_ctrl_resp_get_routing_table*>(response.data());
+    mctp_msg* mctp_resp = reinterpret_cast<mctp_msg*>(dest);
 
-    if (!mctp_encode_ctrl_cmd_get_routing_table_resp(
-            dest, requiredEntriesLibFormat.data(),
+    if (mctp_encode_get_routing_table_resp(
+            mctp_resp, sizeof(mctp_ctrl_resp_get_routing_table),
+            requiredEntriesLibFormat.data(),
             static_cast<uint8_t>(requiredEntriesLibFormat.size()),
             &formattedRespSize, next_entry_handle))
     {

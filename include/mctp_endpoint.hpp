@@ -20,6 +20,9 @@
 
 #include <optional>
 
+#include "libmctp-decode-request.h"
+#include "libmctp-encode-response.h"
+
 class MCTPEndpoint : public MCTPDevice
 {
   public:
