@@ -211,6 +211,17 @@ void MCTPEndpoint::setDownStreamEIDPools(uint8_t eidPoolSize, uint8_t firstEID)
                 yield, ec, busName, "/xyz/openbmc_project/mctp",
                 mctp_server::interface, "SetEIDPool", startEID, poolSize);
 
+            for (uint8_t i = 0; i <= poolSize; i++)
+            {
+                // Endpoint details will be invalid since these eids are not yet
+                // assigned.
+                uint8_t eid = startEID + i;
+                mctpd::RoutingTable::Entry entry(eid, busName,
+                                                 mctpd::EndPointType::EndPoint);
+                entry.isUpstream = true;
+                this->routingTable.updateEntry(eid, entry);
+            }
+
             if (ec || !rc)
             {
                 phosphor::logging::log<phosphor::logging::level::WARNING>(
@@ -388,8 +399,12 @@ bool MCTPEndpoint::handleSetEndpointId(mctp_eid_t destEid,
                                        std::vector<uint8_t>& response)
 {
     auto resp = castVectorToStruct<mctp_ctrl_resp_set_eid>(response);
-    if (bindingModeType != mctp_server::BindingModeTypes::Endpoint ||
-        !is_eid_valid(destEid))
+    if (bindingModeType != mctp_server::BindingModeTypes::Endpoint)
+    {
+        resp->completion_code = MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD;
+        return true;
+    }
+    if (!is_eid_valid(destEid))
     {
         resp->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
         return true;

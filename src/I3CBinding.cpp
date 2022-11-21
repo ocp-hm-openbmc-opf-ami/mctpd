@@ -17,7 +17,8 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                 mctp_server::BindingTypes::MctpOverI3c),
     hw{std::move(hwParam)}, getRoutingInterval(conf.getRoutingInterval),
     getRoutingTableTimer(ioc, getRoutingInterval), i3cConf(conf),
-    forwaredEIDPoolToEP(conf.forwaredEIDPoolToEP)
+    forwaredEIDPoolToEP(conf.forwaredEIDPoolToEP),
+    blockDiscoveryNotify(conf.blockDiscoveryNotify)
 {
     i3cInterface =
         objServer->add_interface(objPath, I3CBindingServer::interface);
@@ -107,6 +108,13 @@ void I3CBinding::endpointDiscoveryFlow()
     std::vector<uint8_t> prvData =
         std::vector<uint8_t>(pktPrvPtr, pktPrvPtr + sizeof(pktPrv));
     changeDiscoveredFlag(I3CBindingServer::DiscoveryFlags::Undiscovered);
+
+    if (this->blockDiscoveryNotify)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "Discovery notify sending disabled using config value");
+        return;
+    }
 
     boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
         bool discoverNoftifyDone = false;
@@ -346,7 +354,8 @@ void I3CBinding::updateRoutingTable()
     getRoutingTableTimer.async_wait(
         std::bind(&I3CBinding::updateRoutingTable, this));
 
-    if (discoveredFlag != I3CBindingServer::DiscoveryFlags::Discovered)
+    if (!this->blockDiscoveryNotify &&
+        discoveredFlag != I3CBindingServer::DiscoveryFlags::Discovered)
     {
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "Get Routing Table failed, undiscovered");
@@ -429,7 +438,34 @@ void I3CBinding::processRoutingTableChanges(
             {
                 continue;
             }
+            if (this->blockDiscoveryNotify &&
+                !MctpBinding::routingTable.contains(remoteEid))
+            {
+                // EID already existing in routing table indicates that it came
+                // as part of allocate eid command
+                if (remoteEid == MCTP_EID_NULL ||
+                    remoteEid == MCTP_EID_BROADCAST)
+                {
+                    continue;
+                }
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    ("Registering EID without asking anything. " +
+                     std::to_string(remoteEid))
+                        .c_str());
+                EndpointProperties epProperties;
+                epProperties.endpointEid = remoteEid;
+                epProperties.mode = sdbusplus::xyz::openbmc_project::MCTP::
+                    server::Base::BindingModeTypes::Endpoint;
 
+                const auto phyMediumId = static_cast<uint8_t>(
+                    mctpd::convertToPhysicalMediumIdentifier(bindingMediumID));
+                mctpd::RoutingTable::Entry entry(
+                    remoteEid, getDbusName(), mctpd::EndPointType::EndPoint, phyMediumId,
+                    getTransportId(), std::vector<uint8_t>({std::get<1>(routingEntry)}));
+                MctpBinding::routingTable.updateEntry(remoteEid, entry);
+                populateEndpointProperties(epProperties);
+                continue;
+            }
             std::vector<uint8_t> prvDataCopy = prvData;
             registerEndpoint(yield, prvDataCopy, remoteEid,
                              getBindingMode(routingEntry));
