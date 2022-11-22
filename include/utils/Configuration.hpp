@@ -22,6 +22,7 @@ struct Configuration
     std::uint8_t requiredEIDPoolSizeFromBO = 0;
     // Setting for the downstream bus owner's pool size
     std::uint8_t requiredEIDPoolSize = 0;
+    bool supportsBridge = false;
 
     virtual ~Configuration();
 };
