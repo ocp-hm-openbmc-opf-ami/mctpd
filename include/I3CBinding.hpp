@@ -3,6 +3,7 @@
 #include "MCTPBinding.hpp"
 #include "hw/I3CDriver.hpp"
 #include "mctp_device.hpp"
+#include "utils/utils.hpp"
 
 #include <libmctp-asti3c.h>
 #include <libmctp-cmds.h>
@@ -47,6 +48,10 @@ class I3CBinding : public MctpBinding
     bool handleGetVdmSupport(mctp_eid_t endpointEid, void* bindingPrivate,
                              std::vector<uint8_t>& request,
                              std::vector<uint8_t>& response) override;
+    bool handleRoutingInfoUpdate([[maybe_unused]] mctp_eid_t destEid,
+                                 [[maybe_unused]] void* bindingPrivate,
+                                 [[maybe_unused]] std::vector<uint8_t>& request,
+                                 std::vector<uint8_t>& response) override;
     void populateDeviceProperties(
         const mctp_eid_t eid,
         const std::vector<uint8_t>& bindingPrivate) override;

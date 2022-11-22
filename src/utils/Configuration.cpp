@@ -270,6 +270,7 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
     uint64_t reqToRespTimeMs = 0;
     uint64_t reqRetryCount = 0;
     bool requiresCpuPidMask = false;
+    bool supportsBridge = false;
     uint64_t provisionalIdMask = 0;
     uint64_t getRoutingInterval = 0;
     uint64_t requiredEIDPoolSize = 0;
@@ -348,6 +349,7 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
         // be set to 0
         I3CAddress = 0;
     }
+    getField(map, "SupportsBridge", supportsBridge);
 
     getField(map, "ForwardEIDPool", forwaredEIDPoolToEP);
     getField(map, "BlockDiscoveryNotify", blockDicoveryNotify);
@@ -366,6 +368,7 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
     config.reqToRespTime = static_cast<unsigned int>(reqToRespTimeMs);
     config.reqRetryCount = static_cast<uint8_t>(reqRetryCount);
     config.requiresCpuPidMask = requiresCpuPidMask;
+    config.supportsBridge = supportsBridge;
     config.provisionalIdMask = static_cast<uint8_t>(provisionalIdMask);
     config.I3CAddress = static_cast<uint8_t>(I3CAddress);
     config.getRoutingInterval = static_cast<uint8_t>(getRoutingInterval);
