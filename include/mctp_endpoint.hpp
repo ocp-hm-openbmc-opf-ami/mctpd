@@ -20,6 +20,8 @@
 
 #include <optional>
 
+#include "libmctp-encode-response.h"
+
 class MCTPEndpoint : public MCTPDevice
 {
   public:
@@ -69,6 +71,10 @@ class MCTPEndpoint : public MCTPDevice
     virtual bool handleDiscoveryNotify(mctp_eid_t destEid, void* bindingPrivate,
                                        std::vector<uint8_t>& request,
                                        std::vector<uint8_t>& response);
+    virtual bool handleResolveEndpointId(mctp_eid_t destEid,
+                                         void* bindingPrivate,
+                                         std::vector<uint8_t>& request,
+                                         std::vector<uint8_t>& response);
     virtual bool handlePrepareForEndpointDiscovery(
         mctp_eid_t destEid, void* bindingPrivate, std::vector<uint8_t>& request,
         std::vector<uint8_t>& response);

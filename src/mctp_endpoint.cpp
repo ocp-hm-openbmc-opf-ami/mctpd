@@ -124,6 +124,11 @@ void MCTPEndpoint::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
                                                  request, response);
             break;
         }
+        case MCTP_CTRL_CMD_RESOLVE_ENDPOINT_ID: {
+            sendResponse = handleResolveEndpointId(destEid, bindingPrivate,
+                                                   request, response);
+            break;
+        }
         default: {
             std::stringstream commandCodeHex;
             commandCodeHex << std::hex
@@ -452,6 +457,51 @@ bool MCTPEndpoint::handleGetVersionSupport(
                   reinterpret_cast<uint8_t*>(itVer->second.data()) +
                       itVer->second.size() * sizeof(version_entry),
                   std::back_inserter(response));
+    }
+    return true;
+}
+
+bool MCTPEndpoint::handleResolveEndpointId(
+    mctp_eid_t eid, void*, [[maybe_unused]] std::vector<uint8_t>& request,
+    std::vector<uint8_t>& response)
+{
+    const uint8_t instanceId = 0x01;
+    uint8_t rqDgramInst = instanceId | MCTP_CTRL_HDR_FLAG_REQUEST;
+    variable_field address;
+    auto resp = castVectorToStruct<mctp_ctrl_cmd_resolve_eid_resp>(response);
+    mctp_msg* mctp_resp = reinterpret_cast<mctp_msg*>(resp);
+
+    /*Getting entry related to the Eid from the table
+     this way we can get the structure to the particular eid.*/
+    std::optional<mctpd::RoutingTable::Entry> entry;
+    try
+    {
+        entry = routingTable.getEntry(eid);
+    }
+    catch (const std::exception& e)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "EID is not present in the Routing table");
+        return false;
+    }
+
+    std::vector<unsigned char> physAddr;
+    if (entry->isUpstream)
+    {
+        physAddr = getOwnPhysicalAddress();
+        address.data_size = physAddr.size();
+        address.data = physAddr.data();
+    }
+    else
+    {
+        address.data_size = entry->routeEntry.routing_info.phys_address_size;
+        address.data = entry->routeEntry.phys_address;
+    }
+    if (!mctp_encode_resolve_eid_resp(mctp_resp,
+                                      sizeof(mctp_ctrl_cmd_resolve_eid_resp),
+                                      rqDgramInst, eid, &address))
+    {
+        return false;
     }
     return true;
 }

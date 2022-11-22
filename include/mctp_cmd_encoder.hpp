@@ -118,6 +118,17 @@ bool getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
             getRoutingTable, getRqDgramInst(), std::forward<Args>(reqParam)...);
         return true;
     }
+    else if constexpr (cmd == MCTP_CTRL_CMD_RESOLVE_ENDPOINT_ID)
+    {
+        req.resize(sizeof(mctp_ctrl_cmd_resolve_eid_req));
+        mctp_ctrl_cmd_resolve_eid_req* resEid =
+            reinterpret_cast<mctp_ctrl_cmd_resolve_eid_req*>(req.data());
+        if (!mctp_encode_ctrl_cmd_resolve_eid_req(
+                resEid, getRqDgramInst(), std::forward<Args>(reqParam)...))
+        {
+            return false;
+        }
+    }
     else if constexpr (cmd == MCTP_CTRL_CMD_ALLOCATE_ENDPOINT_IDS)
     {
         req.resize(sizeof(mctp_ctrl_cmd_allocate_eids_req));

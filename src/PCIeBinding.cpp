@@ -674,6 +674,25 @@ bool PCIeBinding::handleGetVdmSupport(mctp_eid_t destEid, void* bindingPrivate,
     return true;
 }
 
+bool PCIeBinding::handleResolveEndpointId(mctp_eid_t destEid,
+                                          void* bindingPrivate,
+                                          std::vector<uint8_t>& request,
+                                          std::vector<uint8_t>& response)
+{
+    if (!MCTPEndpoint::handleResolveEndpointId(destEid, bindingPrivate, request,
+                                               response))
+    {
+        return false;
+    }
+    auto resp = castVectorToStruct<mctp_ctrl_cmd_resolve_eid_resp>(response);
+    if (resp->bridge_eid == destEid)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "Eid's Are same! Not a Bridge, Target Device On Same Bus");
+    }
+    return true;
+}
+
 void PCIeBinding::initializeBinding()
 {
     int status = 0;
