@@ -72,6 +72,11 @@ class MCTPEndpoint : public MCTPDevice
     virtual bool handlePrepareForEndpointDiscovery(
         mctp_eid_t destEid, void* bindingPrivate, std::vector<uint8_t>& request,
         std::vector<uint8_t>& response);
+    virtual bool
+        handleRoutingInfoUpdate([[maybe_unused]] mctp_eid_t destEid,
+                                [[maybe_unused]] void* bindingPrivate,
+                                [[maybe_unused]] std::vector<uint8_t>& request,
+                                std::vector<uint8_t>& response);
 
     bool discoveryNotifyCtrlCmd(boost::asio::yield_context& yield,
                                 const std::vector<uint8_t>& bindingPrivate,
