@@ -353,7 +353,7 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
 
     getField(map, "ForwardEIDPool", forwaredEIDPoolToEP);
     getField(map, "BlockDiscoveryNotify", blockDicoveryNotify);
-    
+
     I3CConfiguration config;
     config.mediumId = stringToMediumID.at(physicalMediumID);
     config.mode = mode;
