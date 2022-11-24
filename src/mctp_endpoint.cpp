@@ -524,7 +524,7 @@ bool MCTPEndpoint::handleResolveEndpointId(
         address.data_size = entry->routeEntry.routing_info.phys_address_size;
         address.data = entry->routeEntry.phys_address;
     }
-    if (!mctp_encode_resolve_eid_resp(mctp_resp,
+    if (mctp_encode_resolve_eid_resp(mctp_resp,
                                       sizeof(mctp_ctrl_cmd_resolve_eid_resp),
                                       rqDgramInst, eid, &address))
     {
