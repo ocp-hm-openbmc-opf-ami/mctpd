@@ -1,4 +1,5 @@
 #include "I3CBinding.hpp"
+
 #include "utils/utils.hpp"
 
 #include <phosphor-logging/log.hpp>
@@ -84,8 +85,8 @@ void I3CBinding::onI3CDeviceChangeCallback()
 
 void I3CBinding::triggerDeviceDiscovery()
 {
-     phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "Triggering device discovery");
+    phosphor::logging::log<phosphor::logging::level::ERR>(
+        "Triggering device discovery");
     if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
     {
         discoveredFlag = I3CBindingServer::DiscoveryFlags::Undiscovered;
@@ -460,8 +461,9 @@ void I3CBinding::processRoutingTableChanges(
                 const auto phyMediumId = static_cast<uint8_t>(
                     mctpd::convertToPhysicalMediumIdentifier(bindingMediumID));
                 mctpd::RoutingTable::Entry entry(
-                    remoteEid, getDbusName(), mctpd::EndPointType::EndPoint, phyMediumId,
-                    getTransportId(), std::vector<uint8_t>({std::get<1>(routingEntry)}));
+                    remoteEid, getDbusName(), mctpd::EndPointType::EndPoint,
+                    phyMediumId, getTransportId(),
+                    std::vector<uint8_t>({std::get<1>(routingEntry)}));
                 MctpBinding::routingTable.updateEntry(remoteEid, entry);
                 populateEndpointProperties(epProperties);
                 continue;
@@ -610,6 +612,18 @@ bool I3CBinding::handleGetVdmSupport(mctp_eid_t destEid,
     resp->command_set_type = vdmSetDatabase[setIndex].commandSetType;
 
     return true;
+}
+
+bool I3CBinding::handleRoutingInfoUpdate(
+    [[maybe_unused]] mctp_eid_t destEid, [[maybe_unused]] void* bindingPrivate,
+    [[maybe_unused]] std::vector<uint8_t>& request,
+    std::vector<uint8_t>& response)
+{
+    // Invoking GetRouting table Control cmd to check any new Eid is available
+    // Return Success
+    getRoutingTableTimer.cancel();
+    auto resp = castVectorToStruct<mctp_ctrl_resp_completion_code>(response);
+    return encode_cc_only_response(MCTP_CTRL_CC_SUCCESS, resp);
 }
 
 void I3CBinding::initializeBinding()

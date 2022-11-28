@@ -157,6 +157,7 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
         ownEid = conf.defaultEid;
         bindingMediumID = conf.mediumId;
         bindingModeType = conf.mode;
+        supportsBridge = conf.supportsBridge;
 
         ctrlTxRetryDelay = conf.reqToRespTime;
         ctrlTxRetryCount = conf.reqRetryCount;
@@ -880,6 +881,7 @@ bool MctpBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
     // reinitialisation of the existing Endpoints should happen
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("Setting EID pool " + std::to_string(startEID) + " + " +
-         std::to_string(poolSize)).c_str());
+         std::to_string(poolSize))
+            .c_str());
     return true;
 }

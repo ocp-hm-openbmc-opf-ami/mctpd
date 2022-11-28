@@ -23,6 +23,7 @@ struct Configuration
     // Setting for the downstream bus owner's pool size
     std::uint8_t requiredEIDPoolSize = 0;
     std::string networkGUID;
+    bool supportsBridge = false;
 
     virtual ~Configuration();
 };
