@@ -495,6 +495,10 @@ std::vector<uint8_t> MCTPEndpoint::getBindingMsgTypes()
         }
         bindingMsgTypes.emplace_back(type);
     }
+    if (this->vdmSetDatabase.size() > 0)
+    {
+        bindingMsgTypes.emplace_back(MCTP_MESSAGE_TYPE_VDPCI);
+    }
     return bindingMsgTypes;
 }
 
