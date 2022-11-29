@@ -492,6 +492,7 @@ bool I3CBinding::handleDiscoveryNotify(
     // Discovery notify Thus update the our own DAA on D-Bus
     ownI3cDAA = hw->getOwnAddress();
     i3cInterface->set_property("Address", ownI3cDAA);
+    addOwnEIDToRoutingTable();
     bool busownerMode =
         bindingModeType == mctp_server::BindingModeTypes::BusOwner ? true
                                                                    : false;
