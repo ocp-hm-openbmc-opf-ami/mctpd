@@ -26,13 +26,6 @@ enum MctpStatus
     mctpSuccess = 0
 };
 
-struct InternalVdmSetDatabase
-{
-    uint8_t vendorIdFormat;
-    uint16_t vendorId;
-    uint16_t commandSetType;
-};
-
 class MctpBinding : public MCTPBridge
 {
   public:
@@ -50,8 +43,6 @@ class MctpBinding : public MCTPBridge
     mctp_eid_t reservedEID = 0;
     mctpd::MctpTransmissionQueue transmissionQueue;
     bridging::MCTPServiceScanner mctpServiceScanner;
-    // Register MCTP responder for upper layer
-    std::vector<InternalVdmSetDatabase> vdmSetDatabase;
 
     virtual bool reserveBandwidth(boost::asio::yield_context yield,
                                   const mctp_eid_t eid, const uint16_t timeout);

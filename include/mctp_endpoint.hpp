@@ -20,6 +20,13 @@
 
 #include <optional>
 
+struct InternalVdmSetDatabase
+{
+    uint8_t vendorIdFormat;
+    uint16_t vendorId;
+    uint16_t commandSetType;
+};
+
 class MCTPEndpoint : public MCTPDevice
 {
   public:
@@ -36,6 +43,9 @@ class MCTPEndpoint : public MCTPDevice
     uint8_t allocatedPoolSize = 0;
     uint8_t allocatedPoolFirstEID = 0;
     std::vector<uint8_t> uuid;
+    // Register MCTP responder for upper layer
+    std::vector<InternalVdmSetDatabase> vdmSetDatabase;
+
     void setDownStreamEIDPools(uint8_t eidPoolSize, uint8_t firstEID);
     virtual bool isReceivedPrivateDataCorrect(const void* bindingPrivate);
     virtual bool handleEndpointDiscovery(mctp_eid_t destEid,
@@ -72,6 +82,11 @@ class MCTPEndpoint : public MCTPDevice
     virtual bool handlePrepareForEndpointDiscovery(
         mctp_eid_t destEid, void* bindingPrivate, std::vector<uint8_t>& request,
         std::vector<uint8_t>& response);
+    virtual bool
+        handleRoutingInfoUpdate([[maybe_unused]] mctp_eid_t destEid,
+                                [[maybe_unused]] void* bindingPrivate,
+                                [[maybe_unused]] std::vector<uint8_t>& request,
+                                std::vector<uint8_t>& response);
 
     bool discoveryNotifyCtrlCmd(boost::asio::yield_context& yield,
                                 const std::vector<uint8_t>& bindingPrivate,

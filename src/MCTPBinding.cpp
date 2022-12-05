@@ -158,6 +158,7 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
         bindingMediumID = conf.mediumId;
         bindingModeType = conf.mode;
         networkID = conf.networkId;
+        supportsBridge = conf.supportsBridge;
 
         ctrlTxRetryDelay = conf.reqToRespTime;
         ctrlTxRetryCount = conf.reqRetryCount;

@@ -58,6 +58,7 @@ class MCTPDevice : public MCTPDBusInterfaces
   protected:
     uint8_t busOwnerEid;
     uint8_t ownEid;
+    bool supportsBridge;
     uint8_t ctrlTxRetryCount;
     uint8_t networkID;
     unsigned int ctrlTxRetryDelay;
