@@ -1,4 +1,5 @@
 #include "I3CBinding.hpp"
+
 #include "utils/utils.hpp"
 
 #include <phosphor-logging/log.hpp>
@@ -84,8 +85,8 @@ void I3CBinding::onI3CDeviceChangeCallback()
 
 void I3CBinding::triggerDeviceDiscovery()
 {
-     phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "Triggering device discovery");
+    phosphor::logging::log<phosphor::logging::level::ERR>(
+        "Triggering device discovery");
     if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
     {
         discoveredFlag = I3CBindingServer::DiscoveryFlags::Undiscovered;
@@ -387,11 +388,12 @@ void I3CBinding::updateRoutingTable()
 }
 
 void I3CBinding::populateDeviceProperties(
-    const mctp_eid_t eid, const std::vector<uint8_t>& /*bindingPrivate*/)
+    const mctp_eid_t eid, const std::vector<uint8_t>& /*bindingPrivate*/,
+    const uint8_t nid)
 {
     uint8_t deviceAddress = 0;
-    std::string mctpEpObj =
-        "/xyz/openbmc_project/mctp/device/" + std::to_string(eid);
+    std::string mctpEpObj = "/xyz/openbmc_project/mctp/device/" +
+                            std::to_string(nid) + "/" + std::to_string(eid);
     std::shared_ptr<dbus_interface> i3cIntf;
     // TODO: Read symlinks and find the DAA getDAAfromFd()
     i3cIntf = objectServer->add_interface(
@@ -460,8 +462,9 @@ void I3CBinding::processRoutingTableChanges(
                 const auto phyMediumId = static_cast<uint8_t>(
                     mctpd::convertToPhysicalMediumIdentifier(bindingMediumID));
                 mctpd::RoutingTable::Entry entry(
-                    remoteEid, getDbusName(), mctpd::EndPointType::EndPoint, phyMediumId,
-                    getTransportId(), std::vector<uint8_t>({std::get<1>(routingEntry)}));
+                    remoteEid, getDbusName(), mctpd::EndPointType::EndPoint,
+                    phyMediumId, getTransportId(),
+                    std::vector<uint8_t>({std::get<1>(routingEntry)}));
                 MctpBinding::routingTable.updateEntry(remoteEid, entry);
                 populateEndpointProperties(epProperties);
                 continue;

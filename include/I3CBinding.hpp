@@ -47,9 +47,9 @@ class I3CBinding : public MctpBinding
     bool handleGetVdmSupport(mctp_eid_t endpointEid, void* bindingPrivate,
                              std::vector<uint8_t>& request,
                              std::vector<uint8_t>& response) override;
-    void populateDeviceProperties(
-        const mctp_eid_t eid,
-        const std::vector<uint8_t>& bindingPrivate) override;
+    void populateDeviceProperties(const mctp_eid_t eid,
+                                  const std::vector<uint8_t>& bindingPrivate,
+                                  const uint8_t nid) override;
 
   private:
     using routingTableEntry_t =

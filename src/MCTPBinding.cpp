@@ -157,6 +157,7 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
         ownEid = conf.defaultEid;
         bindingMediumID = conf.mediumId;
         bindingModeType = conf.mode;
+        networkID = conf.networkId;
 
         ctrlTxRetryDelay = conf.reqToRespTime;
         ctrlTxRetryCount = conf.reqRetryCount;
@@ -179,6 +180,8 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
         registerProperty(
             mctpInterface, "BindingMode",
             mctp_server::convertBindingModeTypesToString(bindingModeType));
+
+        registerProperty(mctpInterface, "NetworkID", networkID);
 
         /*
          * msgTag and tagOwner are not currently used, but can't be removed
@@ -678,7 +681,7 @@ std::optional<mctp_eid_t>
     epProperties.endpointEid = eid;
     epProperties.mode = bindingMode;
     // TODO:get Network ID, now set it to 0
-    epProperties.networkId = 0x00;
+    epProperties.networkId = networkID;
     epProperties.endpointMsgTypes = getMsgTypes(msgTypeSupportResp.msgType);
 
     getVendorDefinedMessageTypes(yield, bindingPrivate, eid, epProperties);
@@ -705,7 +708,7 @@ std::optional<mctp_eid_t>
         }
     }
 
-    populateDeviceProperties(eid, bindingPrivate);
+    populateDeviceProperties(eid, bindingPrivate, networkID);
     populateEndpointProperties(epProperties);
 
     return eid;
@@ -864,6 +867,7 @@ bool MctpBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
     // reinitialisation of the existing Endpoints should happen
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("Setting EID pool " + std::to_string(startEID) + " + " +
-         std::to_string(poolSize)).c_str());
+         std::to_string(poolSize))
+            .c_str());
     return true;
 }

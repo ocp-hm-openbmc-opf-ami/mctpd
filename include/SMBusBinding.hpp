@@ -13,9 +13,9 @@ class SMBusBinding : public SMBusBridge
     SMBusBinding() = delete;
     ~SMBusBinding() override;
     void initializeBinding() override;
-    void populateDeviceProperties(
-        const mctp_eid_t eid,
-        const std::vector<uint8_t>& bindingPrivate) override;
+    void populateDeviceProperties(const mctp_eid_t eid,
+                                  const std::vector<uint8_t>& bindingPrivate,
+                                  const uint8_t nid) override;
     std::optional<std::string>
         getLocationCode(const std::vector<uint8_t>& bindingPrivate) override;
     std::vector<uint8_t> getOwnPhysicalAddress() override;

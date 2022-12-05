@@ -45,7 +45,7 @@ struct EndpointProperties
     uint8_t endpointEid;
     std::string uuid;
     mctp_server::BindingModeTypes mode;
-    uint16_t networkId;
+    uint8_t networkId;
     MsgTypes endpointMsgTypes;
     // Vendor PCI ID Support
     std::vector<uint16_t> vendorIdCapabilitySets;
@@ -87,7 +87,8 @@ class MCTPDBusInterfaces
 
     virtual void
         populateDeviceProperties(const mctp_eid_t eid,
-                                 const std::vector<uint8_t>& bindingPrivate);
+                                 const std::vector<uint8_t>& bindingPrivate,
+                                 const uint8_t networkID);
 
     bool removeInterface(mctp_eid_t eid, endpointInterfaceMap& interfaces);
     void registerMsgTypes(std::shared_ptr<dbus_interface>& msgTypeIntf,

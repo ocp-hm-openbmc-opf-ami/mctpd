@@ -59,7 +59,8 @@ MCTPDBusInterfaces::~MCTPDBusInterfaces()
 }
 
 void MCTPDBusInterfaces::populateDeviceProperties(const mctp_eid_t,
-                                                  const std::vector<uint8_t>&)
+                                                  const std::vector<uint8_t>&,
+                                                  const uint8_t)
 {
     // Do nothing
 }
@@ -96,8 +97,9 @@ void MCTPDBusInterfaces::populateEndpointProperties(
 {
     std::string mctpDevObj = "/xyz/openbmc_project/mctp/device/";
     std::shared_ptr<dbus_interface> endpointIntf;
-    std::string mctpEpObj =
-        mctpDevObj + std::to_string(epProperties.endpointEid);
+    std::string mctpEpObj = mctpDevObj +
+                            std::to_string(epProperties.networkId) + "/" +
+                            std::to_string(epProperties.endpointEid);
 
     // Endpoint interface
     endpointIntf =

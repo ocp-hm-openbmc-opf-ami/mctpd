@@ -59,6 +59,7 @@ class MCTPDevice : public MCTPDBusInterfaces
     uint8_t busOwnerEid;
     uint8_t ownEid;
     uint8_t ctrlTxRetryCount;
+    uint8_t networkID;
     unsigned int ctrlTxRetryDelay;
     mctp_server::BindingModeTypes bindingModeType{};
     mctp_server::MctpPhysicalMediumIdentifiers bindingMediumID{};

@@ -144,13 +144,14 @@ std::optional<std::string>
 }
 
 void SMBusBinding::populateDeviceProperties(
-    const mctp_eid_t eid, const std::vector<uint8_t>& bindingPrivate)
+    const mctp_eid_t eid, const std::vector<uint8_t>& bindingPrivate,
+    const uint8_t nid)
 {
     auto smbusBindingPvt =
         reinterpret_cast<const mctp_smbus_pkt_private*>(bindingPrivate.data());
 
-    std::string mctpEpObj =
-        "/xyz/openbmc_project/mctp/device/" + std::to_string(eid);
+    std::string mctpEpObj = "/xyz/openbmc_project/mctp/device/" +
+                            std::to_string(nid) + "/" + std::to_string(eid);
 
     std::shared_ptr<dbus_interface> smbusIntf;
     smbusIntf =

@@ -57,9 +57,9 @@ class PCIeBinding : public MctpBinding,
 
     void deviceReadyNotify(bool ready) override;
 
-    void populateDeviceProperties(
-        const mctp_eid_t eid,
-        const std::vector<uint8_t>& bindingPrivate) override;
+    void populateDeviceProperties(const mctp_eid_t eid,
+                                  const std::vector<uint8_t>& bindingPrivate,
+                                  const uint8_t nid) override;
     uint8_t getTransportId() override;
     std::vector<uint8_t>
         getPhysicalAddress(const std::vector<uint8_t>& privateData) override;

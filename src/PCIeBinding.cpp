@@ -366,13 +366,14 @@ void PCIeBinding::updateRoutingTable()
 }
 
 void PCIeBinding::populateDeviceProperties(
-    const mctp_eid_t eid, const std::vector<uint8_t>& bindingPrivate)
+    const mctp_eid_t eid, const std::vector<uint8_t>& bindingPrivate,
+    const uint8_t nid)
 {
     auto pcieBindingPvt = reinterpret_cast<const mctp_astpcie_pkt_private*>(
         bindingPrivate.data());
 
-    std::string mctpEpObj =
-        "/xyz/openbmc_project/mctp/device/" + std::to_string(eid);
+    std::string mctpEpObj = "/xyz/openbmc_project/mctp/device/" +
+                            std::to_string(nid) + "/" + std::to_string(eid);
 
     std::shared_ptr<dbus_interface> pcieIntf;
     // TODO: Replace the interface name string with sdbusplus header definition
