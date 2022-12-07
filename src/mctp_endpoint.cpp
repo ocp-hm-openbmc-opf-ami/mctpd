@@ -555,12 +555,13 @@ bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,
     size_t formattedRespSize = 0;
     dest = reinterpret_cast<mctp_ctrl_resp_get_routing_table*>(response.data());
     mctp_msg* mctp_resp = reinterpret_cast<mctp_msg*>(dest);
+    uint8_t completion_code = MCTP_CTRL_CC_SUCCESS;
 
     if (mctp_encode_get_routing_table_resp(
-            mctp_resp, sizeof(mctp_ctrl_resp_get_routing_table),
+            mctp_resp, sizeof(mctp_ctrl_resp_get_routing_table),completion_code,
             requiredEntriesLibFormat.data(),
-            static_cast<uint8_t>(requiredEntriesLibFormat.size()),
-            &formattedRespSize, next_entry_handle))
+            static_cast<uint8_t>(requiredEntriesLibFormat.size()), next_entry_handle,
+            &formattedRespSize))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Error formatting get routing table");
