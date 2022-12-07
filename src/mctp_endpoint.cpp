@@ -250,7 +250,8 @@ bool MCTPEndpoint::handleAllocateEID(std::vector<uint8_t>& request,
     mctp_ctrl_cmd_allocate_eids_req_op op;
     uint8_t eidPoolSize;
     uint8_t firstEID;
-
+    uint8_t completion_code = MCTP_CTRL_CC_SUCCESS;
+    
     mctp_ctrl_msg_hdr ctrl_hdr;
     mctp_msg* mctp_req = reinterpret_cast<mctp_msg*>(req);
 
@@ -286,7 +287,7 @@ bool MCTPEndpoint::handleAllocateEID(std::vector<uint8_t>& request,
                 {
                     if (mctp_encode_allocate_endpoint_id_resp(
                             mctp_resp, sizeof(mctp_ctrl_cmd_allocate_eids_resp),
-                            rqDgramInstanceID, allocation_accepted, eidPoolSize,
+                            rqDgramInstanceID, allocation_accepted,completion_code, eidPoolSize,
                             firstEID))
                     {
                         phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -303,7 +304,7 @@ bool MCTPEndpoint::handleAllocateEID(std::vector<uint8_t>& request,
             case get_allocation_info: {
                 if (mctp_encode_allocate_endpoint_id_resp(
                         mctp_resp, sizeof(mctp_ctrl_cmd_allocate_eids_resp),
-                        rqDgramInstanceID, allocation_accepted,
+                        rqDgramInstanceID, allocation_accepted,completion_code,
                         allocatedPoolSize, allocatedPoolFirstEID))
                 {
                     phosphor::logging::log<phosphor::logging::level::ERR>(
