@@ -67,8 +67,7 @@ bool getPID(std::string& path, std::string& pidStr)
     {
         return false;
     }
-    std::string pidFile =
-        i3cDevice.value() + "/pid";
+    std::string pidFile = i3cDevice.value() + "/pid";
 
     std::ifstream readFile(pidFile.c_str());
     std::getline(readFile, pidStr);
@@ -128,7 +127,7 @@ bool findMCTPI3CDevice(uint8_t busNum, std::optional<uint8_t> pidMask,
                 std::stringstream ss;
                 ss << std::hex << pidStr;
                 ss >> devicePid;
-                //Bits 15:12 is the instance ID
+                // Bits 15:12 is the instance ID
                 instanceId = (devicePid >> 12) & 0xF;
             }
 

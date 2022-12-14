@@ -469,7 +469,8 @@ void MCTPDevice::unregisterEndpoint(mctp_eid_t eid)
 
 void MCTPDevice::addOwnEIDToRoutingTable()
 {
-    if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
+    if (bindingModeType == mctp_server::BindingModeTypes::BusOwner ||
+        supportsBridge)
     {
         const auto phyMediumId = static_cast<uint8_t>(
             mctpd::convertToPhysicalMediumIdentifier(bindingMediumID));

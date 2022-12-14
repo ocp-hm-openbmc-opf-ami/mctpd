@@ -492,6 +492,7 @@ bool I3CBinding::handleDiscoveryNotify(
     // Discovery notify Thus update the our own DAA on D-Bus
     ownI3cDAA = hw->getOwnAddress();
     i3cInterface->set_property("Address", ownI3cDAA);
+    addOwnEIDToRoutingTable();
     bool busownerMode =
         bindingModeType == mctp_server::BindingModeTypes::BusOwner ? true
                                                                    : false;
@@ -612,6 +613,18 @@ bool I3CBinding::handleGetVdmSupport(mctp_eid_t destEid,
     resp->command_set_type = vdmSetDatabase[setIndex].commandSetType;
 
     return true;
+}
+
+bool I3CBinding::handleRoutingInfoUpdate(
+    [[maybe_unused]] mctp_eid_t destEid, [[maybe_unused]] void* bindingPrivate,
+    [[maybe_unused]] std::vector<uint8_t>& request,
+    std::vector<uint8_t>& response)
+{
+    // Invoking GetRouting table Control cmd to check any new Eid is available
+    // Return Success
+    getRoutingTableTimer.cancel();
+    auto resp = castVectorToStruct<mctp_ctrl_resp_completion_code>(response);
+    return encode_cc_only_response(MCTP_CTRL_CC_SUCCESS, resp);
 }
 
 void I3CBinding::initializeBinding()

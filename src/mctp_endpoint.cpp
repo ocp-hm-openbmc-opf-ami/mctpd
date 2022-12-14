@@ -124,6 +124,12 @@ void MCTPEndpoint::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
                                                  request, response);
             break;
         }
+        case MCTP_CTRL_CMD_ROUTING_INFO_UPDATE: {
+            sendResponse = handleRoutingInfoUpdate(destEid, bindingPrivate,
+                                                   request, response);
+            break;
+        }
+
         default: {
             std::stringstream commandCodeHex;
             commandCodeHex << std::hex
@@ -151,6 +157,17 @@ void MCTPEndpoint::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
                         msgTag, bindingPrivate);
     }
     return;
+}
+
+bool MCTPEndpoint::handleRoutingInfoUpdate(
+    [[maybe_unused]] mctp_eid_t destEid, [[maybe_unused]] void* bindingPrivate,
+    [[maybe_unused]] std::vector<uint8_t>& request,
+    std::vector<uint8_t>& response)
+{
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "Routing infomation update command not supported");
+    auto resp = castVectorToStruct<mctp_ctrl_resp_completion_code>(response);
+    return encode_cc_only_response(MCTP_CTRL_CC_ERROR_UNSUPPORTED_CMD, resp);
 }
 
 bool MCTPEndpoint::handleDiscoveryNotify(
@@ -418,6 +435,12 @@ bool MCTPEndpoint::handleSetEndpointId(mctp_eid_t destEid,
     mctp_ctrl_cmd_set_endpoint_id(mctp, destEid, req, resp);
     if (resp->completion_code == MCTP_CTRL_CC_SUCCESS)
     {
+        if (supportsBridge)
+        {
+            // Remove the OwnEid from the Routing table
+            routingTable.removeEntry(ownEid);
+        }
+
         busOwnerEid = destEid;
         ownEid = resp->eid_set;
     }
@@ -426,6 +449,11 @@ bool MCTPEndpoint::handleSetEndpointId(mctp_eid_t destEid,
     {
         resp->status |= 1;
         resp->eid_pool_size = requiredEIDPoolSizeFromBO.value();
+    }
+    if (supportsBridge)
+    {
+        // add NewEid value to the Routing table
+        addOwnEIDToRoutingTable();
     }
 
     return true;
@@ -476,6 +504,10 @@ std::vector<uint8_t> MCTPEndpoint::getBindingMsgTypes()
         }
         bindingMsgTypes.emplace_back(type);
     }
+    if (this->vdmSetDatabase.size() > 0)
+    {
+        bindingMsgTypes.emplace_back(MCTP_MESSAGE_TYPE_VDPCI);
+    }
     return bindingMsgTypes;
 }
 
@@ -509,7 +541,8 @@ bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,
                                          std::vector<uint8_t>& response)
 {
     static constexpr size_t errRespSize = 3;
-    if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
+    if (bindingModeType == mctp_server::BindingModeTypes::Endpoint &&
+        !supportsBridge)
     {
         // Command is not supported for endpoints. No response will be sent
         return false;
