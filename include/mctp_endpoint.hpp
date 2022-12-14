@@ -20,6 +20,8 @@
 
 #include <optional>
 
+#include "libmctp-encode-response.h"
+
 struct InternalVdmSetDatabase
 {
     uint8_t vendorIdFormat;

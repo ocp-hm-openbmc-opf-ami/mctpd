@@ -19,6 +19,7 @@
 #include <phosphor-logging/log.hpp>
 
 #include "libmctp-cmds.h"
+#include "libmctp-encode-request.h"
 
 constexpr size_t minCmdRespSize = 4;
 
@@ -64,8 +65,10 @@ bool getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
         req.resize(sizeof(mctp_ctrl_cmd_get_uuid));
         mctp_ctrl_cmd_get_uuid* getUuid =
             reinterpret_cast<mctp_ctrl_cmd_get_uuid*>(req.data());
+        mctp_msg* mctp_req = reinterpret_cast<mctp_msg*>(getUuid);
 
-        mctp_encode_ctrl_cmd_get_uuid(getUuid, getRqDgramInst());
+        mctp_encode_get_uuid_req(
+            mctp_req, sizeof(struct mctp_ctrl_cmd_get_uuid), getRqDgramInst());
         return true;
     }
     else if constexpr (cmd == MCTP_CTRL_CMD_GET_VERSION_SUPPORT)

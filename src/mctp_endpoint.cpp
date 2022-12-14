@@ -342,6 +342,10 @@ bool MCTPEndpoint::handleGetUUID(std::vector<uint8_t>& request,
     response.resize(sizeof(mctp_ctrl_resp_get_uuid));
     auto resp = reinterpret_cast<mctp_ctrl_resp_get_uuid*>(response.data());
     auto req = reinterpret_cast<mctp_ctrl_cmd_get_uuid*>(request.data());
+    uint8_t completion_code = MCTP_CTRL_CC_SUCCESS;
+    mctp_msg* mctp_resp = reinterpret_cast<mctp_msg*>(resp);
+    size_t length = sizeof(struct mctp_ctrl_resp_get_uuid);
+    uint8_t rqDgramInstanceID = req->ctrl_msg_hdr.rq_dgram_inst;
 
     if (uuid.size() < sizeof(guid_t))
     {
@@ -350,8 +354,8 @@ bool MCTPEndpoint::handleGetUUID(std::vector<uint8_t>& request,
         return false;
     }
 
-    if (!mctp_encode_ctrl_cmd_get_uuid_resp(
-            resp, &req->ctrl_msg_hdr,
+    if (mctp_encode_get_uuid_resp(
+            mctp_resp, &length, rqDgramInstanceID, completion_code,
             (reinterpret_cast<const guid_t*>(uuid.data()))))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
