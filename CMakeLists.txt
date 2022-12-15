@@ -102,8 +102,6 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 set(SERVICE_FILES
     ${PROJECT_SOURCE_DIR}/service_files/xyz.openbmc_project.mctpd@.service)
 
-set(CONFIG_FILES ${PROJECT_SOURCE_DIR}/configurations/mctp_config.json)
-
 if(BUILD_STANDALONE)
   set(CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR}/libs/googletest/
                         ${CMAKE_BINARY_DIR}/libs/boost/ ${CMAKE_PREFIX_PATH})
@@ -128,7 +126,6 @@ if(BUILD_STANDALONE)
   link_directories(SYSTEM ${CMAKE_BINARY_DIR}/libs/boost/lib)
 
   include_directories(SYSTEM ${CMAKE_BINARY_DIR}/libs/CLIUtils/include)
-  include_directories(SYSTEM ${CMAKE_BINARY_DIR}/libs/nlohmann-json/include)
 endif()
 
 find_package(Boost 1.71 REQUIRED)

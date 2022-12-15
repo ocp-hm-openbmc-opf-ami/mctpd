@@ -29,11 +29,7 @@ ExternalProject_Add(
   UPDATE_COMMAND "")
 
 ExternalProject_Add(
-  nlohmann-json
-  GIT_REPOSITORY "https://github.com/nlohmann/json.git"
   GIT_TAG f42a74b8f53cc308647123d49d33d1c8122e3f42
-  SOURCE_DIR "${CMAKE_BINARY_DIR}/src/nlohmann-json"
-  BINARY_DIR "${CMAKE_BINARY_DIR}/libs/nlohmann-json"
   CONFIGURE_COMMAND ""
   BUILD_COMMAND ""
   INSTALL_COMMAND cp -r "<SOURCE_DIR>/include" <BINARY_DIR>
