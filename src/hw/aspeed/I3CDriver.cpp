@@ -1,11 +1,14 @@
 #include "hw/aspeed/I3CDriver.hpp"
 
+#include "linux/i3c-mctp.h"
 #include "utils/i3c_utils.hpp"
 
 #include <unistd.h>
 
 #include <fstream>
 #include <string>
+
+#include <sys/ioctl.h>
 
 namespace hw
 {
@@ -104,6 +107,14 @@ void I3CDriver::discoverI3CDevices()
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "Error opening I3C device file");
+            return;
+        }
+        int rc = ioctl(streamMonitorFd, I3C_MCTP_IOCTL_REGISTER_DEFAULT_CLIENT);
+        if (rc < 0)
+        {
+            close(streamMonitorFd);
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Error registering MCTP o. I3C default client");
             return;
         }
         streamMonitor.assign(streamMonitorFd);
