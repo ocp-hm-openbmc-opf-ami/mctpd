@@ -62,6 +62,7 @@ class MctpBinding : public MCTPBridge
                          mctp_eid_t eid,
                          mctp_server::BindingModeTypes bindingMode =
                              mctp_server::BindingModeTypes::Endpoint);
+    void clearRegisteredDevice(const mctp_eid_t eid);
     // MCTP Callbacks
     static void rxMessage(uint8_t srcEid, void* data, void* msg, size_t len,
                           bool tagOwner, uint8_t msgTag, void* bindingPrivate);
@@ -92,6 +93,5 @@ class MctpBinding : public MCTPBridge
     mctp_server::BindingTypes bindingID{};
 
     void createUuid();
-    void clearRegisteredDevice(const mctp_eid_t eid);
     MctpStatus sendMctpRawPayload(const std::vector<uint8_t>& data);
 };

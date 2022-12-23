@@ -538,7 +538,7 @@ void SMBusBridge::initEndpointDiscovery(boost::asio::yield_context& yield)
                 ("SMBus device EID = " + std::to_string(it->first) +
                  " is no longer available")
                     .c_str());
-            unregisterEndpoint(it->first);
+            clearRegisteredDevice(it->first);
             it = removeDeviceTableEntry(it->first);
             continue;
         }
