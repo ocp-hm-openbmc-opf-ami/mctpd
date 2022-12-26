@@ -531,7 +531,7 @@ bool MCTPEndpoint::handleGetVdmSupport(
 bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,
                                          std::vector<uint8_t>& response)
 {
-    static constexpr size_t errRespSize = 3;
+    static constexpr size_t errRespSize = 5;
     if (bindingModeType == mctp_server::BindingModeTypes::Endpoint &&
         !supportsBridge)
     {
@@ -543,6 +543,13 @@ bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,
             request.data());
     auto dest =
         reinterpret_cast<mctp_ctrl_resp_get_routing_table*>(response.data());
+
+    if (getRoutingTableRequest->entry_handle == 0xFF)
+    {
+        response.resize(errRespSize);
+        dest->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
+        return true;
+    }
 
     bool status = false;
     const mctpd::RoutingTable::EntryMap& entries =
