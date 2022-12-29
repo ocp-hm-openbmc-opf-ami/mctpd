@@ -1,14 +1,14 @@
 #include "hw/aspeed/I3CDriver.hpp"
 
-#include "linux/i3c-mctp.h"
 #include "utils/i3c_utils.hpp"
 
+#include <sys/ioctl.h>
 #include <unistd.h>
 
 #include <fstream>
 #include <string>
 
-#include <sys/ioctl.h>
+#include "linux/i3c-mctp.h"
 
 namespace hw
 {
@@ -110,7 +110,7 @@ void I3CDriver::discoverI3CDevices()
             return;
         }
         int rc = ioctl(streamMonitorFd, I3C_MCTP_IOCTL_REGISTER_DEFAULT_CLIENT);
-        if (rc < 0)
+        if (rc < 0 && isController)
         {
             close(streamMonitorFd);
             phosphor::logging::log<phosphor::logging::level::ERR>(

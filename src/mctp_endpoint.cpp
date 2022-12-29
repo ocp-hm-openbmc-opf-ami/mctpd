@@ -541,12 +541,16 @@ bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,
     auto getRoutingTableRequest =
         reinterpret_cast<const mctp_ctrl_cmd_get_routing_table*>(
             request.data());
-    auto dest =
-        reinterpret_cast<mctp_ctrl_resp_get_routing_table*>(response.data());
+
+    mctp_ctrl_resp_get_routing_table* dest = NULL;
 
     if (getRoutingTableRequest->entry_handle == 0xFF)
     {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Invalid entry handle");
         response.resize(errRespSize);
+        dest = reinterpret_cast<mctp_ctrl_resp_get_routing_table*>(
+            response.data());
         dest->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
         return true;
     }
@@ -571,8 +575,9 @@ bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,
     if (entriesLibFormat.size() < startIndex + 1)
     {
         response.resize(errRespSize);
+        dest = reinterpret_cast<mctp_ctrl_resp_get_routing_table*>(
+            response.data());
         dest->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
-        dest->number_of_entries = 0;
         // Return true so that a response will be sent with error code
         return true;
     }
