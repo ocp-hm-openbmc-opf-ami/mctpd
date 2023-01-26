@@ -787,6 +787,15 @@ std::optional<std::vector<uint8_t>>
     return std::vector<uint8_t>(pktPrvPtr, pktPrvPtr + sizeof(pktPrv));
 }
 
+void PCIeBinding::clearAllEids()
+{
+    for (auto& routingEntry : routingTable)
+    {
+        unregisterEndpoint(std::get<0>(routingEntry));
+    }
+    routingTable.clear();
+}
+
 void PCIeBinding::changeDiscoveredFlag(pcie_binding::DiscoveryFlags flag)
 {
     discoveredFlag = flag;
@@ -796,6 +805,10 @@ void PCIeBinding::changeDiscoveredFlag(pcie_binding::DiscoveryFlags flag)
     if (pcie_binding::DiscoveryFlags::Discovered == flag)
     {
         getRoutingTableTimer.expires_from_now(boost::posix_time::seconds{0});
+    }
+    else if (pcie_binding::DiscoveryFlags::Undiscovered == flag)
+    {
+        clearAllEids();
     }
 }
 
