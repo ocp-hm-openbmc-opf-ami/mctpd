@@ -64,5 +64,4 @@ struct I3CConfiguration : Configuration
 
 std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
     getConfiguration(std::shared_ptr<sdbusplus::asio::connection> conn,
-                     const std::string& configurationName,
-                     const std::filesystem::path& configPath);
+                     const std::string& configurationName);

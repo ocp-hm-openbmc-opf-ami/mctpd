@@ -58,17 +58,12 @@ int main(int argc, char* argv[])
 {
     CLI::App app("MCTP Daemon");
     std::string binding;
-    std::string configPath = "/usr/share/mctp/mctp_config.json";
     std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
         mctpdConfigurationPair;
-
     app.add_option("-b,--binding", binding,
                    "MCTP Physical Binding. Supported: -b smbus, -b pcie")
         ->required();
-    app.add_option("-c,--config", configPath, "Path to configuration file.")
-        ->capture_default_str();
     CLI11_PARSE(app, argc, argv);
-
     boost::asio::io_context ioc;
     boost::asio::signal_set signals(ioc, SIGINT, SIGTERM);
     std::shared_ptr<MctpBinding> bindingPtr;
@@ -84,7 +79,7 @@ int main(int argc, char* argv[])
     /* Process configuration */
     try
     {
-        mctpdConfigurationPair = getConfiguration(conn, binding, configPath);
+        mctpdConfigurationPair = getConfiguration(conn, binding);
     }
     catch (const std::exception& e)
     {

@@ -5,7 +5,6 @@
 #include <boost/algorithm/string.hpp>
 #include <fstream>
 #include <memory>
-#include <nlohmann/json.hpp>
 #include <optional>
 #include <phosphor-logging/log.hpp>
 #include <regex>
@@ -13,8 +12,6 @@
 #include <string>
 #include <variant>
 #include <vector>
-
-using json = nlohmann::json;
 
 using ConfigurationField =
     std::variant<bool, uint64_t, std::string, std::vector<uint64_t>,
@@ -95,31 +92,6 @@ static bool getField(const ConfigurationMap& configuration,
     phosphor::logging::log<phosphor::logging::level::WARNING>(
         ("Missing configuration field " + fieldName).c_str());
     return false;
-}
-
-template <typename T>
-static bool getField(const json& configuration, const std::string& fieldName,
-                     T& value)
-{
-    if (!configuration.contains(fieldName))
-    {
-        phosphor::logging::log<phosphor::logging::level::WARNING>(
-            ("Missing configuration field " + fieldName).c_str());
-        return false;
-    }
-
-    try
-    {
-        value = configuration.at(fieldName).get<T>();
-        return true;
-    }
-    catch (const std::exception& e)
-    {
-        phosphor::logging::log<phosphor::logging::level::WARNING>(
-            ("Error reading configuration field " + fieldName + ": " + e.what())
-                .c_str());
-        return false;
-    }
 }
 
 template <typename T>
@@ -579,58 +551,16 @@ static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
     return std::make_pair(name, std::move(configuration));
 }
 
-static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
-    getConfigurationFromFile(const std::filesystem::path& configPath,
-                             const std::string& configurationName)
-{
-    std::ifstream jsonFile(configPath);
-    if (!jsonFile.is_open())
-    {
-        return std::nullopt;
-    }
-
-    json jsonConfig = json::parse(jsonFile, nullptr, false);
-    if (jsonConfig.size() == 0 || !jsonConfig.contains(configurationName))
-    {
-        return std::nullopt;
-    }
-
-    std::unique_ptr<Configuration> configuration;
-    if (configurationName == "smbus")
-    {
-        if (auto optConfig = getSMBusConfiguration(jsonConfig.at("smbus")))
-        {
-            configuration =
-                std::make_unique<SMBusConfiguration>(std::move(*optConfig));
-        }
-    }
-    else if (configurationName == "pcie")
-    {
-        if (auto optConfig = getPcieConfiguration(jsonConfig.at("pcie")))
-        {
-            configuration =
-                std::make_unique<PcieConfiguration>(std::move(*optConfig));
-        }
-    }
-    if (!configuration)
-    {
-        return std::nullopt;
-    }
-    return std::make_pair("MCTP-" + configurationName,
-                          std::move(configuration));
-}
-
 std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
     getConfiguration(std::shared_ptr<sdbusplus::asio::connection> conn,
-                     const std::string& configurationName,
-                     const std::filesystem::path& configPath)
+                     const std::string& configurationName)
 {
     auto configurationPair =
         getConfigurationFromEntityManager(conn, configurationName);
     if (!configurationPair)
     {
-        configurationPair =
-            getConfigurationFromFile(configPath, configurationName);
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Error in getting configuration");   
     }
     return configurationPair;
 }

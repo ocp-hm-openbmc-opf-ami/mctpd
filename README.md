@@ -27,7 +27,7 @@ Supports
 
 ### Device Discovery
 BMC takes statically configurations(EID pool, bus path etc..) exposed by
-`entity-manager` or by JSON file. BMC scans those buses for MCTP capable devices
+`entity-manager`. BMC scans those buses for MCTP capable devices
 and executes the bus owner responsibilities of EID assignment and device
 capability discovery.
 
