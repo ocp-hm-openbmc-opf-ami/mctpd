@@ -76,9 +76,18 @@ void I3CDriver::rescanI3CBus()
     }
 }
 
-void I3CDriver::discoverI3CDevices()
+void I3CDriver::closeFile()
 {
     streamMonitor.release();
+    if(streamMonitorFd > 0)
+    {
+        close(streamMonitorFd);
+    }
+}
+
+void I3CDriver::discoverI3CDevices()
+{
+    closeFile();
     if (isController)
     {
         // Multiple daemon instances serve on the same I3C
@@ -178,7 +187,7 @@ void I3CDriver::pollRx()
 
 I3CDriver::~I3CDriver()
 {
-    streamMonitor.release();
+    closeFile();
 
     if (i3c)
     {
