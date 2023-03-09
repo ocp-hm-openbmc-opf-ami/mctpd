@@ -104,13 +104,15 @@ void SMBusBridge::scanPort(const int scanFd,
         }
 
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
-            ("Adding device " + std::to_string(it)).c_str());
+            ("Adding device, 7 bit address: " + std::to_string(it) +
+             ", fd: " + std::to_string(scanFd))
+                .c_str());
 
         deviceMap.insert(std::make_pair(scanFd, it));
     }
 }
 
-std::map<int, int> SMBusBridge::getMuxFds(const std::string& rootPort)
+std::map<std::string, std::string> SMBusBridge::getMuxPorts()
 {
     auto devDir = fs::path("/dev/");
     auto matchString = std::string(R"(i2c-\d+$)");
@@ -122,11 +124,10 @@ std::map<int, int> SMBusBridge::getMuxFds(const std::string& rootPort)
         throwRunTimeError("unable to find i2c devices");
     }
 
-    std::map<int, int> muxes;
+    std::map<std::string, std::string> i2cPortAndPath;
     for (const auto& i2cPath : i2cBuses)
     {
         std::string i2cPort;
-        std::string rootBus;
         if (!getBusNumFromPath(i2cPath, i2cPort))
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -140,6 +141,20 @@ std::map<int, int> SMBusBridge::getMuxFds(const std::string& rootPort)
             continue; // we found regular i2c port
         }
 
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            ("Mux port: " + i2cPort + ", i2cPath: " + i2cPath).c_str());
+        i2cPortAndPath.emplace(i2cPort, i2cPath);
+    }
+    return i2cPortAndPath;
+}
+
+std::map<int, int> SMBusBridge::getMuxFds(const std::string& rootPort)
+{
+    std::map<std::string, std::string> i2cPortAndPath = getMuxPorts();
+    std::map<int, int> muxes;
+    for (const auto& [i2cPort, i2cPath] : i2cPortAndPath)
+    {
+        std::string rootBus;
         if (!getTopMostRootBus(i2cPort, rootBus))
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -416,31 +431,57 @@ inline void SMBusBridge::handleMuxInotifyEvent(const std::string& name)
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             ("Detected change on bus " + name).c_str());
 
-        // Delay 1s to refresh only once as multiple i2c
-        // buses will change when handling mux
-        refreshMuxTimer.expires_after(std::chrono::seconds(1));
-        refreshMuxTimer.async_wait(
-            [this](const boost::system::error_code& ec2) {
-                // Calling expires_after will invoke this handler with
-                // operation_aborted, just ignore it as we only need to
-                // rescan mux on last inotify event
-                if (ec2 == boost::asio::error::operation_aborted)
-                {
-                    return;
-                }
+        // Delay mctp discovery by 10s so that
+        // 1. We only need to refresh i2c device list once as multiple inotify
+        // events can happen while handling mux
+        // 2. Other services triggered by inotify event will get a chance to
+        // scan the bus first. Which helps to avoid i2c traffic congestion.
+        // 3. FruDevice service will take around 3-4 sec to complete the scan.
+        refreshMuxTimer.expires_after(std::chrono::seconds(10));
+        refreshMuxTimer.async_wait([this, name](
+                                       const boost::system::error_code& ec2) {
+            // Calling expires_after will invoke this handler with
+            // operation_aborted, just ignore it as we only need to
+            // rescan mux on last inotify event
+            if (ec2 == boost::asio::error::operation_aborted)
+            {
+                return;
+            }
 
-                std::string rootPort;
-                if (!getBusNumFromPath(bus, rootPort))
-                {
-                    throwRunTimeError("Error in finding root port");
-                }
+            std::string rootPort;
+            if (!getBusNumFromPath(bus, rootPort))
+            {
+                throwRunTimeError("Error in finding root port");
+            }
 
-                phosphor::logging::log<phosphor::logging::level::INFO>(
-                    "i2c bus change detected, refreshing "
-                    "muxPortMap");
-                muxPortMap = getMuxFds(rootPort);
-                scanTimer.cancel();
-            });
+            std::string i2cPort;
+            if (!getBusNumFromPath(name, i2cPort))
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "i2c bus path is malformed",
+                    phosphor::logging::entry("PATH=%s", name.c_str()));
+                return;
+            }
+            // rescan should be triggered only if the new addition/deletion
+            // of i2c device has the same rootbus the daemon is serving.
+
+            std::map<std::string, std::string> muxPortsAndPaths = getMuxPorts();
+            if (!muxPortsAndPaths.count(i2cPort))
+            {
+                phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                    ("Bus " + name + " is not part of root bus " + bus +
+                     ". Skipping bus re-scan.")
+                        .c_str());
+                return;
+            }
+
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "i2c bus change detected, refreshing "
+                "muxPortMap");
+            // rescan will update muxFd.
+            muxPortMap = getMuxFds(rootPort);
+            scanTimer.cancel();
+        });
     }
 }
 

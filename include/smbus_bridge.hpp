@@ -43,6 +43,7 @@ class SMBusBridge : public SMBusEndpoint
 
     void setMuxIdleMode(const MuxIdleModes mode);
     void setupMuxMonitor();
+    std::map<std::string, std::string> getMuxPorts();
     std::map<int, int> getMuxFds(const std::string& rootPort);
     void scanDevices();
     void scanPort(const int scanFd,
