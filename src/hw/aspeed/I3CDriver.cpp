@@ -79,10 +79,11 @@ void I3CDriver::rescanI3CBus()
 void I3CDriver::closeFile()
 {
     streamMonitor.release();
-    if(streamMonitorFd > 0)
+    if (streamMonitorFd > 0)
     {
         close(streamMonitorFd);
     }
+    streamMonitorFd = -1;
 }
 
 void I3CDriver::discoverI3CDevices()

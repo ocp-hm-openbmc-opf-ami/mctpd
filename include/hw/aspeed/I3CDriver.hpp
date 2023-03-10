@@ -30,7 +30,7 @@ class I3CDriver : public hw::I3CDriver
 
   private:
     boost::asio::posix::stream_descriptor streamMonitor;
-    int streamMonitorFd;
+    int streamMonitorFd = -1;
     mctp_binding_asti3c* i3c{};
     bool isController = false;
     std::string i3cDeviceFile;
