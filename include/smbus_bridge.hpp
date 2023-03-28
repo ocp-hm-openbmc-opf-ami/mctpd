@@ -38,7 +38,7 @@ class SMBusBridge : public SMBusEndpoint
 
   protected:
     uint64_t scanInterval;
-    std::set<uint8_t> supportedEndpointSlaveAddress;
+    std::set<uint8_t> supportedEndpointTargetAddress;
     std::set<std::pair<int, uint8_t>> rootDeviceMap;
 
     void setMuxIdleMode(const MuxIdleModes mode);

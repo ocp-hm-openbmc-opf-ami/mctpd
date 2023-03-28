@@ -162,7 +162,7 @@ TEST_F(MctpdBaseTest, BaseIfPropertyTest)
 
     EXPECT_CALL(
         *smbusInterface,
-        register_property(StrEq("BmcSlaveAddress"), An<uint8_t>(),
+        register_property(StrEq("BmcTargetAddress"), An<uint8_t>(),
                           Eq(sdbusplus::asio::PropertyPermission::readOnly)))
         .Times(1)
         .WillRepeatedly(Return(true));

@@ -79,24 +79,24 @@ std::string SMBusDevice::SMBusInit()
     std::stringstream addrStream;
     addrStream.str("");
 
-    int addr7bit = (bmcSlaveAddr >> 1);
+    int addr7bit = (bmcTargetAddr >> 1);
 
     // want the format as 0x0Y
     addrStream << std::setfill('0') << std::setw(2) << std::hex << addr7bit;
 
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        ("Slave Address " + addrStream.str()).c_str());
+        ("Target Address " + addrStream.str()).c_str());
 
     // MSB fixed to 10 so hex is 0x10XX ~ 0x1005
-    std::string hexSlaveAddr("10");
-    hexSlaveAddr.append(addrStream.str());
+    std::string hexTargetAddr("10");
+    hexTargetAddr.append(addrStream.str());
 
     std::string inputDevice = "/sys/bus/i2c/devices/" + rootPort + "-" +
-                              hexSlaveAddr + "/slave-mqueue";
+                              hexTargetAddr + "/slave-mqueue";
 
-    // Source slave address is in 8 bit format and should always be an odd
+    // Source target address is in 8 bit format and should always be an odd
     // number
-    mctp_smbus_set_src_slave_addr(smbus, bmcSlaveAddr | 0x01);
+    mctp_smbus_set_src_target_addr(smbus, bmcTargetAddr | 0x01);
 
     inFd = open(inputDevice.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
 
@@ -106,7 +106,7 @@ std::string SMBusDevice::SMBusInit()
         std::string newInputDevice =
             "/sys/bus/i2c/devices/i2c-" + rootPort + "/new_device";
         std::string para("slave-mqueue 0x");
-        para.append(hexSlaveAddr);
+        para.append(hexTargetAddr);
 
         std::fstream deviceFile;
         deviceFile.open(newInputDevice, std::ios::out);
@@ -155,7 +155,7 @@ std::optional<std::vector<uint8_t>>
                 prvt.mux_hold_timeout = 0;
                 prvt.mux_flags = 0;
             }
-            prvt.slave_addr = temp.slave_addr;
+            prvt.target_addr = temp.target_addr;
             uint8_t* prvtPtr = reinterpret_cast<uint8_t*>(&prvt);
             return std::vector<uint8_t>(prvtPtr, prvtPtr + sizeof(prvt));
         }
@@ -218,7 +218,7 @@ mctp_eid_t SMBusDevice::getEIDFromDeviceTable(
             reinterpret_cast<const mctp_smbus_pkt_private*>(
                 bindingPrivate.data());
         mctp_smbus_pkt_private bindingDataEntry = std::get<1>(deviceEntry);
-        if (bindingDataEntry.slave_addr == ptr->slave_addr &&
+        if (bindingDataEntry.target_addr == ptr->target_addr &&
             bindingDataEntry.fd == ptr->fd)
         {
             eid = std::get<0>(deviceEntry);
@@ -251,8 +251,8 @@ void SMBusDevice::addUnknownEIDToDeviceTable(const mctp_eid_t eid,
     smbusBindingPvt.fd = bindingPtr->fd;
     smbusBindingPvt.mux_hold_timeout = bindingPtr->mux_hold_timeout;
     smbusBindingPvt.mux_flags = bindingPtr->mux_flags;
-    smbusBindingPvt.slave_addr =
-        static_cast<uint8_t>((bindingPtr->slave_addr) & (~1));
+    smbusBindingPvt.target_addr =
+        static_cast<uint8_t>((bindingPtr->target_addr) & (~1));
 
     smbusDeviceTable.emplace_back(std::make_pair(eid, smbusBindingPvt));
 
@@ -264,8 +264,8 @@ void SMBusDevice::addUnknownEIDToDeviceTable(const mctp_eid_t eid,
 bool SMBusDevice::isBindingDataSame(const mctp_smbus_pkt_private& dataMain,
                                     const mctp_smbus_pkt_private& dataTmp)
 {
-    if (std::tie(dataMain.fd, dataMain.slave_addr) ==
-        std::tie(dataTmp.fd, dataTmp.slave_addr))
+    if (std::tie(dataMain.fd, dataMain.target_addr) ==
+        std::tie(dataTmp.fd, dataTmp.target_addr))
     {
         return true;
     }
@@ -349,5 +349,5 @@ std::vector<uint8_t>
 {
     auto smbusData =
         reinterpret_cast<const mctp_smbus_pkt_private*>(privateData.data());
-    return std::vector<uint8_t>{smbusData->slave_addr};
+    return std::vector<uint8_t>{smbusData->target_addr};
 }

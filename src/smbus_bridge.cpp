@@ -64,11 +64,11 @@ void SMBusBridge::scanPort(const int scanFd,
         return;
     }
 
-    for (uint8_t it : supportedEndpointSlaveAddress)
+    for (uint8_t it : supportedEndpointTargetAddress)
     {
         if (ioctl(scanFd, I2C_SLAVE, it) < 0)
         {
-            // busy slave
+            // busy target
             continue;
         }
 
@@ -557,7 +557,7 @@ void SMBusBridge::initEndpointDiscovery(boost::asio::yield_context& yield)
     // Scan root port
     scanPort(outFd, rootDeviceMap);
     registerDeviceMap.insert(rootDeviceMap.begin(), rootDeviceMap.end());
-    // Scan mux bus to get the list of fd and the corresponding slave address of
+    // Scan mux bus to get the list of fd and the corresponding target address of
     // all the mux ports
     scanMuxBus(registerDeviceMap);
 
@@ -570,7 +570,7 @@ void SMBusBridge::initEndpointDiscovery(boost::asio::yield_context& yield)
             registerDeviceMap.begin(), registerDeviceMap.end(),
             [&bindingPvt](const auto& device) {
                 return device.first == bindingPvt.fd &&
-                       device.second == (bindingPvt.slave_addr >> 1);
+                       device.second == (bindingPvt.target_addr >> 1);
             });
 
         if (deviceIter == registerDeviceMap.end())
@@ -610,8 +610,8 @@ void SMBusBridge::initEndpointDiscovery(boost::asio::yield_context& yield)
             smbusBindingPvt.mux_hold_timeout = 0;
             smbusBindingPvt.mux_flags = 0;
         }
-        /* Set 8 bit i2c slave address */
-        smbusBindingPvt.slave_addr =
+        /* Set 8 bit i2c target address */
+        smbusBindingPvt.target_addr =
             static_cast<uint8_t>((std::get<1>(device) << 1));
 
         auto const ptr = reinterpret_cast<uint8_t*>(&smbusBindingPvt);
@@ -640,7 +640,7 @@ void SMBusBridge::initEndpointDiscovery(boost::asio::yield_context& yield)
                     ("SMBus device at bus:" +
                      std::to_string(getBusNumByFd(smbusBindingPvt.fd)) +
                      ", 8 bit address: " +
-                     std::to_string(smbusBindingPvt.slave_addr) +
+                     std::to_string(smbusBindingPvt.target_addr) +
                      " registered at EID " + std::to_string(eid.value()))
                         .c_str());
             };

@@ -37,14 +37,14 @@ class SMBusDevice : public MctpBinding
                                     void* bindingPrivate) override;
 
   protected:
-    bool arpMasterSupport;
+    bool arpControllerSupport;
     int outFd{-1}; // out_fd for the root bus
-    uint8_t bmcSlaveAddr;
+    uint8_t bmcTargetAddr;
     std::string bus;
     std::vector<DeviceTableEntry_t> smbusDeviceTable;
     std::map<int, int> muxPortMap;
     int busOwnerFd;
-    uint8_t busOwnerSlaveAddr;
+    uint8_t busOwnerTargetAddr;
     std::shared_ptr<dbus_interface> smbusInterface;
 
     std::string SMBusInit();

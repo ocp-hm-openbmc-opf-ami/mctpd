@@ -112,7 +112,7 @@ bool SMBusEndpoint::handleSetEndpointId(mctp_eid_t destEid,
 
         mctp_smbus_pkt_private* smbusPrivate =
             reinterpret_cast<mctp_smbus_pkt_private*>(bindingPrivate);
-        busOwnerSlaveAddr = smbusPrivate->slave_addr;
+        busOwnerTargetAddr = smbusPrivate->target_addr;
         busOwnerFd = smbusPrivate->fd;
 
         if (bindingModeType != mctp_server::BindingModeTypes::BusOwner)
@@ -244,7 +244,7 @@ void SMBusEndpoint::updateRoutingTable()
     pktPrv.fd = busOwnerFd;
     pktPrv.mux_hold_timeout = 0;
     pktPrv.mux_flags = 0;
-    pktPrv.slave_addr = busOwnerSlaveAddr;
+    pktPrv.target_addr = busOwnerTargetAddr;
     uint8_t* pktPrvPtr = reinterpret_cast<uint8_t*>(&pktPrv);
     std::vector<uint8_t> prvData = std::vector<uint8_t>(
         pktPrvPtr, pktPrvPtr + sizeof(mctp_smbus_pkt_private));
@@ -286,7 +286,7 @@ void SMBusEndpoint::updateRoutingTable()
                     smbusBindingPvt.fd = busOwnerFd;
                     smbusBindingPvt.mux_hold_timeout = 0;
                     smbusBindingPvt.mux_flags = 0;
-                    smbusBindingPvt.slave_addr = static_cast<uint8_t>(
+                    smbusBindingPvt.target_addr = static_cast<uint8_t>(
                         (getRoutingTableEntryResp[phyAddrOffset] << 1));
 
                     for (uint8_t eidRange = 0;

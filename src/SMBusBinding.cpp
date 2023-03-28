@@ -25,10 +25,10 @@ SMBusBinding::SMBusBinding(
 
     try
     {
-        arpMasterSupport = conf.arpMasterSupport;
+        arpControllerSupport = conf.arpControllerSupport;
         bus = conf.bus;
-        bmcSlaveAddr = conf.bmcSlaveAddr;
-        supportedEndpointSlaveAddress = conf.supportedEndpointSlaveAddress;
+        bmcTargetAddr = conf.bmcTargetAddr;
+        supportedEndpointTargetAddress = conf.supportedEndpointTargetAddress;
         scanInterval = conf.scanInterval;
 
         // TODO: If we are not top most busowner, wait for top mostbus owner
@@ -50,9 +50,9 @@ SMBusBinding::SMBusBinding(
 
         registerProperty(smbusInterface, "DiscoveredFlag",
                          convertToString(discoveredFlag));
-        registerProperty(smbusInterface, "ArpMasterSupport", arpMasterSupport);
+        registerProperty(smbusInterface, "ArpControllerSupport", arpControllerSupport);
         registerProperty(smbusInterface, "BusPath", bus);
-        registerProperty(smbusInterface, "BmcSlaveAddress", bmcSlaveAddr);
+        registerProperty(smbusInterface, "BmcTargetAddress", bmcTargetAddr);
 
         if (smbusInterface->initialize() == false)
         {
@@ -158,12 +158,12 @@ void SMBusBinding::populateDeviceProperties(
     smbusIntf->register_property<size_t>("Bus",
                                          getBusNumByFd(smbusBindingPvt->fd));
     smbusIntf->register_property<size_t>("Address",
-                                         smbusBindingPvt->slave_addr);
+                                         smbusBindingPvt->target_addr);
     smbusIntf->initialize();
     deviceInterface.emplace(eid, std::move(smbusIntf));
 }
 
 std::vector<uint8_t> SMBusBinding::getOwnPhysicalAddress()
 {
-    return std::vector<uint8_t>{bmcSlaveAddr};
+    return std::vector<uint8_t>{bmcTargetAddr};
 }

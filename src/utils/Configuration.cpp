@@ -124,8 +124,8 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
     uint64_t reqToRespTimeMs = 0;
     uint64_t reqRetryCount = 0;
     uint64_t scanInterval = 0;
-    std::vector<uint64_t> supportedEndpointSlaveAddress;
-    std::vector<uint64_t> ignoredEndpintSlaveAddress;
+    std::vector<uint64_t> supportedEndpointTargetAddress;
+    std::vector<uint64_t> ignoredEndpointTargetAddress;
 
     if (!getField(map, "PhysicalMediumID", physicalMediumID))
     {
@@ -149,13 +149,13 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
     }
 
     if (!getField(map, "ARPOwnerSupport", arpOwnerSupport) &&
-        !getField(map, "ARPMasterSupport", arpOwnerSupport))
+        !getField(map, "ARPControllerSupport", arpOwnerSupport))
     {
         return std::nullopt;
     }
 
     if (!getField(map, "BMCReceiverAddress", bmcReceiverAddress) &&
-        !getField(map, "BMCSlaveAddress", bmcReceiverAddress))
+        !getField(map, "BMCTargetAddress", bmcReceiverAddress))
     {
         return std::nullopt;
     }
@@ -182,32 +182,32 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
         return std::nullopt;
     }
 
-    if (!getField(map, "SupportedEndpointSlaveAddress",
-                  supportedEndpointSlaveAddress))
+    if (!getField(map, "SupportedEndpointTargetAddress",
+                  supportedEndpointTargetAddress))
     {
         constexpr uint8_t startAddr = 0x08;
         constexpr uint8_t endAddr = 0x78;
-        supportedEndpointSlaveAddress.reserve(endAddr - startAddr);
+        supportedEndpointTargetAddress.reserve(endAddr - startAddr);
         for (uint8_t it = startAddr; it < endAddr; it++)
         {
-            supportedEndpointSlaveAddress.push_back(it);
+            supportedEndpointTargetAddress.push_back(it);
         }
     }
 
-    if (!getField(map, "IgnoredEndpointSlaveAddress",
-                  ignoredEndpintSlaveAddress))
+    if (!getField(map, "IgnoredEndpointTargetAddress",
+                  ignoredEndpointTargetAddress))
     {
-        ignoredEndpintSlaveAddress = {};
+        ignoredEndpointTargetAddress = {};
     }
 
-    auto endpointSlaveAddress =
-        std::set<uint8_t>(supportedEndpointSlaveAddress.begin(),
-                          supportedEndpointSlaveAddress.end());
+    auto endpointTargetAddress =
+        std::set<uint8_t>(supportedEndpointTargetAddress.begin(),
+                          supportedEndpointTargetAddress.end());
 
     // Remove address in ignored list
-    for (uint64_t it : ignoredEndpintSlaveAddress)
+    for (uint64_t it : ignoredEndpointTargetAddress)
     {
-        endpointSlaveAddress.erase(static_cast<uint8_t>(it));
+        endpointTargetAddress.erase(static_cast<uint8_t>(it));
     }
 
     SMBusConfiguration config;
@@ -218,10 +218,10 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
     {
         config.eidPool = std::set<uint8_t>(eidPool.begin(), eidPool.end());
     }
-    config.supportedEndpointSlaveAddress = endpointSlaveAddress;
+    config.supportedEndpointTargetAddress = endpointTargetAddress;
     config.bus = bus;
-    config.arpMasterSupport = arpOwnerSupport;
-    config.bmcSlaveAddr = static_cast<uint8_t>(bmcReceiverAddress);
+    config.arpControllerSupport = arpOwnerSupport;
+    config.bmcTargetAddr = static_cast<uint8_t>(bmcReceiverAddress);
     config.reqToRespTime = static_cast<unsigned int>(reqToRespTimeMs);
     config.reqRetryCount = static_cast<uint8_t>(reqRetryCount);
     config.scanInterval = scanInterval;
@@ -560,7 +560,7 @@ std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
     if (!configurationPair)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Error in getting configuration");   
+            "Error in getting configuration");
     }
     return configurationPair;
 }

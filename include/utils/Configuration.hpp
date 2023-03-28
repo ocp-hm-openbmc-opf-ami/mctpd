@@ -31,9 +31,9 @@ struct SMBusConfiguration : Configuration
 {
     std::set<uint8_t> eidPool;
     std::string bus;
-    bool arpMasterSupport;
-    uint8_t bmcSlaveAddr;
-    std::set<uint8_t> supportedEndpointSlaveAddress;
+    bool arpControllerSupport;
+    uint8_t bmcTargetAddr;
+    std::set<uint8_t> supportedEndpointTargetAddress;
     uint8_t routingIntervalSec;
     uint64_t scanInterval;
 
