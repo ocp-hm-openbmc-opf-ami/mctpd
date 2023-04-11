@@ -45,6 +45,7 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
         }
         else
         {
+            busOwnerAddress = hw->getDeviceAddress();
             discoveredFlag = I3CBindingServer::DiscoveryFlags::Undiscovered;
             if (conf.requiredEIDPoolSizeFromBO > 0)
             {
@@ -96,6 +97,7 @@ void I3CBinding::triggerDeviceDiscovery()
         }
         routingTable = {};
         mctpI3CFd = hw->getDriverFd();
+        busOwnerAddress = hw->getDeviceAddress();
         hw->pollRx();
         endpointDiscoveryFlow();
     }
