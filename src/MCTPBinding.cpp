@@ -143,7 +143,8 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
         });
 
     mctpInterface = objServer->add_interface(objPath, mctp_server::interface);
-
+    uuidIntface =
+        objServer->add_interface(objPath, "xyz.openbmc_project.Common.UUID");
     /*initialize the map*/
     versionNumbersForUpperLayerResponder.emplace(
         MCTP_MESSAGE_TYPE_MCTP_CTRL,
@@ -163,11 +164,11 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
         ctrlTxRetryCount = conf.reqRetryCount;
 
         createUuid();
+        registerProperty(uuidIntface, "UUID", uuid);
+
         registerProperty(mctpInterface, "Eid", ownEid);
 
         registerProperty(mctpInterface, "StaticEid", staticEid);
-
-        registerProperty(mctpInterface, "Uuid", uuid);
 
         registerProperty(mctpInterface, "BindingID",
                          mctp_server::convertBindingTypesToString(bindingID));
@@ -368,7 +369,8 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                 return static_cast<int>(this->sendMctpRawPayload(data));
             });
 
-        if (mctpInterface->initialize() == false)
+        if (mctpInterface->initialize() == false ||
+            uuidIntface->initialize() == false)
         {
             throw std::system_error(
                 std::make_error_code(std::errc::function_not_supported));
@@ -586,18 +588,15 @@ bool MctpBinding::manageVdpciVersionInfo(uint16_t vendorIdx,
 void MctpBinding::createUuid()
 {
     sd_id128_t id;
-
+    guid_t uuidStr;
     if (sd_id128_get_machine_app_specific(mctpdAppId, &id))
     {
         throw std::system_error(
             std::make_error_code(std::errc::address_not_available));
     }
-
-    uuid.insert(uuid.begin(), std::begin(id.bytes), std::end(id.bytes));
-    if (uuid.size() != 16)
-    {
-        throw std::system_error(std::make_error_code(std::errc::bad_address));
-    }
+    std::copy(std::begin(id.bytes), std::end(id.bytes),
+              std::begin(uuidStr.raw));
+    uuid = formatUUID(uuidStr);
 }
 
 void MctpBinding::initializeMctp()

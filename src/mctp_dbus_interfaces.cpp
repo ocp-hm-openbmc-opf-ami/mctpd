@@ -56,6 +56,7 @@ MCTPDBusInterfaces::~MCTPDBusInterfaces()
     }
 
     objectServer->remove_interface(mctpInterface);
+    objectServer->remove_interface(uuidIntface);
 }
 
 void MCTPDBusInterfaces::populateDeviceProperties(const mctp_eid_t,

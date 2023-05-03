@@ -75,6 +75,7 @@ class MCTPDBusInterfaces
     std::string serviceName = "xyz.openbmc_project.MCTP";
     std::shared_ptr<object_server> objectServer;
     std::shared_ptr<dbus_interface> mctpInterface;
+    std::shared_ptr<dbus_interface> uuidIntface;
     // vendor PCI Msg Interface
     endpointInterfaceMap vendorIdInterface;
     // Location code Interface
