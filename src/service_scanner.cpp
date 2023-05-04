@@ -455,19 +455,27 @@ void MCTPServiceScanner::onEidRemoved(sdbusplus::message::message& message)
             [this, ep, message](boost::asio::yield_context yield) mutable {
                 try
                 {
-                    if (isSelfProcess(*connection, yield, message.get_sender()))
+                    std::string serviceName = message.get_sender();
+                    if (isSelfProcess(*connection, yield, serviceName))
                     {
                         return;
                     }
-                    // Reading from an exited service can cause exception
-                    if (this->cachedServices.count(message.get_sender()) > 0)
+
+                    if (!isAllowedBus(serviceName, yield))
                     {
-                        ep.service =
-                            getMctpServiceDetails(yield, message.get_sender());
+                        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                            (serviceName + " is not in allowed service list")
+                                .c_str());
+                        return;
+                    }
+                    // Reading from an exited service can cause exception
+                    if (this->cachedServices.count(serviceName) > 0)
+                    {
+                        ep.service = getMctpServiceDetails(yield, serviceName);
                     }
                     else
                     {
-                        ep.service.name = message.get_sender();
+                        ep.service.name = serviceName;
                     }
                     this->onEidRemovedHandler(ep);
                 }

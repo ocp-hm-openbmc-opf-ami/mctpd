@@ -88,6 +88,16 @@ void I3CBinding::triggerDeviceDiscovery()
 {
     phosphor::logging::log<phosphor::logging::level::ERR>(
         "Triggering device discovery");
+
+    if (bindingModeType == mctp_server::BindingModeTypes::Bridge)
+    {
+        for (auto eid : eidTable)
+        {
+            unregisterEndpoint(eid);
+        }
+        eidPool.clearEIDPool();
+    }
+
     if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
     {
         discoveredFlag = I3CBindingServer::DiscoveryFlags::Undiscovered;
@@ -511,7 +521,11 @@ bool I3CBinding::handleDiscoveryNotify(
                 uint8_t* pktPrvPtr = reinterpret_cast<uint8_t*>(&pktPrv);
                 std::vector<uint8_t> prvData =
                     std::vector<uint8_t>(pktPrvPtr, pktPrvPtr + sizeof(pktPrv));
-                registerEndpoint(yield, prvData, destEid);
+                auto endPoint = registerEndpoint(yield, prvData, destEid);
+                if (endPoint.has_value())
+                {
+                    eidTable.insert(endPoint.value());
+                }
             });
     }
     else

@@ -57,6 +57,7 @@ class I3CBinding : public MctpBinding
         const std::vector<uint8_t>& bindingPrivate) override;
 
   private:
+    std::set<mctp_eid_t> eidTable;
     using routingTableEntry_t =
         std::tuple<uint8_t /*eid*/, uint8_t /*Address*/, uint8_t /*entryType*/>;
     using calledBridgeEntry_t =
