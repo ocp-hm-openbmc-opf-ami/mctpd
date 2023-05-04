@@ -55,7 +55,7 @@ struct I3CConfiguration : Configuration
     uint8_t I3CAddress = 0;
     bool requiresCpuPidMask = true;
     uint8_t provisionalIdMask;
-    uint8_t getRoutingInterval = 0;
+    uint16_t getRoutingInterval = 0;
     bool forwaredEIDPoolToEP = false;
     bool blockDiscoveryNotify = false;
 
