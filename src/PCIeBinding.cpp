@@ -213,6 +213,18 @@ void PCIeBinding::readRoutingTable(
     uint8_t entryHandle = 0x00;
     uint8_t responseCount = 0;
     long insertIndex = entryIndex + 1;
+    std::vector<routingTableEntry_t>& bridgeRoutingTable =
+        [&]() -> std::vector<routingTableEntry_t>& {
+        if (eid == busOwnerEid)
+        {
+            insertIndex--;
+            return tmpEndpointRoutingTable;
+        }
+        else
+        {
+            return rt;
+        }
+    }();
 
     while (!isEndOfGetRoutingTableResp(entryHandle, responseCount))
     {
@@ -251,7 +263,7 @@ void PCIeBinding::readRoutingTable(
                 GET_ROUTING_ENTRY_TYPE(routingTableEntry->entry_type) ==
                     MCTP_ROUTING_ENTRY_BRIDGE_AND_ENDPOINTS)
             {
-                rt.push_back(std::make_tuple(
+                tmpEndpointRoutingTable.push_back(std::make_tuple(
                     routingTableEntry->starting_eid, entryPhysAddr,
                     SET_ROUTING_ENTRY_TYPE(routingTableEntry->entry_type,
                                            MCTP_ROUTING_ENTRY_BRIDGE),
@@ -262,46 +274,61 @@ void PCIeBinding::readRoutingTable(
                      !(GET_ROUTING_ENTRY_TYPE(routingTableEntry->entry_type) ==
                        MCTP_ROUTING_ENTRY_ENDPOINTS))
             {
-                rt.push_back(std::make_tuple(
+                tmpEndpointRoutingTable.push_back(std::make_tuple(
+                    routingTableEntry->starting_eid, entryPhysAddr,
+                    routingTableEntry->entry_type,
+                    routingTableEntry->starting_eid,
+                    routingTableEntry->eid_range_size));
+
+                if (routingTableEntry->starting_eid == ownEid)
+                {
+                    ownPort =
+                        GET_ROUTING_ENTRY_PORT(routingTableEntry->entry_type);
+                }
+            }
+            else if (eid != busOwnerEid &&
+                     isActiveEntryBehindBridge(routingTableEntry, rt))
+            {
+                tmpEndpointRoutingTable.push_back(std::make_tuple(
                     routingTableEntry->starting_eid, entryPhysAddr,
                     routingTableEntry->entry_type,
                     routingTableEntry->starting_eid,
                     routingTableEntry->eid_range_size));
             }
-            else if (eid != busOwnerEid &&
-                     isActiveEntryBehindBridge(routingTableEntry, rt))
-            {
-                tmpEndpointRoutingTable.push_back(
-                    std::make_tuple(routingTableEntry->starting_eid, physAddr,
-                                    routingTableEntry->entry_type,
-                                    routingTableEntry->starting_eid,
-                                    routingTableEntry->eid_range_size));
-            }
             else if (GET_ROUTING_ENTRY_TYPE(routingTableEntry->entry_type) ==
                      MCTP_ROUTING_ENTRY_ENDPOINTS)
             {
-                updateBridgePool(rt, routingTableEntry->starting_eid,
-                                 routingTableEntry->eid_range_size,
-                                 entryPhysAddr);
+                updateBridgePool(
+                    bridgeRoutingTable, routingTableEntry->starting_eid,
+                    routingTableEntry->eid_range_size, entryPhysAddr);
             }
         }
         entryHandle = routingTableHdr->next_entry_handle;
     }
 
-    auto it = find_if(rt.begin(), rt.end(), [&](const auto& entry) {
-        const auto& [endpointEid, endpointBdf, entryType, poolEid, range] =
-            entry;
-        return (endpointBdf == physAddr && endpointEid == eid);
-    });
-    if (it != rt.end())
+    auto it =
+        find_if(bridgeRoutingTable.begin(), bridgeRoutingTable.end(),
+                [&](const auto& entry) {
+                    const auto& [endpointEid, endpointBdf, entryType, poolEid,
+                                 range] = entry;
+                    return (endpointBdf == physAddr && endpointEid == eid);
+                });
+
+    if (it != bridgeRoutingTable.end())
     {
         const auto& [endpointEid, endpointBdf, entryType, poolEid, range] = *it;
 
         for (auto entry = tmpEndpointRoutingTable.begin();
              entry != tmpEndpointRoutingTable.end(); entry++)
         {
-            if (std::get<0>(*entry) >= poolEid &&
-                std::get<0>(*entry) < poolEid + range)
+            if (GET_ROUTING_ENTRY_PORT(std::get<2>(*entry)) != ownPort)
+            {
+                std::get<1>(*entry) = physAddr;
+            }
+
+            if ((std::get<0>(*entry) >= poolEid &&
+                 std::get<0>(*entry) < poolEid + range) ||
+                eid == busOwnerEid)
             {
                 rt.insert(rt.begin() + insertIndex, *entry);
                 insertIndex++;
