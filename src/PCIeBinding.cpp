@@ -394,7 +394,7 @@ void PCIeBinding::updateRoutingTable()
             processBridgeEntries(routingTableTmp, calledBridges, yield);
         }
 
-        if (routingTableTmp != routingTable)
+        if (routingTableTmp != routingTableResp)
         {
             if (!setDriverEndpointMap(routingTableTmp))
             {
@@ -403,7 +403,7 @@ void PCIeBinding::updateRoutingTable()
             }
 
             processRoutingTableChanges(routingTableTmp, yield, prvData);
-            routingTable = routingTableTmp;
+            routingTableResp = routingTableTmp;
         }
     });
 }
@@ -443,7 +443,7 @@ void PCIeBinding::processRoutingTableChanges(
      * in the newly read routing table remove dbus interface
      * for this device
      */
-    for (auto& routingEntry : routingTable)
+    for (auto& routingEntry : routingTableResp)
     {
         if (find(newTable.begin(), newTable.end(), routingEntry) ==
             newTable.end())
@@ -460,8 +460,8 @@ void PCIeBinding::processRoutingTableChanges(
     while (it != newTable.end())
     {
         auto& routingEntry = *it;
-        if (find(routingTable.begin(), routingTable.end(), routingEntry) ==
-            routingTable.end())
+        if (find(routingTableResp.begin(), routingTableResp.end(),
+                 routingEntry) == routingTableResp.end())
         {
             mctp_eid_t remoteEid = std::get<0>(routingEntry);
 
@@ -813,12 +813,13 @@ std::optional<std::vector<uint8_t>>
     mctp_astpcie_pkt_private pktPrv = {};
 
     pktPrv.routing = PCIE_ROUTE_BY_ID;
-    auto it = find_if(
-        routingTable.begin(), routingTable.end(), [&dstEid](const auto& entry) {
-            const auto& [eid, endpointBdf, entryType, poolEid, range] = entry;
-            return eid == dstEid;
-        });
-    if (it == routingTable.end())
+    auto it = find_if(routingTableResp.begin(), routingTableResp.end(),
+                      [&dstEid](const auto& entry) {
+                          const auto& [eid, endpointBdf, entryType, poolEid,
+                                       range] = entry;
+                          return eid == dstEid;
+                      });
+    if (it == routingTableResp.end())
     {
         phosphor::logging::log<phosphor::logging::level::INFO>(
             "Eid not found in routing table");
@@ -832,11 +833,11 @@ std::optional<std::vector<uint8_t>>
 
 void PCIeBinding::clearAllEids()
 {
-    for (auto& routingEntry : routingTable)
+    for (auto& routingEntry : routingTableResp)
     {
         unregisterEndpoint(std::get<0>(routingEntry));
     }
-    routingTable.clear();
+    routingTableResp.clear();
 }
 
 void PCIeBinding::changeDiscoveredFlag(pcie_binding::DiscoveryFlags flag)

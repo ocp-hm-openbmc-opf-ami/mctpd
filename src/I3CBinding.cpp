@@ -117,11 +117,11 @@ void I3CBinding::triggerDeviceDiscovery()
     if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
     {
         discoveredFlag = I3CBindingServer::DiscoveryFlags::Undiscovered;
-        for (auto& routingEntry : routingTable)
+        for (auto& routingEntry : routingTableResp)
         {
             unregisterEndpoint(std::get<0>(routingEntry));
         }
-        routingTable = {};
+        routingTableResp = {};
         mctpI3CFd = hw->getDriverFd();
         busOwnerAddress = hw->getDeviceAddress();
         hw->pollRx();
@@ -407,10 +407,10 @@ void I3CBinding::updateRoutingTable()
             processBridgeEntries(routingTableTmp, calledBridges, yield);
         }
 
-        if (routingTableTmp != routingTable)
+        if (routingTableTmp != routingTableResp)
         {
             processRoutingTableChanges(routingTableTmp, yield, prvData);
-            routingTable = routingTableTmp;
+            routingTableResp = routingTableTmp;
         }
     });
 }
@@ -443,7 +443,7 @@ void I3CBinding::processRoutingTableChanges(
      * in the newly read routing table remove dbus interface
      * for this device
      */
-    for (auto& routingEntry : routingTable)
+    for (auto& routingEntry : routingTableResp)
     {
         if (find(newTable.begin(), newTable.end(), routingEntry) ==
             newTable.end())
@@ -458,8 +458,8 @@ void I3CBinding::processRoutingTableChanges(
      */
     for (auto& routingEntry : newTable)
     {
-        if (find(routingTable.begin(), routingTable.end(), routingEntry) ==
-            routingTable.end())
+        if (find(routingTableResp.begin(), routingTableResp.end(),
+                 routingEntry) == routingTableResp.end())
         {
             mctp_eid_t remoteEid = std::get<0>(routingEntry);
 

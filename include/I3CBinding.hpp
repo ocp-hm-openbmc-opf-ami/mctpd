@@ -88,7 +88,7 @@ class I3CBinding : public MctpBinding
     boost::posix_time::seconds getRoutingInterval;
     boost::asio::deadline_timer getRoutingTableTimer;
     I3CConfiguration i3cConf{};
-    std::vector<routingTableEntry_t> routingTable;
+    std::vector<routingTableEntry_t> routingTableResp;
     bool forwaredEIDPoolToEP = false;
     bool blockDiscoveryNotify = false;
     std::vector<uint8_t>
