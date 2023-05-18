@@ -64,6 +64,7 @@ PCIeBinding::PCIeBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
         {
             getRoutingTableTimer.async_wait(
                 std::bind(&PCIeBinding::updateRoutingTable, this));
+            supportOEMBindingBehindBO = conf.supportOEMBindingBehindBO;
         }
     }
     catch (std::exception& e)
@@ -252,6 +253,17 @@ void PCIeBinding::readRoutingTable(
             if (routingTableEntry->phys_transport_binding_id !=
                 MCTP_BINDING_PCIE)
             {
+                if (supportOEMBindingBehindBO)
+                {
+                    if (routingTableEntry->phys_transport_binding_id == 0xFF)
+                    {
+                        rt.push_back(std::make_tuple(
+                            routingTableEntry->starting_eid, physAddr,
+                            routingTableEntry->entry_type,
+                            routingTableEntry->starting_eid,
+                            routingTableEntry->eid_range_size));
+                    }
+                }
                 entryOffset += routingTableEntry->phys_address_size;
                 continue;
             }

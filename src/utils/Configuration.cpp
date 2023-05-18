@@ -427,6 +427,7 @@ static std::optional<PcieConfiguration> getPcieConfiguration(const T& map)
     if (mode != mctp_server::BindingModeTypes::BusOwner)
     {
         config.getRoutingInterval = static_cast<uint8_t>(getRoutingInterval);
+        config.supportOEMBindingBehindBO = true;
     }
 
     return config;

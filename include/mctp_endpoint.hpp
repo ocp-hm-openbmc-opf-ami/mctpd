@@ -42,6 +42,7 @@ class MCTPEndpoint : public MCTPDevice
     std::unordered_map<std::string, uint8_t> downstreamEIDPools;
     uint8_t allocatedPoolSize = 0;
     uint8_t allocatedPoolFirstEID = 0;
+    bool supportOEMBindingBehindBO = false;
     std::string uuid;
     // Register MCTP responder for upper layer
     std::vector<InternalVdmSetDatabase> vdmSetDatabase;
