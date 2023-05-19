@@ -669,7 +669,7 @@ std::optional<mctp_eid_t>
     // check if EID is already registered
     if (endpointInterface.find(eid) != endpointInterface.end())
     {
-        phosphor::logging::log<phosphor::logging::level::WARNING>(
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
             ("EID " + std::to_string(eid) + " is already registered").c_str());
         return std::nullopt;
     }

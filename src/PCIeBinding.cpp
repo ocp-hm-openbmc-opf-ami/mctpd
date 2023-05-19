@@ -410,7 +410,7 @@ void PCIeBinding::updateRoutingTable()
         {
             if (!setDriverEndpointMap(routingTableTmp))
             {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
+                phosphor::logging::log<phosphor::logging::level::DEBUG>(
                     "Failed to store routing table in KMD");
             }
 
@@ -494,7 +494,7 @@ void PCIeBinding::processRoutingTableChanges(
             if (!registerEndpoint(yield, prvDataCopy, remoteEid,
                                   getBindingMode(routingEntry)))
             {
-                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                phosphor::logging::log<phosphor::logging::level::DEBUG>(
                     ("Register endpoint " + std::to_string(remoteEid) +
                      " failed, removing from routing table")
                         .c_str());
