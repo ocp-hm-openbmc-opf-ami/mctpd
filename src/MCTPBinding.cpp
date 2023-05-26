@@ -263,6 +263,18 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                         .c_str());
                 return static_cast<int>(mctpSuccess);
             });
+
+        mctpInterface->register_method(
+            "SkipList", [this](std::vector<uint8_t> payload) {
+                if (!skipListPath(payload))
+                {
+                    phosphor::logging::log<phosphor::logging::level::WARNING>(
+                        "SkipList is failed");
+                    return static_cast<int>(mctpInternalError);
+                }
+                return static_cast<int>(mctpSuccess);
+            });
+
         mctpInterface->register_method("ReleaseBandwidth", [this](
                                                                const mctp_eid_t
                                                                    eid) {
@@ -883,4 +895,9 @@ bool MctpBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
          std::to_string(poolSize))
             .c_str());
     return true;
+}
+
+bool MctpBinding::skipListPath(std::vector<uint8_t> /*payload*/)
+{
+    return false;
 }

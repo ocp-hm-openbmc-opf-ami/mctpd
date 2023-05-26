@@ -53,6 +53,7 @@ class MctpBinding : public MCTPBridge
     MctpBinding() = delete;
     virtual ~MctpBinding() = default;
     virtual void initializeBinding() = 0;
+    virtual bool skipListPath(std::vector<uint8_t> /*payload*/);
 
   protected:
     bool rsvBWActive = false;

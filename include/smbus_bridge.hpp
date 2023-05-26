@@ -24,6 +24,14 @@ enum class MuxIdleModes : uint8_t
     muxIdleModeDisconnect,
 };
 
+enum MuxSkipListAction : uint8_t
+{
+    stop = 0,
+    start,
+    disable,
+    enable
+};
+
 class SMBusBridge : public SMBusEndpoint
 {
   public:
@@ -48,6 +56,11 @@ class SMBusBridge : public SMBusEndpoint
     void scanDevices();
     void scanPort(const int scanFd,
                   std::set<std::pair<int, uint8_t>>& deviceMap);
+    bool skipListPath(const std::vector<uint8_t> /*payload*/) override;
+    std::set<uint8_t> disabledMuxPortList;
+    bool isInMuxSlotDisableList(uint8_t slotNum);
+    void updateSkipListSet(std::set<uint8_t>& skipFileSet);
+    bool updateSkipListFile(uint8_t muxSlotNumber, uint8_t disableOrEnableMux);
 
   private:
     size_t ret = 0;

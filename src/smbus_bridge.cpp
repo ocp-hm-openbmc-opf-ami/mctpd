@@ -20,6 +20,7 @@
 #include "utils/utils.hpp"
 
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <phosphor-logging/log.hpp>
 
 #include "libmctp-smbus.h"
@@ -36,6 +37,8 @@ std::map<MuxIdleModes, std::string> muxIdleModesMap{
     {MuxIdleModes::muxIdleModeConnect, "-1"},
     {MuxIdleModes::muxIdleModeDisconnect, "-2"},
 };
+
+constexpr const char* mctpSkipListPath = "/var/configuration/mctpSkipList.json";
 
 SMBusBridge::SMBusBridge(
     std::shared_ptr<sdbusplus::asio::connection> conn,
@@ -154,6 +157,7 @@ std::map<int, int> SMBusBridge::getMuxFds(const std::string& rootPort)
     std::map<int, int> muxes;
     for (const auto& [i2cPort, i2cPath] : i2cPortAndPath)
     {
+
         std::string rootBus;
         if (!getTopMostRootBus(i2cPort, rootBus))
         {
@@ -539,8 +543,13 @@ void SMBusBridge::setupMuxMonitor()
 
 void SMBusBridge::scanMuxBus(std::set<std::pair<int, uint8_t>>& deviceMap)
 {
+    updateSkipListSet(disabledMuxPortList);
     for (const auto& [muxFd, muxPort] : muxPortMap)
     {
+        if (isInMuxSlotDisableList(static_cast<uint8_t>(muxPort)))
+        {
+            continue;
+        }
         // Scan each port only once
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             ("Scanning Mux " + std::to_string(muxPort)).c_str());
@@ -548,6 +557,148 @@ void SMBusBridge::scanMuxBus(std::set<std::pair<int, uint8_t>>& deviceMap)
     }
 }
 
+bool SMBusBridge::isInMuxSlotDisableList(uint8_t slotNum)
+{
+    auto it = std::find(disabledMuxPortList.begin(), disabledMuxPortList.end(),
+                        slotNum);
+    if (it != disabledMuxPortList.end())
+    {
+        return true;
+    }
+    return false;
+}
+
+void SMBusBridge::updateSkipListSet(std::set<uint8_t>& skipFileSet)
+{
+    if (fs::exists(mctpSkipListPath))
+    {
+        try
+        {
+            std::ifstream skipListFile;
+            if (fs::is_symlink(mctpSkipListPath))
+            {
+                return;
+            }
+            skipListFile.open(mctpSkipListPath, std::ifstream::in);
+            if ((skipListFile.bad() != true) && (skipListFile.peek() != EOF))
+            {
+                nlohmann::json skipFile;
+                skipFile = nlohmann::json::parse(skipListFile);
+                if (!skipFile.empty())
+                {
+                    std::set<uint8_t> skipData = skipFile["SkipListItem"];
+                    for (auto iter : skipData)
+                    {
+                        skipFileSet.insert(iter);
+                    }
+                }
+                skipListFile.close();
+            }
+        }
+
+        catch (nlohmann::json::exception& e)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                ("updateSkipListSet:Json error" + std::string(e.what()))
+                    .c_str());
+        }
+    }
+}
+
+bool SMBusBridge::updateSkipListFile(uint8_t muxSlotNumber,
+                                     uint8_t disableOrEnableMux)
+{
+    try
+    {
+        std::set<uint8_t> curList;
+        if (fs::is_symlink(mctpSkipListPath))
+        {
+            return false;
+        }
+        updateSkipListSet(curList);
+        std::ofstream outputSkipListFile;
+        outputSkipListFile.open(mctpSkipListPath, std::ofstream::out);
+        if (outputSkipListFile.bad())
+        {
+            return false;
+        }
+        nlohmann::json jsonSkipEntries;
+        if (disableOrEnableMux == MuxSkipListAction::disable)
+        {
+            curList.insert(muxSlotNumber);
+        }
+        else
+        {
+            auto it = std::find(curList.begin(), curList.end(), muxSlotNumber);
+            if (it != curList.end())
+            {
+                curList.erase(it);
+                auto iter = std::find(disabledMuxPortList.begin(),
+                                      disabledMuxPortList.end(), muxSlotNumber);
+                if (iter != disabledMuxPortList.end())
+                {
+                    disabledMuxPortList.erase(iter);
+                }
+            }
+        }
+        jsonSkipEntries["SkipListItem"] = curList;
+        outputSkipListFile << jsonSkipEntries.dump();
+        outputSkipListFile.close();
+        return true;
+    }
+    catch (nlohmann::json::parse_error& e)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("updateSkipListFile:Json parser error " + std::string(e.what()))
+                .c_str());
+        return false;
+    }
+}
+
+bool SMBusBridge::skipListPath(std::vector<uint8_t> payload)
+{
+    if (!(payload.size() >= 2))
+    {
+        return false;
+    }
+    uint8_t action = payload[0];
+    uint8_t muxSlotNumber = payload[1];
+
+    switch (action)
+    {
+        case MuxSkipListAction::stop: {
+            disabledMuxPortList.insert(muxSlotNumber);
+        }
+        break;
+        case MuxSkipListAction::start: {
+            auto it = std::find(disabledMuxPortList.begin(),
+                                disabledMuxPortList.end(), muxSlotNumber);
+            if (it != disabledMuxPortList.end())
+            {
+                disabledMuxPortList.erase(it);
+            }
+        }
+        break;
+        case MuxSkipListAction::disable: {
+            if (!updateSkipListFile(muxSlotNumber, action))
+            {
+                return false;
+            }
+        }
+        break;
+        case MuxSkipListAction::enable: {
+            if (!updateSkipListFile(muxSlotNumber, action))
+            {
+                return false;
+            }
+        }
+        break;
+        default:
+            return false;
+    }
+    triggerDeviceDiscovery();
+    return true;
+}
 void SMBusBridge::initEndpointDiscovery(boost::asio::yield_context& yield)
 {
     std::set<std::pair<int, uint8_t>> registerDeviceMap;
@@ -557,8 +708,8 @@ void SMBusBridge::initEndpointDiscovery(boost::asio::yield_context& yield)
     // Scan root port
     scanPort(outFd, rootDeviceMap);
     registerDeviceMap.insert(rootDeviceMap.begin(), rootDeviceMap.end());
-    // Scan mux bus to get the list of fd and the corresponding target address of
-    // all the mux ports
+    // Scan mux bus to get the list of fd and the corresponding target address
+    // of all the mux ports
     scanMuxBus(registerDeviceMap);
 
     // Unregister devices that is no longer available
