@@ -475,6 +475,7 @@ void PCIeBinding::processRoutingTableChanges(
         if (find(routingTableResp.begin(), routingTableResp.end(),
                  routingEntry) == routingTableResp.end())
         {
+            routingTableResp.push_back(routingEntry);
             mctp_eid_t remoteEid = std::get<0>(routingEntry);
 
             if (remoteEid == ownEid)
