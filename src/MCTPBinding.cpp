@@ -197,6 +197,8 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
         registerProperty(
             mctpInterface, "BindingMode",
             mctp_server::convertBindingModeTypesToString(bindingModeType));
+        
+        registerProperty(mctpInterface, "NetworkID", conf.networkId);
 
         /*
          * msgTag and tagOwner are not currently used, but can't be removed

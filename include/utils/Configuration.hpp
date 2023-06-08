@@ -39,6 +39,7 @@ struct Configuration
     // Setting for the downstream bus owner's pool size
     std::uint8_t requiredEIDPoolSize = 0;
     bool supportsBridge = false;
+    uint8_t networkId;
     // Support Endpoints with OEM binding type = 0xFF behind a bridge
     bool supportOEMBindingBehindBO = false;
 
