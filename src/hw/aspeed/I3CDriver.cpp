@@ -21,6 +21,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
+#include <filesystem>
 #include <fstream>
 #include <string>
 
@@ -53,41 +54,41 @@ void I3CDriver::rescanI3CBus()
     auto search = i3cBusMap.find(busNum);
     if (search != i3cBusMap.end())
     {
-        std::string unbindFile =
-            "/sys/bus/platform/drivers/dw-i3c-master/unbind";
-        std::string bindFile = "/sys/bus/platform/drivers/dw-i3c-master/bind";
-
         std::string busName = search->second;
-        std::fstream deviceFile;
+        std::string deviceDirPath =
+            "/sys/devices/platform/ahb/ahb:apb/ahb:apb:bus@1e7a0000/" + busName;
+        std::string rescanFilePath;
+        std::fstream rescanFile;
 
-        // Unbind the driver
-        deviceFile.open(unbindFile, std::ios::out);
-        if (deviceFile.is_open())
+        for (const auto& entry :
+             std::filesystem::directory_iterator(deviceDirPath))
         {
-            deviceFile << busName;
-            deviceFile.close();
+            std::string pathStr = entry.path().generic_string();
+            if (pathStr.rfind(deviceDirPath + "/i3c") != std::string::npos)
+            {
+                rescanFilePath = pathStr + "/rescan";
+                break;
+            }
         }
-        else
+
+        if (rescanFilePath.empty())
         {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Error unbinding I3C driver");
             return;
         }
 
-        // Blocking wait necessary here
-        sleep(1);
-
-        // Bind the driver
-        deviceFile.open(bindFile, std::ios::out);
-        if (deviceFile.is_open())
+        rescanFile.open(rescanFilePath, std::ios::out);
+        if (rescanFile.is_open())
         {
-            deviceFile << busName;
-            deviceFile.close();
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "Running rescan");
+            rescanFile << 1;
+            rescanFile.close();
         }
         else
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Error binding I3C driver");
+                "Error rescanning I3C driver");
+            return;
         }
     }
 }
