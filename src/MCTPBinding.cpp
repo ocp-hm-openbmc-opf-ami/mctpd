@@ -745,12 +745,9 @@ void MctpBinding::clearRegisteredDevice(const mctp_eid_t eid)
 {
     // Remove the entry from uuidTable, unregister the device and return EID to
     // the pool.
-    auto removed = uuidTable.erase(eid);
-    if (removed == 1)
-    {
-        unregisterEndpoint(eid);
-        eidPool.updateEidStatus(eid, false);
-    }
+    uuidTable.erase(eid);
+    unregisterEndpoint(eid);
+    eidPool.updateEidStatus(eid, false);
 }
 
 void MctpBinding::addUnknownEIDToDeviceTable(const mctp_eid_t, void*)
