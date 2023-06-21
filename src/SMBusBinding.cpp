@@ -16,6 +16,7 @@
 
 #include "SMBusBinding.hpp"
 
+#include "utils/smbus_utils.hpp"
 #include "utils/utils.hpp"
 
 #include <libmctp-smbus.h>
@@ -70,6 +71,12 @@ SMBusBinding::SMBusBinding(
                          arpControllerSupport);
         registerProperty(smbusInterface, "BusPath", bus);
         registerProperty(smbusInterface, "BmcTargetAddress", bmcTargetAddr);
+
+        if (!skipListPaths(conf.skipList))
+        {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "SkipList is failed");
+        }
 
         if (smbusInterface->initialize() == false)
         {

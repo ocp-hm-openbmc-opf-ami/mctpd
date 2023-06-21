@@ -42,6 +42,8 @@ struct Configuration
     uint8_t networkId;
     // Support Endpoints with OEM binding type = 0xFF behind a bridge
     bool supportOEMBindingBehindBO = false;
+    // Configuration to skip devices for MCTP communications
+    std::vector<std::string> skipList;
 
     virtual ~Configuration();
 };

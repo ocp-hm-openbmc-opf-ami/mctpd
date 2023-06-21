@@ -57,6 +57,8 @@ class SMBusBridge : public SMBusEndpoint
     void scanPort(const int scanFd,
                   std::set<std::pair<int, uint8_t>>& deviceMap);
     bool skipListPath(const std::vector<uint8_t> /*payload*/) override;
+    bool skipListPaths(std::vector<std::string> skipListNames);
+
     std::set<uint8_t> disabledMuxPortList;
     bool isInMuxSlotDisableList(uint8_t slotNum);
     void updateSkipListSet(std::set<uint8_t>& skipFileSet);
@@ -81,4 +83,6 @@ class SMBusBridge : public SMBusEndpoint
     void startTimerAndReleaseBW(const uint16_t interval,
                                 const mctp_smbus_pkt_private prvt);
     bool releaseBandwidth(const mctp_eid_t eid) override;
+    bool getBusNumberFromSlotName(uint8_t& skipSlotNumber,
+                                  const std::string& skipSlotName);
 };

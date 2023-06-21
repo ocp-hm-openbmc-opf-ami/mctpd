@@ -154,6 +154,7 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
     uint64_t reqToRespTimeMs = 0;
     uint64_t reqRetryCount = 0;
     uint64_t scanInterval = 0;
+    std::vector<std::string> skipSlotName;
     std::vector<uint64_t> supportedEndpointTargetAddress;
     std::vector<uint64_t> ignoredEndpointTargetAddress;
 
@@ -166,6 +167,8 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
     {
         return std::nullopt;
     }
+
+    getField(map, "SkipSlot", skipSlotName);
 
     if (!getField(map, "DefaultEID", defaultEID) &&
         !getField(map, "default-eid", defaultEID))
@@ -257,6 +260,7 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
     config.scanInterval = scanInterval;
     config.allowedBuses = getAllowedBuses(map);
     config.networkId = getNetworkID(map);
+    config.skipList = skipSlotName;
 
     return config;
 }

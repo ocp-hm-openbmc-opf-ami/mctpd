@@ -46,8 +46,8 @@ SMBusBridge::SMBusBridge(
     const SMBusConfiguration& conf, boost::asio::io_context& ioc,
     std::shared_ptr<boost::asio::posix::stream_descriptor>&& i2cMuxMonitor) :
     SMBusEndpoint(conn, objServer, objPath, conf, ioc),
-    reserveBWTimer(ioc), refreshMuxTimer(ioc),
-    scanTimer(ioc), muxMonitor{std::move(i2cMuxMonitor)}
+    reserveBWTimer(ioc), refreshMuxTimer(ioc), scanTimer(ioc),
+    muxMonitor{std::move(i2cMuxMonitor)}
 
 {
 }
@@ -699,6 +699,61 @@ bool SMBusBridge::skipListPath(std::vector<uint8_t> payload)
     triggerDeviceDiscovery();
     return true;
 }
+
+bool SMBusBridge::skipListPaths(std::vector<std::string> skipListNames)
+{
+    bool retVal = true;
+    for (auto skipSlotName : skipListNames)
+    {
+        uint8_t muxSlotNumber = 0;
+        if (getBusNumberFromSlotName(muxSlotNumber, skipSlotName))
+        {
+            if (!updateSkipListFile(muxSlotNumber, MuxSkipListAction::disable))
+            {
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    (("updateSkipListFile call failed: muxSlotNumber = " +
+                      std::to_string(muxSlotNumber))
+                         .c_str()));
+                retVal = false;
+            }
+        }
+        else
+        {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                ("getBusNumberFromSlotName call failed: skipSlotName = " +
+                 skipSlotName)
+                    .c_str());
+            retVal = false;
+        }
+    }
+
+    return retVal;
+}
+
+bool SMBusBridge::getBusNumberFromSlotName(uint8_t& skipSlotNumber,
+                                           const std::string& skipSlotName)
+{
+    const std::filesystem::path muxSymlinkDirPath =
+        "/dev/i2c-mux/" + skipSlotName;
+
+    if (!std::filesystem::is_symlink(muxSymlinkDirPath))
+    {
+        return false;
+    }
+
+    std::string linkPath = std::filesystem::read_symlink(muxSymlinkDirPath);
+
+    std::string muxSlotNumber;
+    if (!getBusNumFromPath(linkPath, muxSlotNumber))
+    {
+        return false;
+    }
+
+    skipSlotNumber = static_cast<uint8_t>(std::stoi(muxSlotNumber));
+
+    return true;
+}
+
 void SMBusBridge::initEndpointDiscovery(boost::asio::yield_context& yield)
 {
     std::set<std::pair<int, uint8_t>> registerDeviceMap;
