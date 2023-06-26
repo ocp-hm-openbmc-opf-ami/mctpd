@@ -63,7 +63,8 @@ class MctpBinding : public MCTPBridge
 
     virtual bool reserveBandwidth(boost::asio::yield_context yield,
                                   const mctp_eid_t eid, const uint16_t timeout);
-    virtual bool releaseBandwidth(const mctp_eid_t eid);
+    virtual bool releaseBandwidth(boost::asio::yield_context yield,
+                                  const mctp_eid_t eid);
     virtual void triggerDeviceDiscovery();
     virtual void addUnknownEIDToDeviceTable(const mctp_eid_t eid,
                                             void* bindingPrivate);

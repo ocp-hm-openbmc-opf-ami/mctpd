@@ -277,20 +277,22 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                 return static_cast<int>(mctpSuccess);
             });
 
-        mctpInterface->register_method("ReleaseBandwidth", [this](
-                                                               const mctp_eid_t
-                                                                   eid) {
-            if (!releaseBandwidth(eid))
-            {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    ("Release bandwidth failed for EID: " + std::to_string(eid))
+        mctpInterface->register_method(
+            "ReleaseBandwidth",
+            [this](boost::asio::yield_context yield, const mctp_eid_t eid) {
+                if (!releaseBandwidth(yield, eid))
+                {
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        ("Release bandwidth failed for EID: " +
+                         std::to_string(eid))
+                            .c_str());
+                    return static_cast<int>(mctpErrorReleaseBWFailed);
+                }
+                phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                    ("Bandwidth released for EID: " + std::to_string(eid))
                         .c_str());
-                return static_cast<int>(mctpErrorReleaseBWFailed);
-            }
-            phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                ("Bandwidth released for EID: " + std::to_string(eid)).c_str());
-            return static_cast<int>(mctpSuccess);
-        });
+                return static_cast<int>(mctpSuccess);
+            });
         mctpInterface->register_method(
             "SendReceiveMctpMessagePayload",
             [this](boost::asio::yield_context yield, uint8_t dstEid,
@@ -521,7 +523,8 @@ bool MctpBinding::reserveBandwidth(boost::asio::yield_context /*yield*/,
     return true;
 }
 
-bool MctpBinding::releaseBandwidth(const mctp_eid_t /*eid*/)
+bool MctpBinding::releaseBandwidth(boost::asio::yield_context /*yield*/,
+                                   const mctp_eid_t /*eid*/)
 {
     return true;
 }

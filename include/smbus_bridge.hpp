@@ -82,7 +82,8 @@ class SMBusBridge : public SMBusEndpoint
                           const uint16_t timeout) override;
     void startTimerAndReleaseBW(const uint16_t interval,
                                 const mctp_smbus_pkt_private prvt);
-    bool releaseBandwidth(const mctp_eid_t eid) override;
+    bool releaseBandwidth(boost::asio::yield_context yield,
+                          const mctp_eid_t eid) override;
     bool getBusNumberFromSlotName(uint8_t& skipSlotNumber,
                                   const std::string& skipSlotName);
 };

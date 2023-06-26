@@ -224,12 +224,12 @@ bool SMBusBridge::reserveBandwidth(boost::asio::yield_context yield,
         reservedEID = eid;
     }
 
-    // initiate new method call to pfr to write black out flag
+    // initiate new method call to pfr to write bmc busy flag
     boost::system::error_code ec;
     auto rc = connection->yield_method_call<bool>(
         yield, ec, "xyz.openbmc_project.PFR.Manager",
         "/xyz/openbmc_project/pfr", "xyz.openbmc_project.PFR.Mailbox",
-        "InitiateBMCBusyPeriod");
+        "InitiateBMCBusyPeriod", true);
 
     if (ec || !rc)
     {
@@ -241,7 +241,8 @@ bool SMBusBridge::reserveBandwidth(boost::asio::yield_context yield,
     return true;
 }
 
-bool SMBusBridge::releaseBandwidth(const mctp_eid_t eid)
+bool SMBusBridge::releaseBandwidth(boost::asio::yield_context yield,
+                                   const mctp_eid_t eid)
 {
     if (!rsvBWActive || eid != reservedEID)
     {
@@ -250,6 +251,20 @@ bool SMBusBridge::releaseBandwidth(const mctp_eid_t eid)
                 .c_str());
         return false;
     }
+
+    // initiate new method call to pfr to reset bmc busy flag
+    boost::system::error_code ec;
+    auto rc = connection->yield_method_call<bool>(
+        yield, ec, "xyz.openbmc_project.PFR.Manager",
+        "/xyz/openbmc_project/pfr", "xyz.openbmc_project.PFR.Mailbox",
+        "InitiateBMCBusyPeriod", false);
+
+    if (ec || !rc)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "releaseBandwidth: reset BMCBusy register failed");
+    }
+
     reserveBWTimer.cancel();
     return true;
 }
