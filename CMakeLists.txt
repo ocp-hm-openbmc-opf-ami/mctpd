@@ -143,8 +143,11 @@ target_link_libraries(
   i2c
   boost_coroutine)
 
+find_package (PkgConfig REQUIRED)
+pkg_get_variable(SYSTEMD_SYSTEM_UNIT_DIR systemd systemdsystemunitdir)
+
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)
-install(FILES ${SERVICE_FILES} DESTINATION /lib/systemd/system/)
+install(FILES ${SERVICE_FILES} DESTINATION "${SYSTEMD_SYSTEM_UNIT_DIR}")
 install(FILES ${CONFIG_FILES} DESTINATION /usr/share/mctp/)
 
 if(${MCTPD_BUILD_UT})
