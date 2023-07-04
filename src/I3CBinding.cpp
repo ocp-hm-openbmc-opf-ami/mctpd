@@ -68,6 +68,7 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                 requiredEIDPoolSizeFromBO = conf.requiredEIDPoolSizeFromBO;
                 downstreamEIDPools = conf.downstreamEIDPoolDistribution;
             }
+            supportOEMBindingBehindBO = conf.supportOEMBindingBehindBO;
         }
         ownI3cDAA = hw->getOwnAddress();
         registerProperty(i3cInterface, "Address", ownI3cDAA);
@@ -303,6 +304,15 @@ void I3CBinding::readRoutingTable(
                      mctpd::PhysicalMediumIdentifier::i3c12_5Mhz)))
 
             {
+                if (supportOEMBindingBehindBO)
+                {
+                    if (routingTableEntry->phys_transport_binding_id == 0xFF)
+                    {
+                        rt.push_back(std::make_tuple(
+                            routingTableEntry->starting_eid, physAddr,
+                            routingTableEntry->entry_type));
+                    }
+                }
                 entryOffset += routingTableEntry->phys_address_size;
                 continue;
             }

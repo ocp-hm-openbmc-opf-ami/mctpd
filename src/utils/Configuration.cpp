@@ -362,6 +362,12 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
     getField(map, "BlockDiscoveryNotify", blockDicoveryNotify);
 
     I3CConfiguration config;
+
+    //Learn about OEM binding endpoints behind busOwner
+    if (mode != mctp_server::BindingModeTypes::BusOwner)
+    {
+        config.supportOEMBindingBehindBO = true;
+    }
     config.mediumId = stringToMediumID.at(physicalMediumID);
     config.mode = mode;
     config.defaultEid = static_cast<uint8_t>(defaultEID);
