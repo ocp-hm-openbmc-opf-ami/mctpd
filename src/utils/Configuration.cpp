@@ -105,7 +105,7 @@ static bool getField(const ConfigurationMap& configuration,
             return true;
         }
     }
-    phosphor::logging::log<phosphor::logging::level::WARNING>(
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
         ("Missing configuration field " + fieldName).c_str());
     return false;
 }
@@ -116,11 +116,11 @@ std::set<std::string> getAllowedBuses(const T& map)
     std::vector<std::string> allowedBuses;
     if (!getField(map, "AllowedBuses", allowedBuses))
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Allowed buses list not found in MCTPD configuration. Everything "
-            "will be white listed");
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "Allowed buses list not found in MCTPD configuration. No bridging "
+            "is allowed from this service");
     }
-    phosphor::logging::log<phosphor::logging::level::WARNING>(
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
         (std::string("Allowed buses in config : ") +
          std::to_string(allowedBuses.size()))
             .c_str());
@@ -133,7 +133,7 @@ uint8_t getNetworkID(const T& map)
     uint64_t networkId = 0;
     if (!getField(map, "NetworkID", networkId))
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
             "Network ID not found in MCTP configuration. Assuming EIDs wont "
             "overlap");
         networkId = 0;
@@ -363,7 +363,7 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
 
     I3CConfiguration config;
 
-    //Learn about OEM binding endpoints behind busOwner
+    // Learn about OEM binding endpoints behind busOwner
     if (mode != mctp_server::BindingModeTypes::BusOwner)
     {
         config.supportOEMBindingBehindBO = true;

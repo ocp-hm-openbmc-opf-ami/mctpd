@@ -78,7 +78,7 @@ static bool isSelfProcess(sdbusplus::asio::connection& connection,
     if (ec)
     {
         std::string errMsg =
-            std::string("MCTPServiceScanner. Error getting pid for ") +
+            std::string("MCTPServiceScanner: Error getting pid for ") +
             service + ". " + ec.message();
         phosphor::logging::log<phosphor::logging::level::ERR>(errMsg.c_str());
         return false;
@@ -86,8 +86,6 @@ static bool isSelfProcess(sdbusplus::asio::connection& connection,
 
     if (pid == pidSelf)
     {
-        phosphor::logging::log<phosphor::logging::level::INFO>(
-            ("Skipping  " + service).c_str());
         return true;
     }
     return false;
@@ -113,7 +111,7 @@ const MCTPServiceScanner::MCTPService&
         serviceDetails.bindingMode = readPropertyValue<std::string>(
             yield, *connection, serviceName, baseObj, baseIntf, "BindingMode");
         it = cachedServices.emplace(serviceName, serviceDetails).first;
-        phosphor::logging::log<phosphor::logging::level::INFO>(
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
             ("Adding to cached service : " + serviceName).c_str());
     }
     return it->second;
@@ -130,7 +128,7 @@ void MCTPServiceScanner::scanForEIDs(const std::string& serviceName,
             return;
         }
 
-        phosphor::logging::log<phosphor::logging::level::INFO>(
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
             ("Looking for EIDs in " + serviceName).c_str());
         using ObjectTree = DictType<
             sdbusplus::message::object_path,
@@ -153,7 +151,7 @@ void MCTPServiceScanner::scanForEIDs(const std::string& serviceName,
             return;
         }
 
-        phosphor::logging::log<phosphor::logging::level::INFO>(
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
             ("MCTPServiceScanner found " + std::to_string(values.size()) +
              " EIDs in " + serviceName)
                 .c_str());
@@ -235,9 +233,6 @@ void MCTPServiceScanner::scan()
                 "Callback not registered for new EIds");
             return;
         }
-
-        phosphor::logging::log<phosphor::logging::level::INFO>(
-            "Scanning for other MCTP services");
 
         try
         {
@@ -321,14 +316,14 @@ bool MCTPServiceScanner::isAllowedBus(const std::string& bus,
             continue;
         }
 
-        phosphor::logging::log<phosphor::logging::level::INFO>(
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
             ("Unique name of " + service + " is " + uniqueName + ". Target " +
              bus)
                 .c_str());
 
         if (uniqueName == bus)
         {
-            phosphor::logging::log<phosphor::logging::level::INFO>(
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
                 ("Adding " + bus + " into allowed list").c_str());
             allowedDestBuses.insert(bus);
             return true;
@@ -373,7 +368,7 @@ void MCTPServiceScanner::onHotPluggedEid(sdbusplus::message::message& message)
                     }
                     if (!isAllowedBus(serviceName, yield))
                     {
-                        phosphor::logging::log<phosphor::logging::level::INFO>(
+                        phosphor::logging::log<phosphor::logging::level::DEBUG>(
                             (serviceName + " is not in allowed service list")
                                 .c_str());
                         return;

@@ -153,8 +153,9 @@ const std::string& RoutingTable::getServiceName(const mctp_eid_t eid) const
     {
         return it->second.serviceName;
     }
-    throw std::out_of_range(std::string("EID not found. ") +
-                            std::to_string(eid));
+    throw std::out_of_range(
+        std::string("Cannot find service hosting the EID:") +
+        std::to_string(eid));
 }
 
 const RoutingTable::Entry& RoutingTable::getEntry(const mctp_eid_t eid) const
@@ -164,8 +165,9 @@ const RoutingTable::Entry& RoutingTable::getEntry(const mctp_eid_t eid) const
     {
         return it->second;
     }
-    throw std::out_of_range(std::string("EID not found. ") +
-                            std::to_string(eid));
+    throw std::out_of_range(
+        std::string("Cannot find the routing table entry for EID:") +
+        std::to_string(eid));
 }
 
 const RoutingTable::EntryMap& RoutingTable::getAllEntries() const noexcept

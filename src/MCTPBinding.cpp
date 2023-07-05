@@ -39,15 +39,15 @@ static const std::unordered_map<uint8_t,
          mctp_server::MctpPhysicalMediumIdentifiers::Smbus}, /*SMBus 2.0 100 kHz
                                                                 compatible*/
         {0x02, mctp_server::MctpPhysicalMediumIdentifiers::
-                   SmbusI2c}, /*SMBus 2.0 + I2C 100 kHz compatible*/
+                   SmbusI2c},      /*SMBus 2.0 + I2C 100 kHz compatible*/
         {0x03, mctp_server::MctpPhysicalMediumIdentifiers::
                    I2cCompatible}, /*I2C 100 kHz compatible (Standard-mode)*/
         {0x04, mctp_server::MctpPhysicalMediumIdentifiers::
                    Smbus3OrI2c400khzCompatible}, /*SMBus 3.0 or I2C 400 kHz
                                                     compatible (Fast-mode)*/
         {0x05, mctp_server::MctpPhysicalMediumIdentifiers::
-                   Smbus3OrI2c1MhzCompatible}, /*SMBus 3.0 or I2C 1 MHz
-                                                  compatible (Fast-mode Plus)*/
+                   Smbus3OrI2c1MhzCompatible},   /*SMBus 3.0 or I2C 1 MHz
+                                                    compatible (Fast-mode Plus)*/
         {0x06,
          mctp_server::MctpPhysicalMediumIdentifiers::
              I2c3Mhz4Compatible}, /*I2C 3.4 MHz compatible (High-speed mode)*/
@@ -70,9 +70,9 @@ static const std::unordered_map<uint8_t,
                                                                 compatible*/
         /*0x0E Reserved*/
         {0x0F, mctp_server::MctpPhysicalMediumIdentifiers::
-                   PciCompatible}, /*PCI compatible
-                                      (PCI 1.0,2.0,2.1,2.2,2.3,3.0,PCI-X 1.0,
-                                      PCI-X 2.0)*/
+                   PciCompatible},   /*PCI compatible
+                                        (PCI 1.0,2.0,2.1,2.2,2.3,3.0,PCI-X 1.0,
+                                        PCI-X 2.0)*/
         {0x10, mctp_server::MctpPhysicalMediumIdentifiers::
                    Usb11Compatible}, /*USB 1.1 compatible*/
         {0x11, mctp_server::MctpPhysicalMediumIdentifiers::
@@ -87,7 +87,7 @@ static const std::unordered_map<uint8_t,
         {0x20, mctp_server::MctpPhysicalMediumIdentifiers::
                    KcsLegacy}, /*KCS / Legacy (Fixed Address Decoding)*/
         {0x21, mctp_server::MctpPhysicalMediumIdentifiers::
-                   KcsPci}, /*KCS / PCI (Base Class 0xC0 Subclass 0x01)*/
+                   KcsPci},    /*KCS / PCI (Base Class 0xC0 Subclass 0x01)*/
         {0x22, mctp_server::MctpPhysicalMediumIdentifiers::
                    SerialHostLegacy}, /*Serial Host / Legacy (Fixed Address
                                          Decoding)*/
@@ -98,12 +98,12 @@ static const std::unordered_map<uint8_t,
          mctp_server::MctpPhysicalMediumIdentifiers::
              AsynchronousSerial}, /*Asynchronous Serial3(Between MCs and IMDs)*/
         {0x30, mctp_server::MctpPhysicalMediumIdentifiers::
-                   I3cSDR}, /*I3C 12.5 MHz compatible (SDR)*/
+                   I3cSDR},       /*I3C 12.5 MHz compatible (SDR)*/
         {0x31, mctp_server::MctpPhysicalMediumIdentifiers::
-                   I3cHDRDDR} /*I3C 25 MHz compatible (HDR-DDR)*/
-                              /*0x32:0x3F Reserved */
-                              /*0x40, CXL 1.x*/
-                              /*0x41:0xFF Reserved*/
+                   I3cHDRDDR}     /*I3C 25 MHz compatible (HDR-DDR)*/
+                                  /*0x32:0x3F Reserved */
+                                  /*0x40, CXL 1.x*/
+                                  /*0x41:0xFF Reserved*/
 };
 
 MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
@@ -126,7 +126,7 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                 return;
             }
 
-            phosphor::logging::log<phosphor::logging::level::INFO>(
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
                 ("NewEID " + std::to_string(ep.eid) + " of type " +
                  ep.endpointType +
                  (isHotplugged ? " hotplugged" : " existing") + " on " +
@@ -197,7 +197,7 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
         registerProperty(
             mctpInterface, "BindingMode",
             mctp_server::convertBindingModeTypesToString(bindingModeType));
-        
+
         registerProperty(mctpInterface, "NetworkID", conf.networkId);
 
         /*
