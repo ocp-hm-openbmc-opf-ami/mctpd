@@ -296,6 +296,11 @@ void I3CBinding::readRoutingTable(
             auto routingTableEntry = reinterpret_cast<get_routing_table_entry*>(
                 getRoutingTableEntryResp.data() + entryOffset);
 
+            if (routingTableEntry->starting_eid == ownEid)
+            {
+                continue;
+            }
+
             entryOffset += sizeof(get_routing_table_entry);
             if ((routingTableEntry->phys_transport_binding_id !=
                  MCTP_BINDING_I3C) ||
@@ -390,8 +395,6 @@ void I3CBinding::updateRoutingTable()
 {
     struct mctp_asti3c_pkt_private pktPrv;
     getRoutingTableTimer.expires_from_now(getRoutingInterval);
-    getRoutingTableTimer.async_wait(
-        std::bind(&I3CBinding::updateRoutingTable, this));
 
     if (!this->blockDiscoveryNotify &&
         discoveredFlag != I3CBindingServer::DiscoveryFlags::Discovered)
@@ -422,6 +425,9 @@ void I3CBinding::updateRoutingTable()
             processRoutingTableChanges(routingTableTmp, yield, prvData);
             routingTableResp = routingTableTmp;
         }
+
+        getRoutingTableTimer.async_wait(
+            std::bind(&I3CBinding::updateRoutingTable, this));
     });
 }
 
@@ -507,14 +513,24 @@ void I3CBinding::processRoutingTableChanges(
                 continue;
             }
             std::vector<uint8_t> prvDataCopy = prvData;
-            registerEndpoint(yield, prvDataCopy, remoteEid,
-                             getBindingMode(routingEntry));
+            try
+            {
+                registerEndpoint(yield, prvDataCopy, remoteEid,
+                                 getBindingMode(routingEntry));
 
-            phosphor::logging::log<phosphor::logging::level::INFO>(
-                ("I3C device at bus " + std::to_string(bus) + " and address " +
-                 std::to_string(ownI3cDAA) + " registered at EID " +
-                 std::to_string(remoteEid))
-                    .c_str());
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    ("I3C device at bus " + std::to_string(bus) +
+                     " and address " + std::to_string(ownI3cDAA) +
+                     " registered at EID " + std::to_string(remoteEid))
+                        .c_str());
+            }
+            catch (const std::exception& e)
+            {
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    (std::string("Error registering EID ") +
+                     std::to_string(remoteEid) + " " + e.what())
+                        .c_str());
+            }
         }
     }
 }
