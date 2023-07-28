@@ -19,6 +19,7 @@
 #include <phosphor-logging/log.hpp>
 
 #include "libmctp-cmds.h"
+#include "libmctp-encode-request.h"
 
 constexpr size_t minCmdRespSize = 4;
 
@@ -91,11 +92,11 @@ bool getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
     else if constexpr (cmd == MCTP_CTRL_CMD_GET_VENDOR_MESSAGE_SUPPORT)
     {
         req.resize(sizeof(struct mctp_ctrl_cmd_get_vdm_support));
-        struct mctp_ctrl_cmd_get_vdm_support* getVdmSupport =
-            reinterpret_cast<struct mctp_ctrl_cmd_get_vdm_support*>(req.data());
+        mctp_msg* getVdmSupport = reinterpret_cast<mctp_msg*>(req.data());
 
-        mctp_encode_ctrl_cmd_get_vdm_support(getVdmSupport, getRqDgramInst(),
-                                             std::forward<Args>(reqParam)...);
+        mctp_encode_get_vdm_support_req(getVdmSupport, req.size(),
+                                        getRqDgramInst(),
+                                        std::forward<Args>(reqParam)...);
         return true;
     }
     else if constexpr (cmd == MCTP_CTRL_CMD_DISCOVERY_NOTIFY)
