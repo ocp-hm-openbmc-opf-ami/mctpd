@@ -72,11 +72,11 @@ bool getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
     else if constexpr (cmd == MCTP_CTRL_CMD_GET_VERSION_SUPPORT)
     {
         req.resize(sizeof(mctp_ctrl_cmd_get_mctp_ver_support));
-        mctp_ctrl_cmd_get_mctp_ver_support* getVerSupport =
-            reinterpret_cast<mctp_ctrl_cmd_get_mctp_ver_support*>(req.data());
+        mctp_msg* getVerSupport = reinterpret_cast<mctp_msg*>(req.data());
 
-        mctp_encode_ctrl_cmd_get_ver_support(getVerSupport, getRqDgramInst(),
-                                             std::forward<Args>(reqParam)...);
+        mctp_encode_get_ver_support_req(getVerSupport, req.size(),
+                                        getRqDgramInst(),
+                                        std::forward<Args>(reqParam)...);
         return true;
     }
 
