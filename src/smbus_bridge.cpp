@@ -46,8 +46,8 @@ SMBusBridge::SMBusBridge(
     const SMBusConfiguration& conf, boost::asio::io_context& ioc,
     std::shared_ptr<boost::asio::posix::stream_descriptor>&& i2cMuxMonitor) :
     SMBusEndpoint(conn, objServer, objPath, conf, ioc),
-    reserveBWTimer(ioc), refreshMuxTimer(ioc), scanTimer(ioc),
-    muxMonitor{std::move(i2cMuxMonitor)}
+    reserveBWTimer(ioc), refreshMuxTimer(ioc),
+    scanTimer(ioc), muxMonitor{std::move(i2cMuxMonitor)}
 
 {
 }
