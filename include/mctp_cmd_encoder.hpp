@@ -53,11 +53,10 @@ bool getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
     else if constexpr (cmd == MCTP_CTRL_CMD_SET_ENDPOINT_ID)
     {
         req.resize(sizeof(mctp_ctrl_cmd_set_eid));
-        mctp_ctrl_cmd_set_eid* setEidCmd =
-            reinterpret_cast<mctp_ctrl_cmd_set_eid*>(req.data());
+        mctp_msg* setEidCmd = reinterpret_cast<mctp_msg*>(req.data());
 
-        mctp_encode_ctrl_cmd_set_eid(setEidCmd, getRqDgramInst(),
-                                     std::forward<Args>(reqParam)...);
+        mctp_encode_set_eid_req(setEidCmd, req.size(), getRqDgramInst(),
+                                std::forward<Args>(reqParam)...);
         return true;
     }
     else if constexpr (cmd == MCTP_CTRL_CMD_GET_ENDPOINT_UUID)
