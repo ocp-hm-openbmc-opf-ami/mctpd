@@ -565,6 +565,11 @@ bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,
     // TODO. Combine EIDs in a range.
     for (const auto& [eid, data] : entries)
     {
+        if (data.routeEntry.routing_info.phys_media_type_id == 0)
+        {
+            // Entry added from AllocateEID command. But not assigned yet
+            continue;
+        }
         entriesLibFormat.emplace_back(data.routeEntry);
     }
     size_t startIndex =
