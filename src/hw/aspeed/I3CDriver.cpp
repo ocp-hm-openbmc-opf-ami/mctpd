@@ -82,7 +82,9 @@ void I3CDriver::rescanI3CBus()
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
                 "Running rescan");
             rescanFile << 1;
+            rescanFile.flush();
             rescanFile.close();
+            sleep(1);
         }
         else
         {
