@@ -401,6 +401,8 @@ void I3CBinding::updateRoutingTable()
     {
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "Get Routing Table failed, undiscovered");
+        getRoutingTableTimer.async_wait(
+            std::bind(&I3CBinding::updateRoutingTable, this));
         return;
     }
     pktPrv.fd = mctpI3CFd;
