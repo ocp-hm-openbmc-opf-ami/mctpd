@@ -158,6 +158,9 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
             }
         });
 
+    mctpServiceScanner.setNewServiceCallback(
+        std::bind(&MctpBinding::onNewService, this, std::placeholders::_1));
+
     mctpInterface = objServer->add_interface(objPath, mctp_server::interface);
     uuidIntface =
         objServer->add_interface(objPath, "xyz.openbmc_project.Common.UUID");
@@ -902,4 +905,38 @@ bool MctpBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
 bool MctpBinding::skipListPath(std::vector<uint8_t> /*payload*/)
 {
     return false;
+}
+
+void MctpBinding::onNewService(const std::string& service)
+{
+    auto isInPoolDist =
+        downstreamEIDPools.find(service) != downstreamEIDPools.end();
+    if (!isInPoolDist)
+    {
+        return;
+    }
+
+    boost::asio::spawn(
+        this->connection->get_io_context(),
+        [this, service](boost::asio::yield_context yield) {
+            constexpr boost::posix_time::milliseconds dbusDelay(200);
+            boost::asio::deadline_timer setEIDPoolTimer(
+                connection->get_io_context());
+            boost::system::error_code ec;
+
+            setEIDPoolTimer.expires_from_now(dbusDelay);
+            setEIDPoolTimer.async_wait(yield[ec]);
+            
+            if (ec)
+            {
+                // Timer exited abruptly.
+                return;
+            }
+
+            if (!passEIDPoolTo(yield, service))
+            {
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    "SetEID pool returned false from service callback");
+            }
+        });
 }

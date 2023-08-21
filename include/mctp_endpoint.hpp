@@ -39,7 +39,14 @@ class MCTPEndpoint : public MCTPDevice
   protected:
     std::shared_ptr<sdbusplus::asio::connection> connection;
     std::optional<uint8_t> requiredEIDPoolSizeFromBO = std::nullopt;
-    std::unordered_map<std::string, uint8_t> downstreamEIDPools;
+    struct EIDPoolAllocInfo
+    {
+        mctp_eid_t start = 0;
+        uint8_t size = 0;
+        bool allocated = false;
+        bool isInProgress = false;
+    };
+    std::unordered_map<std::string, EIDPoolAllocInfo> downstreamEIDPools;
     uint8_t allocatedPoolSize = 0;
     uint8_t allocatedPoolFirstEID = 0;
     bool supportOEMBindingBehindBO = false;
@@ -48,6 +55,19 @@ class MCTPEndpoint : public MCTPDevice
     std::vector<InternalVdmSetDatabase> vdmSetDatabase;
 
     void setDownStreamEIDPools(uint8_t eidPoolSize, uint8_t firstEID);
+    /**
+     * @brief Pass eid pool to another MCTPD service through DBus call
+     *
+     * @param[in] service - DBus name of the target MCTPD service
+     * @param[in] force - true means EID pool will be passed irrespective of the
+     *   allocation status. If false then EID pool wont be passed if already
+     *   given.
+     * @return true if EID pool allocation was succesful. ELse false.
+     */
+    bool passEIDPoolTo(boost::asio::yield_context yield,
+                       const std::string& service, bool force);
+    bool passEIDPoolTo(boost::asio::yield_context yield,
+                       const std::string& service);
     virtual bool isReceivedPrivateDataCorrect(const void* bindingPrivate);
     virtual bool handleEndpointDiscovery(mctp_eid_t destEid,
                                          void* bindingPrivate,

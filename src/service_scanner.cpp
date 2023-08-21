@@ -236,7 +236,6 @@ void MCTPServiceScanner::scan()
 
         try
         {
-
             this->signalMatches.clear();
             auto onHotplugHandler =
                 std::bind(&MCTPServiceScanner::onHotPluggedEid, this,
@@ -321,6 +320,8 @@ bool MCTPServiceScanner::isAllowedBus(const std::string& bus,
              bus)
                 .c_str());
 
+        dbusUniqueNameMap.insert_or_assign(service, uniqueName);
+
         if (uniqueName == bus)
         {
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
@@ -335,37 +336,41 @@ bool MCTPServiceScanner::isAllowedBus(const std::string& bus,
 
 void MCTPServiceScanner::onHotPluggedEid(sdbusplus::message::message& message)
 {
-    if (!this->onNewEid)
+    if (!this->onNewEid && !this->onNewService)
     {
         return;
     }
-    DictType<std::string, DictType<std::string, MctpPropertiesVariantType>>
-        values;
-    sdbusplus::message::object_path object_path;
+
     try
     {
-
-        message.read(object_path, values);
-        auto endpointIntf = values.find("xyz.openbmc_project.MCTP.Endpoint");
-        if (endpointIntf == values.end())
-        {
-            return;
-        }
-        EndPoint ep;
-        ep.eid = getEIDFromPath(object_path);
-        ep.endpointType =
-            std::get<std::string>(endpointIntf->second.at("Mode"));
         boost::asio::spawn(
             connection->get_io_context(),
-            [this, ep, object_path,
-             message](boost::asio::yield_context yield) mutable {
+            [this, message](boost::asio::yield_context yield) mutable {
                 try
                 {
-                    std::string serviceName = message.get_sender();
-                    if (isSelfProcess(*connection, yield, serviceName))
+                    DictType<std::string,
+                             DictType<std::string, MctpPropertiesVariantType>>
+                        values;
+                    sdbusplus::message::object_path objectPath;
+
+                    message.read(objectPath, values);
+                    auto endpointIntf =
+                        values.find("xyz.openbmc_project.MCTP.Endpoint");
+                    auto baseIntf =
+                        values.find("xyz.openbmc_project.MCTP.Base");
+
+                    if (endpointIntf == values.end() &&
+                        baseIntf == values.end())
                     {
                         return;
                     }
+
+                    std::string serviceName = message.get_sender();
+                    if (serviceName.empty())
+                    {
+                        return;
+                    }
+
                     if (!isAllowedBus(serviceName, yield))
                     {
                         phosphor::logging::log<phosphor::logging::level::DEBUG>(
@@ -373,9 +378,51 @@ void MCTPServiceScanner::onHotPluggedEid(sdbusplus::message::message& message)
                                 .c_str());
                         return;
                     }
+
+                    if (baseIntf != values.end() && this->onNewService)
+                    {
+                        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                            ("New service " + serviceName).c_str());
+                        if (serviceName[0] == ':')
+                        {
+                            auto commonNameIt = std::find_if(
+                                dbusUniqueNameMap.begin(),
+                                dbusUniqueNameMap.end(),
+                                [&serviceName](const auto& namePair) {
+                                    return namePair.second == serviceName;
+                                });
+                            if (commonNameIt != dbusUniqueNameMap.end())
+                            {
+                                phosphor::logging::log<
+                                    phosphor::logging::level::DEBUG>(
+                                    ("Found in dbus map " + serviceName)
+                                        .c_str());
+                                serviceName = commonNameIt->first;
+                            }
+                            phosphor::logging::log<
+                                phosphor::logging::level::DEBUG>(
+                                ("Service name changed to " + serviceName)
+                                    .c_str());
+                        }
+                        this->onNewService(serviceName);
+                        return;
+                    }
+                    if (!this->onNewEid)
+                    {
+                        return;
+                    }
+                    EndPoint ep;
+                    ep.eid = getEIDFromPath(objectPath);
+                    ep.endpointType =
+                        std::get<std::string>(endpointIntf->second.at("Mode"));
+
+                    if (isSelfProcess(*connection, yield, serviceName))
+                    {
+                        return;
+                    }
                     ep.service = this->getMctpServiceDetails(
                         yield, message.get_sender());
-                    if (updatePhysicalDetails(connection, yield, object_path,
+                    if (updatePhysicalDetails(connection, yield, objectPath,
                                               serviceName, ep))
                     {
                         this->onNewEid(ep, true);

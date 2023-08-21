@@ -105,6 +105,7 @@ class MctpBinding : public MCTPBridge
                      mctp_server::MctpPhysicalMediumIdentifiers& mediumId);
 
     virtual bool setEIDPool(const uint8_t startEID, const uint8_t poolSize);
+    void onNewService(const std::string& serviceName);
 
   private:
     bool staticEid;

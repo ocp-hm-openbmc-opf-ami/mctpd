@@ -66,7 +66,10 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
             if (conf.requiredEIDPoolSizeFromBO > 0)
             {
                 requiredEIDPoolSizeFromBO = conf.requiredEIDPoolSizeFromBO;
-                downstreamEIDPools = conf.downstreamEIDPoolDistribution;
+                for (const auto& dist : conf.downstreamEIDPoolDistribution)
+                {
+                    downstreamEIDPools[dist.first] = {0, dist.second, false, false};
+                }
             }
             supportOEMBindingBehindBO = conf.supportOEMBindingBehindBO;
         }
@@ -106,7 +109,14 @@ void I3CBinding::triggerDeviceDiscovery()
     phosphor::logging::log<phosphor::logging::level::ERR>(
         "Triggering device discovery");
 
-    if (bindingModeType == mctp_server::BindingModeTypes::Bridge)
+    // Expects to receive allocate eid command again after this
+    for (auto& allocInfo : downstreamEIDPools)
+    {
+        allocInfo.second.allocated = false;
+    }
+
+    if (bindingModeType == mctp_server::BindingModeTypes::Bridge ||
+        bindingModeType == mctp_server::BindingModeTypes::BusOwner)
     {
         for (auto eid : eidTable)
         {

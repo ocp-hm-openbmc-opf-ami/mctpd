@@ -193,6 +193,75 @@ bool MCTPEndpoint::handleDiscoveryNotify(
     return true;
 }
 
+bool MCTPEndpoint::passEIDPoolTo(boost::asio::yield_context yield,
+                                 const std::string& service)
+{
+    return passEIDPoolTo(yield, service, true);
+}
+
+bool MCTPEndpoint::passEIDPoolTo(boost::asio::yield_context yield,
+                                 const std::string& service, bool force)
+{
+    auto downstreamServicePool = downstreamEIDPools.find(service);
+
+    if (downstreamServicePool == downstreamEIDPools.end())
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("Unknown service while passing EID pool " + service).c_str());
+        return false;
+    }
+
+    if (downstreamServicePool->second.start == 0)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("Pool for downstream service " + service + " not received").c_str());
+        return false;
+    }
+
+    if (downstreamServicePool->second.allocated == true && !force)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("Already pool assigned for service: " + service).c_str());
+        return true;
+    }
+
+    boost::system::error_code ec;
+
+    if (downstreamServicePool->second.isInProgress)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "Another allocation in progress");
+        return true;
+    }
+    // Mark in progress to block retry while on yield
+    downstreamServicePool->second.isInProgress = true;
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        ("Setting EID pool to " + service + " " +
+         std::to_string(downstreamServicePool->second.start) + " + " +
+         std::to_string(downstreamServicePool->second.size))
+            .c_str());
+    auto rc = connection->yield_method_call<bool>(
+        yield, ec, service, "/xyz/openbmc_project/mctp", mctp_server::interface,
+        "SetEIDPool", downstreamServicePool->second.start,
+        downstreamServicePool->second.size);
+    downstreamServicePool->second.isInProgress = false;
+
+    downstreamServicePool->second.allocated = !(ec || !rc);
+
+    for (uint8_t i = 0; i <= downstreamServicePool->second.size; i++)
+    {
+        // Endpoint details will be invalid since these eids are not yet
+        // assigned.
+        uint8_t eid = downstreamServicePool->second.start + i;
+        mctpd::RoutingTable::Entry entry(eid, service,
+                                         mctpd::EndPointType::EndPoint);
+        entry.isUpstream = true;
+        this->routingTable.updateEntry(eid, entry);
+    }
+
+    return downstreamServicePool->second.allocated;
+}
+
 void MCTPEndpoint::setDownStreamEIDPools(uint8_t eidPoolSize, uint8_t firstEID)
 {
     boost::asio::spawn(io, [this, eidPoolSize,
@@ -200,60 +269,64 @@ void MCTPEndpoint::setDownStreamEIDPools(uint8_t eidPoolSize, uint8_t firstEID)
         uint8_t remainingPoolSize = eidPoolSize;
         uint8_t startEID = firstEID;
 
-        for (auto& [busName, poolSize] : downstreamEIDPools)
+        for (auto& [busName, allocInfo] : downstreamEIDPools)
         {
-            boost::system::error_code ec;
-
             // Check if startEID + poolsize overruns 255 EID
-            if (startEID > (0xFF - poolSize))
+            if (startEID > (0xFF - allocInfo.size))
             {
                 phosphor::logging::log<phosphor::logging::level::WARNING>(
                     ("EID pool crossing EID range on bus:" + busName).c_str());
                 continue;
             }
 
-            if (remainingPoolSize < poolSize)
+            if (remainingPoolSize < allocInfo.size)
             {
                 phosphor::logging::log<phosphor::logging::level::WARNING>(
                     ("Running out of eid pool for bus" + busName).c_str());
                 // Check if remaining pool can be distributed
                 continue;
             }
-            auto rc = connection->yield_method_call<bool>(
-                yield, ec, busName, "/xyz/openbmc_project/mctp",
-                mctp_server::interface, "SetEIDPool", startEID, poolSize);
 
-            for (uint8_t i = 0; i <= poolSize; i++)
-            {
-                // Endpoint details will be invalid since these eids are not yet
-                // assigned.
-                uint8_t eid = startEID + i;
-                mctpd::RoutingTable::Entry entry(eid, busName,
-                                                 mctpd::EndPointType::EndPoint);
-                entry.isUpstream = true;
-                this->routingTable.updateEntry(eid, entry);
-            }
-
-            if (ec || !rc)
+            if (allocInfo.allocated && allocInfo.start == startEID)
             {
                 phosphor::logging::log<phosphor::logging::level::WARNING>(
-                    ("Error setting EID pool for: " + busName).c_str());
+                    "Same pool is already allocated");
                 continue;
             }
 
-            for (uint8_t i = 0; i < poolSize; i++)
+            allocInfo.start = startEID;
+
+            // Sometimes, if the downstream service is initialising, it might
+            // take some time to intialise its interfaces and thus the below
+            // call might fail. Thus, retry 5 times.
+            constexpr const uint8_t retryCount = 5;
+            constexpr auto retryInterval = std::chrono::milliseconds(300);
+            uint8_t retryAttempt = 0;
+            // Assumes downstreamEIDPools wont change and iterator will be valid
+            for (; retryAttempt < retryCount; retryAttempt++)
             {
-                // Endpoint details will be invalid since these eids are not yet
-                // assigned.
-                uint8_t eid = startEID + i;
-                mctpd::RoutingTable::Entry entry(eid, busName,
-                                                 mctpd::EndPointType::EndPoint);
-                entry.isUpstream = true;
-                this->routingTable.updateEntry(eid, entry);
+                passEIDPoolTo(yield, busName, false);
+                if (allocInfo.allocated)
+                {
+                    break;
+                }
+
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    ("Error passing eid pool for bus" + busName).c_str());
+
+                // Wait for 300ms before re-attempting
+                boost::asio::steady_timer timer(connection->get_io_context());
+                boost::system::error_code ec;
+
+                timer.expires_after(retryInterval);
+                timer.async_wait(yield[ec]);
+
+                phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                    ("Re-attempting setting EID pool for: " + busName).c_str());
             }
 
-            startEID += poolSize;
-            remainingPoolSize -= poolSize;
+            startEID += allocInfo.size;
+            remainingPoolSize -= allocInfo.size;
         }
     });
 }
@@ -304,6 +377,10 @@ bool MCTPEndpoint::handleAllocateEID(std::vector<uint8_t>& request,
                         resp->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
                         return true;
                     }
+                    phosphor::logging::log<phosphor::logging::level::INFO>(
+                        ("EIDPool from BO: " + std::to_string(firstEID) +
+                         " + " + std::to_string(eidPoolSize))
+                            .c_str());
                     setDownStreamEIDPools(eidPoolSize, firstEID);
                     allocatedPoolSize = eidPoolSize;
                     allocatedPoolFirstEID = firstEID;

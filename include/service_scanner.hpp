@@ -55,6 +55,7 @@ class MCTPServiceScanner
     };
     using Callback = std::function<void(EndPoint, bool)>;
     using EidRemovedCallback = std::function<void(EndPoint)>;
+    using NewServiceCallback = std::function<void(const std::string&)>;
     MCTPServiceScanner(std::shared_ptr<sdbusplus::asio::connection>& conn);
     inline void setCallback(Callback handler)
     {
@@ -63,6 +64,10 @@ class MCTPServiceScanner
     inline void setEidRemovedCallback(EidRemovedCallback handler)
     {
         onEidRemovedHandler = std::move(handler);
+    }
+    inline void setNewServiceCallback(NewServiceCallback handler)
+    {
+        onNewService = std::move(handler);
     }
     template <typename It>
     inline void setAllowedBuses(It begin, It end)
@@ -83,10 +88,12 @@ class MCTPServiceScanner
     bool isAllowedBus(const std::string& bus, boost::asio::yield_context yield);
     Callback onNewEid;
     EidRemovedCallback onEidRemovedHandler;
+    NewServiceCallback onNewService;
     std::shared_ptr<sdbusplus::asio::connection> connection;
     std::vector<sdbusplus::bus::match::match> signalMatches;
     std::unordered_map<std::string, MCTPService> cachedServices;
     std::unordered_set<std::string> allowedDestBuses;
     std::unordered_set<std::string> disallowedDestBuses;
+    std::unordered_map<std::string, std::string> dbusUniqueNameMap;
 };
 } // namespace bridging
