@@ -118,7 +118,7 @@ bool getAddr(std::string& path, uint8_t& addr)
     return true;
 }
 
-bool findMCTPI3CDevice(uint8_t busNum, std::optional<uint8_t> pidMask,
+bool findMCTPI3CDevice(uint8_t busNum, std::optional<uint16_t> pidMask,
                        std::string& file)
 {
     /* MCTP binding configured on a I3C master */
@@ -137,14 +137,14 @@ bool findMCTPI3CDevice(uint8_t busNum, std::optional<uint8_t> pidMask,
             }
 
             uint64_t devicePid = 0;
-            uint8_t instanceId = 255;
+            uint16_t instIDRsvdVal = 0xFFFF;
             try
             {
                 std::stringstream ss;
                 ss << std::hex << pidStr;
                 ss >> devicePid;
                 // Bits 15:12 is the instance ID
-                instanceId = (devicePid >> 12) & 0xF;
+                instIDRsvdVal = static_cast<uint16_t>((devicePid & 0xFF0F));
             }
 
             catch (...)
@@ -154,7 +154,7 @@ bool findMCTPI3CDevice(uint8_t busNum, std::optional<uint8_t> pidMask,
                 continue;
             }
 
-            if (instanceId == pidMask.value())
+            if (instIDRsvdVal == pidMask.value())
             {
                 file.assign(path);
                 return true;

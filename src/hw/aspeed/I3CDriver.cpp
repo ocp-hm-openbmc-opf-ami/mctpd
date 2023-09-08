@@ -37,7 +37,7 @@ std::unordered_map<uint8_t, std::string> i3cBusMap{
     {3, "1e7a5000.i3c3"}, {4, "1e7a6000.i3c4"}, {5, "1e7a7000.i3c5"}};
 
 I3CDriver::I3CDriver(boost::asio::io_context& ioc, uint8_t i3cBusNum,
-                     std::optional<uint8_t> cpuPidMask) :
+                     std::optional<uint16_t> cpuPidMask) :
     streamMonitor(ioc),
     pidMask(cpuPidMask), busNum(i3cBusNum)
 {
@@ -110,13 +110,14 @@ void I3CDriver::discoverI3CDevices()
     closeFile();
     if (isController)
     {
-        // Multiple daemon instances serve on the same I3C
-        // bus. To avoid rescanning from all the buses, rescan
-        // only from the first instance and simply do a block
-        // wait in other daemon instances
+        // Multiple daemon instances serve on the same I3C bus. To avoid
+        // rescanning from all the buses, rescan only from the first instance
+        // and simply do a block wait in other daemon instances. First instance
+        // is identified where instance id field in PID mask is 0
         if (pidMask.has_value())
         {
-            if (pidMask == 0)
+            static constexpr uint16_t instIdMask = 0xFF00;
+            if ((pidMask.value() & instIdMask) == 0)
             {
                 rescanI3CBus();
             }

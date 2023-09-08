@@ -382,7 +382,7 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
     config.reqRetryCount = static_cast<uint8_t>(reqRetryCount);
     config.requiresCpuPidMask = requiresCpuPidMask;
     config.supportsBridge = supportsBridge;
-    config.provisionalIdMask = static_cast<uint8_t>(provisionalIdMask);
+    config.provisionalIdMask = static_cast<uint16_t>(provisionalIdMask);
     config.I3CAddress = static_cast<uint8_t>(I3CAddress);
     config.getRoutingInterval = static_cast<uint16_t>(getRoutingInterval);
     config.allowedBuses = getAllowedBuses(map);

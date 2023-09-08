@@ -34,7 +34,7 @@ class I3CDriver : public hw::I3CDriver
 {
   public:
     I3CDriver(boost::asio::io_context& ioc, uint8_t i3cBusNum,
-              std::optional<uint8_t> cpuPidMask = 0);
+              std::optional<uint16_t> cpuPidMask = 0);
     ~I3CDriver() override;
 
     void init() override;
@@ -50,7 +50,7 @@ class I3CDriver : public hw::I3CDriver
     mctp_binding_asti3c* i3c{};
     bool isController = false;
     std::string i3cDeviceFile;
-    std::optional<uint8_t> pidMask;
+    std::optional<uint16_t> pidMask;
     uint8_t busNum;
     void discoverI3CDevices();
     void rescanI3CBus();

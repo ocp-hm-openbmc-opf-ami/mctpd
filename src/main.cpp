@@ -55,7 +55,7 @@ std::shared_ptr<MctpBinding>
     else if (auto i3cConfig =
                  dynamic_cast<const I3CConfiguration*>(&configuration))
     {
-        std::optional<uint8_t> pidMask = std::nullopt;
+        std::optional<uint16_t> pidMask = std::nullopt;
         if (i3cConfig->requiresCpuPidMask)
         {
             pidMask = i3cConfig->provisionalIdMask;
