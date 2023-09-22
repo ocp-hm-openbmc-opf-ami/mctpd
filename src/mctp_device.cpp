@@ -358,6 +358,10 @@ MsgTypes MCTPDevice::getMsgTypes(const std::vector<uint8_t>& msgType)
                 messageTypes.spdm = true;
                 break;
             }
+            case MCTP_MESSAGE_TYPE_SECUREDMSG: {
+                messageTypes.securedMsg = true;
+                break;
+            }
             case MCTP_MESSAGE_TYPE_VDPCI: {
                 messageTypes.vdpci = true;
                 break;
