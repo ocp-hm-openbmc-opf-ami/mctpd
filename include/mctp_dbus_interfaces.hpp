@@ -36,6 +36,7 @@ struct MsgTypes
     bool ethernet = false;
     bool nvmeMgmtMsg = false;
     bool spdm = false;
+    bool securedMsg = false;
     bool vdpci = false;
     bool vdiana = false;
 };

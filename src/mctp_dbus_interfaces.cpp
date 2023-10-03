@@ -87,6 +87,7 @@ void MCTPDBusInterfaces::registerMsgTypes(
     msgTypeIntf->register_property("Ethernet", messageType.ethernet);
     msgTypeIntf->register_property("NVMeMgmtMsg", messageType.nvmeMgmtMsg);
     msgTypeIntf->register_property("SPDM", messageType.spdm);
+    msgTypeIntf->register_property("SECUREDMSG", messageType.securedMsg);
     msgTypeIntf->register_property("VDPCI", messageType.vdpci);
     msgTypeIntf->register_property("VDIANA", messageType.vdiana);
     msgTypeIntf->initialize();
