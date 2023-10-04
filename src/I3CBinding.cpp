@@ -68,7 +68,8 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                 requiredEIDPoolSizeFromBO = conf.requiredEIDPoolSizeFromBO;
                 for (const auto& dist : conf.downstreamEIDPoolDistribution)
                 {
-                    downstreamEIDPools[dist.first] = {0, dist.second, false, false};
+                    downstreamEIDPools[dist.first] = {0, dist.second, false,
+                                                      false};
                 }
             }
             supportOEMBindingBehindBO = conf.supportOEMBindingBehindBO;
@@ -186,7 +187,7 @@ mctp_server::BindingModeTypes
     {
         return mctp_server::BindingModeTypes::BusOwner;
     }
-    switch (std::get<2>(routingEntry))
+    switch (GET_ROUTING_ENTRY_TYPE(std::get<2>(routingEntry)))
     {
         case MCTP_ROUTING_ENTRY_BRIDGE_AND_ENDPOINTS:
         case MCTP_ROUTING_ENTRY_BRIDGE:
