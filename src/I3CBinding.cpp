@@ -107,24 +107,29 @@ void I3CBinding::onI3CDeviceChangeCallback()
 
 void I3CBinding::triggerDeviceDiscovery()
 {
-    phosphor::logging::log<phosphor::logging::level::ERR>(
-        "Triggering device discovery");
-
     // Expects to receive allocate eid command again after this
     for (auto& allocInfo : downstreamEIDPools)
     {
         allocInfo.second.allocated = false;
     }
 
-    if (bindingModeType == mctp_server::BindingModeTypes::Bridge ||
-        bindingModeType == mctp_server::BindingModeTypes::BusOwner)
-    {
-        for (auto eid : eidTable)
+    boost::asio::spawn(io, [this](boost::asio::yield_context yield) {
+        auto lock = regInProgress.lock(yield, regTimeout);
+
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "Triggering device discovery");
+
+        if (bindingModeType == mctp_server::BindingModeTypes::Bridge ||
+            bindingModeType == mctp_server::BindingModeTypes::BusOwner)
         {
-            unregisterEndpoint(eid);
+            for (auto eid : eidTable)
+            {
+                clearRegisteredDevice(eid);
+            }
+            eidTable.clear();
+            eidPool.clearEIDPool();
         }
-        eidPool.clearEIDPool();
-    }
+    });
 
     if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
     {
@@ -571,6 +576,7 @@ bool I3CBinding::handleDiscoveryNotify(
         // Create a co-routine and register the endpoint
         boost::asio::spawn(
             io, [this, destEid](boost::asio::yield_context yield) {
+                auto lock = regInProgress.lock(yield, regTimeout);
                 mctp_asti3c_pkt_private pktPrv;
                 pktPrv.fd = mctpI3CFd;
                 uint8_t* pktPrvPtr = reinterpret_cast<uint8_t*>(&pktPrv);
@@ -874,4 +880,71 @@ bool I3CBinding::forwardEIDPool(boost::asio::yield_context& yield,
         return false;
     }
     return true;
+}
+
+void I3CBinding::onEIDPool()
+{
+    if (bindingModeType != mctp_server::BindingModeTypes::BusOwner)
+    {
+        return;
+    }
+
+    boost::asio::spawn(io, [this](boost::asio::yield_context yield) {
+        auto lock = regInProgress.lock(yield, regTimeout);
+
+        mctp_asti3c_pkt_private pktPrv;
+        pktPrv.fd = mctpI3CFd;
+        uint8_t* pktPrvPtr = reinterpret_cast<uint8_t*>(&pktPrv);
+        std::vector<uint8_t> prvData =
+            std::vector<uint8_t>(pktPrvPtr, pktPrvPtr + sizeof(pktPrv));
+
+        std::vector<uint8_t> getEidResp = {};
+        if (!(getEidCtrlCmd(yield, prvData, MCTP_EID_NULL, getEidResp)))
+        {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "OnEIDPool. Get EID failed");
+            return;
+        }
+
+        const mctp_ctrl_resp_get_eid* getEidRespPtr =
+            reinterpret_cast<mctp_ctrl_resp_get_eid*>(getEidResp.data());
+
+        if (getEidRespPtr->eid == MCTP_EID_NULL)
+        {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "Endpoint dont have an EID yet. It will send DicoveryNotify "
+                "again");
+            // Endpoint dont have an EID yet. It will send DicoveryNotify again.
+            return;
+        }
+
+        mctp_eid_t destEid = getEidRespPtr->eid;
+
+        try
+        {
+            auto& entry = this->routingTable.getEntry(destEid);
+            if (entry.isUpstream == false)
+            {
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    "Endpoint already registered");
+                return;
+            }
+        }
+        catch (const std::exception& e)
+        {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                ("Continue registration. " + std::string(e.what())).c_str());
+        }
+
+        if (!eidPool.contains(destEid))
+        {
+            destEid = MCTP_EID_NULL;
+        }
+
+        auto endPoint = registerEndpoint(yield, prvData, destEid);
+        if (endPoint.has_value())
+        {
+            eidTable.insert(endPoint.value());
+        }
+    });
 }

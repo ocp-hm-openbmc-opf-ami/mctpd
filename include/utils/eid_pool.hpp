@@ -30,6 +30,7 @@ class EidPool
     void updateEidStatus(const mctp_eid_t endpointId, const bool assigned);
     mctp_eid_t getAvailableEidFromPool();
     void clearEIDPool();
+    bool contains(mctp_eid_t eid) const;
 
   private:
     std::vector<std::pair<mctp_eid_t, bool>> eidPool;

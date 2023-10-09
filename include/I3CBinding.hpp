@@ -71,6 +71,7 @@ class I3CBinding : public MctpBinding
     void populateDeviceProperties(
         const mctp_eid_t eid,
         const std::vector<uint8_t>& bindingPrivate) override;
+    void onEIDPool() override;
 
   private:
     std::set<mctp_eid_t> eidTable;

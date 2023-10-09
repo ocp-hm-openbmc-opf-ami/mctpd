@@ -21,6 +21,7 @@
 #include "utils/Configuration.hpp"
 #include "utils/transmission_queue.hpp"
 #include "utils/types.hpp"
+#include "utils/wait_cond.hpp"
 
 #include <libmctp-cmds.h>
 
@@ -60,6 +61,9 @@ class MctpBinding : public MCTPBridge
     mctp_eid_t reservedEID = 0;
     mctpd::MctpTransmissionQueue transmissionQueue;
     bridging::MCTPServiceScanner mctpServiceScanner;
+    WaitCondition regInProgress;
+    static inline constexpr boost::posix_time::millisec regTimeout =
+        boost::posix_time::millisec(1500);
 
     virtual bool reserveBandwidth(boost::asio::yield_context yield,
                                   const mctp_eid_t eid, const uint16_t timeout);
@@ -106,6 +110,7 @@ class MctpBinding : public MCTPBridge
 
     virtual bool setEIDPool(const uint8_t startEID, const uint8_t poolSize);
     void onNewService(const std::string& serviceName);
+    virtual void onEIDPool();
 
   private:
     bool staticEid;

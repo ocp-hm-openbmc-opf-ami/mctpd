@@ -112,7 +112,7 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                          boost::asio::io_context& ioc,
                          const mctp_server::BindingTypes bindingType) :
     MCTPBridge(conn, ioc, objServer),
-    mctpServiceScanner(connection), bindingID(bindingType)
+    mctpServiceScanner(connection), regInProgress(ioc), bindingID(bindingType)
 {
     objServer->add_manager(objPath);
     mctpServiceScanner.setAllowedBuses(conf.allowedBuses.begin(),
@@ -891,15 +891,20 @@ bool MctpBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
         eidRange.insert(i);
     }
 
-    eidPool.clearEIDPool();
-    eidPool.initializeEidPool(eidRange);
-
-    // TODO - If the bus was already initialised, then
-    // reinitialisation of the existing Endpoints should happen
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("Setting EID pool " + std::to_string(startEID) + " + " +
          std::to_string(poolSize))
             .c_str());
+
+    boost::asio::spawn(io, [this, eidRange](boost::asio::yield_context yield) {
+        auto lock = regInProgress.lock(yield, regTimeout);
+
+        eidPool.clearEIDPool();
+        eidPool.initializeEidPool(eidRange);
+
+        onEIDPool();
+    });
+
     return true;
 }
 
@@ -927,7 +932,7 @@ void MctpBinding::onNewService(const std::string& service)
 
             setEIDPoolTimer.expires_from_now(dbusDelay);
             setEIDPoolTimer.async_wait(yield[ec]);
-            
+
             if (ec)
             {
                 // Timer exited abruptly.
@@ -940,4 +945,8 @@ void MctpBinding::onNewService(const std::string& service)
                     "SetEID pool returned false from service callback");
             }
         });
+}
+
+void MctpBinding::onEIDPool()
+{
 }
