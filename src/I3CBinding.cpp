@@ -314,6 +314,8 @@ void I3CBinding::readRoutingTable(
 
             if (routingTableEntry->starting_eid == ownEid)
             {
+                entryOffset += (sizeof(get_routing_table_entry)) + 
+                    routingTableEntry->phys_address_size;
                 continue;
             }
 
