@@ -49,6 +49,50 @@ I3CDriver::I3CDriver(boost::asio::io_context& ioc, uint8_t i3cBusNum,
     }
 }
 
+void I3CDriver::rebindI3CBus()
+{
+    auto search = i3cBusMap.find(busNum);
+    if (search != i3cBusMap.end())
+    {
+        std::string unbindFile =
+            "/sys/bus/platform/drivers/dw-i3c-master/unbind";
+        std::string bindFile = "/sys/bus/platform/drivers/dw-i3c-master/bind";
+
+        std::string busName = search->second;
+        std::fstream deviceFile;
+
+        // Unbind the driver
+        deviceFile.open(unbindFile, std::ios::out);
+        if (deviceFile.is_open())
+        {
+            deviceFile << busName;
+            deviceFile.close();
+        }
+        else
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Error unbinding I3C driver");
+            return;
+        }
+
+        // Blocking wait necessary here
+        sleep(1);
+
+        // Bind the driver
+        deviceFile.open(bindFile, std::ios::out);
+        if (deviceFile.is_open())
+        {
+            deviceFile << busName;
+            deviceFile.close();
+        }
+        else
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Error binding I3C driver");
+        }
+    }
+}
+
 void I3CDriver::rescanI3CBus()
 {
     auto search = i3cBusMap.find(busNum);
@@ -76,15 +120,29 @@ void I3CDriver::rescanI3CBus()
             return;
         }
 
-        rescanFile.open(rescanFilePath, std::ios::out);
-        if (rescanFile.is_open())
+        int fd = open(rescanFilePath.c_str(), O_WRONLY);
+        if (fd > 0)
         {
-            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            phosphor::logging::log<phosphor::logging::level::INFO>(
                 "Running rescan");
-            rescanFile << 1;
-            rescanFile.flush();
-            rescanFile.close();
+            const char* writeData = "1";
+            int status = write(fd, reinterpret_cast<const void*>(writeData), 1);
+            if (status != 1)
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    ("Write status " + std::to_string(status) + " Errno " +
+                     std::to_string(errno))
+                        .c_str());
+            }
+
             sleep(1);
+            // Remove after I3C stack is stable
+            for (const auto& entry :
+                 std::filesystem::directory_iterator("/sys/bus/i3c/devices"))
+            {
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    (std::string("Found ") + entry.path().c_str()).c_str());
+            }
         }
         else
         {
@@ -108,51 +166,65 @@ void I3CDriver::closeFile()
 void I3CDriver::discoverI3CDevices()
 {
     closeFile();
-    if (isController)
+    static constexpr int maxI3CRetries = 20;
+    int retriesLeft = maxI3CRetries;
+    while (retriesLeft > 0)
     {
-        // Multiple daemon instances serve on the same I3C bus. To avoid
-        // rescanning from all the buses, rescan only from the first instance
-        // and simply do a block wait in other daemon instances. First instance
-        // is identified where instance id field in PID mask is 0
-        if (pidMask.has_value())
+        retriesLeft--;
+        if (isController)
         {
-            static constexpr uint16_t instIdMask = 0xFF00;
-            if ((pidMask.value() & instIdMask) == 0)
+            // Multiple daemon instances serve on the same I3C bus. To avoid
+            // rescanning from all the buses, rescan only from the first
+            // instance and simply do a block wait in other daemon instances.
+            // First instance is identified where instance id field in PID mask
+            // is 0
+            if (pidMask.has_value())
             {
-                rescanI3CBus();
-            }
-            else
-            {
-                sleep(5);
+                static constexpr uint16_t instIdMask = 0xFF00;
+                if ((pidMask.value() & instIdMask) == 0)
+                {
+                    if (retriesLeft >= 3)
+                    {
+                        rebindI3CBus();
+                    }
+                    rescanI3CBus();
+                }
+                else
+                {
+                    sleep(5);
+                }
             }
         }
-    }
 
-    if (findMCTPI3CDevice(busNum, pidMask, i3cDeviceFile))
-    {
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
-            ("I3C device file: " + i3cDeviceFile).c_str());
-        streamMonitorFd = open(i3cDeviceFile.c_str(), O_RDWR);
-        if (streamMonitorFd < 0)
+        if (findMCTPI3CDevice(busNum, pidMask, i3cDeviceFile))
+        {
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                ("I3C device file: " + i3cDeviceFile).c_str());
+            streamMonitorFd = open(i3cDeviceFile.c_str(), O_RDWR);
+            if (streamMonitorFd < 0)
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Error opening I3C device file");
+                return;
+            }
+            int rc =
+                ioctl(streamMonitorFd, I3C_MCTP_IOCTL_REGISTER_DEFAULT_CLIENT);
+            if (rc < 0 && isController)
+            {
+                close(streamMonitorFd);
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Error registering MCTP o. I3C default client");
+                return;
+            }
+            streamMonitor.assign(streamMonitorFd);
+            break;
+        }
+        else
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Error opening I3C device file");
-            return;
+                "No device found");
+            sleep(1);
         }
-        int rc = ioctl(streamMonitorFd, I3C_MCTP_IOCTL_REGISTER_DEFAULT_CLIENT);
-        if (rc < 0 && isController)
-        {
-            close(streamMonitorFd);
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Error registering MCTP o. I3C default client");
-            return;
-        }
-        streamMonitor.assign(streamMonitorFd);
-    }
-    else
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "No device found");
     }
 }
 
