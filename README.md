@@ -21,7 +21,7 @@ Supports
 
 ### Assumptions
 1. Bus Owners to have a statically allocated pool of EIDs
-2. SMBus ARP Master is out of scope for this document
+2. SMBus ARP Controller is out of scope for this document
 3. PLDM, Intel Vendor Defined Messages and other MCTP Message Types are out of
    scope
 

@@ -148,7 +148,7 @@ TEST_F(MctpdBaseTest, BaseIfPropertyTest)
 
     EXPECT_CALL(
         *smbusInterface,
-        register_property(StrEq("ArpMasterSupport"), An<bool>(),
+        register_property(StrEq("ArpControllerSupport"), An<bool>(),
                           Eq(sdbusplus::asio::PropertyPermission::readOnly)))
         .Times(1)
         .WillRepeatedly(Return(true));

@@ -121,7 +121,7 @@ bool getAddr(std::string& path, uint8_t& addr)
 bool findMCTPI3CDevice(uint8_t busNum, std::optional<uint16_t> pidMask,
                        std::string& file)
 {
-    /* MCTP binding configured on a I3C master */
+    /* MCTP binding configured on a I3C controller */
     if (pidMask.has_value())
     {
         auto matchString = std::string(R"(i3c-mctp-\d+$)");
