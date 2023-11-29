@@ -118,6 +118,34 @@ bool getAddr(std::string& path, uint8_t& addr)
     return true;
 }
 
+bool getStatus(std::string& path, uint32_t& status)
+{
+    std::optional<std::string> i3cDevice = getI3CSysPath(path);
+    if (!i3cDevice.has_value())
+    {
+        return false;
+    }
+
+    std::string statusFile = i3cDevice.value() + "/status";
+    std::string statusStr{};
+
+    std::ifstream readFile(statusFile.c_str());
+    std::getline(readFile, statusStr);
+
+    try
+    {
+        status = static_cast<uint32_t>(std::stoul(statusStr, nullptr, 16));
+    }
+    catch (...)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Status not read");
+        return false;
+    }
+
+    return true;
+}
+
 bool findMCTPI3CDevice(uint8_t busNum, std::optional<uint16_t> pidMask,
                        std::string& file)
 {

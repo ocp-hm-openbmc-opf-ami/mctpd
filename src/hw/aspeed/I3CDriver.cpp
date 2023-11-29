@@ -49,50 +49,6 @@ I3CDriver::I3CDriver(boost::asio::io_context& ioc, uint8_t i3cBusNum,
     }
 }
 
-void I3CDriver::rebindI3CBus()
-{
-    auto search = i3cBusMap.find(busNum);
-    if (search != i3cBusMap.end())
-    {
-        std::string unbindFile =
-            "/sys/bus/platform/drivers/dw-i3c-master/unbind";
-        std::string bindFile = "/sys/bus/platform/drivers/dw-i3c-master/bind";
-
-        std::string busName = search->second;
-        std::fstream deviceFile;
-
-        // Unbind the driver
-        deviceFile.open(unbindFile, std::ios::out);
-        if (deviceFile.is_open())
-        {
-            deviceFile << busName;
-            deviceFile.close();
-        }
-        else
-        {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Error unbinding I3C driver");
-            return;
-        }
-
-        // Blocking wait necessary here
-        sleep(1);
-
-        // Bind the driver
-        deviceFile.open(bindFile, std::ios::out);
-        if (deviceFile.is_open())
-        {
-            deviceFile << busName;
-            deviceFile.close();
-        }
-        else
-        {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Error binding I3C driver");
-        }
-    }
-}
-
 void I3CDriver::rescanI3CBus()
 {
     auto search = i3cBusMap.find(busNum);
@@ -183,10 +139,6 @@ void I3CDriver::discoverI3CDevices()
                 static constexpr uint16_t instIdMask = 0xFF00;
                 if ((pidMask.value() & instIdMask) == 0)
                 {
-                    if (retriesLeft >= 3)
-                    {
-                        rebindI3CBus();
-                    }
                     rescanI3CBus();
                 }
                 else
@@ -206,6 +158,17 @@ void I3CDriver::discoverI3CDevices()
                 phosphor::logging::log<phosphor::logging::level::ERR>(
                     "Error opening I3C device file");
                 return;
+            }
+            uint32_t status = 0;
+            /*
+             * Although the device is there - it may be not accessible due to
+             * power shortage or some other reason.
+             * Issue GETSTATUS CCC to the device to ensure it is ready to
+             * communicate via I3C. If not - allow another DAA happen and try again.
+             */
+            if (isController && !getStatus(i3cDeviceFile, status)) {
+                sleep(1);
+                continue;
             }
             int rc =
                 ioctl(streamMonitorFd, I3C_MCTP_IOCTL_REGISTER_DEFAULT_CLIENT);

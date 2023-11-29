@@ -54,7 +54,6 @@ class I3CDriver : public hw::I3CDriver
     uint8_t busNum;
     void discoverI3CDevices();
     void rescanI3CBus();
-    void rebindI3CBus();
     void closeFile();
 };
 

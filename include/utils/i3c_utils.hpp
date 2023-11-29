@@ -26,3 +26,4 @@ bool findMCTPI3CDevice(uint8_t busNum, std::optional<uint16_t> pidMask,
 
 bool getPID(std::string& path, std::string& pidStr);
 bool getAddr(std::string& path, uint8_t& addr);
+bool getStatus(std::string& path, uint32_t& status);
