@@ -40,6 +40,7 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
     i3cInterface =
         objServer->add_interface(objPath, I3CBindingServer::interface);
 
+    setupHostResetMatch(connection, this);
     try
     {
         mctpI3CFd = hw->getDriverFd();
@@ -740,8 +741,6 @@ void I3CBinding::initializeBinding()
     mctp_set_rx_ctrl(mctp, &MctpBinding::handleMCTPControlRequests,
                      static_cast<MctpBinding*>(this));
     mctp_binding_set_tx_enabled(binding, true);
-
-    setupHostResetMatch(connection, this);
 
     hw->pollRx();
 
