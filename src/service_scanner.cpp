@@ -422,18 +422,15 @@ void MCTPServiceScanner::onHotPluggedEid(sdbusplus::message::message& message)
                     }
                     ep.service = this->getMctpServiceDetails(
                         yield, message.get_sender());
-                    if (updatePhysicalDetails(connection, yield, objectPath,
-                                              serviceName, ep))
-                    {
-                        this->onNewEid(ep, true);
-                    }
-                    else
+                    if (!updatePhysicalDetails(connection, yield, objectPath,
+                                               serviceName, ep))
                     {
                         phosphor::logging::log<
                             phosphor::logging::level::WARNING>(
                             "onHotPlugged failed to get physical address "
                             "details");
                     }
+                    this->onNewEid(ep, true);
                 }
                 catch (const std::exception& e)
                 {

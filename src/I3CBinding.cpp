@@ -880,6 +880,24 @@ bool I3CBinding::forwardEIDPool(boost::asio::yield_context& yield,
             "Allocate EID rejected by the endpoint");
         return false;
     }
+
+    uint8_t eid;
+    for (eid = 0; eid < poolSize; eid++)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("Registering downstream eid " + std::to_string(startEID + eid))
+                .c_str());
+        EndpointProperties epProperties;
+        epProperties.endpointMsgTypes.mctpControl = false;
+        epProperties.endpointEid = startEID + eid;
+        epProperties.mode = sdbusplus::xyz::openbmc_project::MCTP::server::
+            Base::BindingModeTypes::Endpoint;
+
+        eidTable.emplace(epProperties.endpointEid);
+        populateEndpointProperties(epProperties);
+        populateDeviceProperties(epProperties.endpointEid, {});
+    }
+
     return true;
 }
 
