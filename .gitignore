@@ -1,3 +1,6 @@
 build/*
 bin/*
 .vscode/*
+/subprojects/*
+!/subprojects/packagefiles/
+!/subprojects/*.wrap

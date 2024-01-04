@@ -77,5 +77,11 @@ To build the package do the following
 3. cmake -DBUILD_STANDALONE=ON -DMCTPD_BUILD_UT=ON ../
 4. make
 
+## Standalone Build meson
+
+1. mkdir build
+2. meson setup build
+3. meson compile -C build
+
 ## TODO Items
 1. MCTP bridging

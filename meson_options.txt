@@ -1,0 +1,3 @@
+option(
+    'yocto_dep', type: 'feature',  description: 'Use yocto dependencies'
+)
