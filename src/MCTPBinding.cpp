@@ -301,73 +301,8 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
             [this](boost::asio::yield_context yield, uint8_t dstEid,
                    std::vector<uint8_t> payload,
                    uint16_t timeout) -> std::vector<uint8_t> {
-                if (rsvBWActive && dstEid != reservedEID)
-                {
-                    phosphor::logging::log<phosphor::logging::level::WARNING>(
-                        (("SendReceiveMctpMessagePayload is not allowed. "
-                          "ReserveBandwidth is "
-                          "active for EID: ") +
-                         std::to_string(reservedEID))
-                            .c_str());
-                    throw std::system_error(
-                        std::make_error_code(std::errc::invalid_argument));
-                }
-
-                if (payload.size() > 0)
-                {
-                    uint8_t msgType = payload[0]; // Always the first byte
-                    if (msgType == MCTP_MESSAGE_TYPE_MCTP_CTRL)
-                    {
-                        phosphor::logging::log<
-                            phosphor::logging::level::WARNING>(
-                            "Transmiting control message");
-                    }
-                }
-
-                std::optional<std::vector<uint8_t>> pvtData =
-                    getBindingPrivateData(dstEid);
-                if (!pvtData)
-                {
-                    phosphor::logging::log<phosphor::logging::level::ERR>(
-                        "SendReceiveMctpMessagePayload: Invalid destination "
-                        "EID");
-                    throw std::system_error(
-                        std::make_error_code(std::errc::invalid_argument));
-                }
-
-                boost::system::error_code ec;
-                auto message =
-                    transmissionQueue.transmit(mctp, dstEid, std::move(payload),
-                                               std::move(pvtData).value(), io);
-
-                message->timer.expires_after(
-                    std::chrono::milliseconds(timeout));
-                message->timer.async_wait(yield[ec]);
-
-                if (ec && ec != boost::asio::error::operation_aborted)
-                {
-                    transmissionQueue.dispose(dstEid, message);
-                    phosphor::logging::log<phosphor::logging::level::ERR>(
-                        "Timer failed");
-                    throw std::system_error(
-                        std::make_error_code(std::errc::connection_aborted));
-                }
-                if (!message->response)
-                {
-                    transmissionQueue.dispose(dstEid, message);
-                    phosphor::logging::log<phosphor::logging::level::ERR>(
-                        "No response");
-                    throw std::system_error(
-                        std::make_error_code(std::errc::timed_out));
-                }
-                if (message->response->empty())
-                {
-                    phosphor::logging::log<phosphor::logging::level::ERR>(
-                        "Empty response");
-                    throw std::system_error(
-                        std::make_error_code(std::errc::no_message_available));
-                }
-                return std::move(message->response).value();
+                return this->sendReceiveMctpMessagePayload(yield, dstEid,
+                                                           payload, timeout);
             });
 
         mctpInterface->register_signal<uint8_t, uint8_t, uint8_t, bool,
@@ -949,4 +884,66 @@ void MctpBinding::onNewService(const std::string& service)
 
 void MctpBinding::onEIDPool()
 {
+}
+
+std::vector<uint8_t> MctpBinding::sendReceiveMctpMessagePayload(
+    boost::asio::yield_context yield, uint8_t dstEid,
+    std::vector<uint8_t>& payload, uint16_t timeout)
+{
+    if (rsvBWActive && dstEid != reservedEID)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            (("SendReceiveMctpMessagePayload is not allowed. "
+              "ReserveBandwidth is "
+              "active for EID: ") +
+             std::to_string(reservedEID))
+                .c_str());
+        throw std::system_error(
+            std::make_error_code(std::errc::invalid_argument));
+    }
+
+    if (payload.size() > 0)
+    {
+        uint8_t msgType = payload[0]; // Always the first byte
+        if (msgType == MCTP_MESSAGE_TYPE_MCTP_CTRL)
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "Transmiting control message");
+        }
+    }
+
+    std::optional<std::vector<uint8_t>> pvtData = getBindingPrivateData(dstEid);
+    if (!pvtData)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "SendReceiveMctpMessagePayload: Invalid destination "
+            "EID");
+        throw std::system_error(
+            std::make_error_code(std::errc::invalid_argument));
+    }
+    boost::system::error_code ec;
+    auto message = transmissionQueue.transmit(mctp, dstEid, std::move(payload),
+                                              std::move(pvtData).value(), io);
+    message->timer.expires_after(std::chrono::milliseconds(timeout));
+    message->timer.async_wait(yield[ec]);
+    if (ec && ec != boost::asio::error::operation_aborted)
+    {
+        transmissionQueue.dispose(dstEid, message);
+        phosphor::logging::log<phosphor::logging::level::ERR>("Timer failed");
+        throw std::system_error(
+            std::make_error_code(std::errc::connection_aborted));
+    }
+    if (!message->response)
+    {
+        transmissionQueue.dispose(dstEid, message);
+        phosphor::logging::log<phosphor::logging::level::ERR>("No response");
+        throw std::system_error(std::make_error_code(std::errc::timed_out));
+    }
+    if (message->response->empty())
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>("Empty response");
+        throw std::system_error(
+            std::make_error_code(std::errc::no_message_available));
+    }
+    return std::move(message->response).value();
 }
