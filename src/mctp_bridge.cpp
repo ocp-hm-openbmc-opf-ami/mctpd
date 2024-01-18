@@ -528,7 +528,8 @@ static std::optional<mctp_eid_t> checkEIDMismatchAndGetEID(mctp_eid_t eid,
 
 std::optional<mctp_eid_t> MCTPBridge::busOwnerRegisterEndpoint(
     boost::asio::yield_context& yield,
-    const std::vector<uint8_t>& bindingPrivate, mctp_eid_t eid)
+    const std::vector<uint8_t>& bindingPrivate, mctp_eid_t eid,
+    EndpointProperties& epProperties)
 {
     MctpVersionSupportCtrlResp getMctpControlVersion = {};
     if (!(getMctpVersionSupportCtrlCmd(yield, bindingPrivate, MCTP_EID_NULL,
@@ -664,7 +665,6 @@ std::optional<mctp_eid_t> MCTPBridge::busOwnerRegisterEndpoint(
     }
 
     // Expose interface as per the result
-    EndpointProperties epProperties;
     epProperties.endpointEid = eid;
     epProperties.uuid = destUUID;
     try

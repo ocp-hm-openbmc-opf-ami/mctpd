@@ -601,8 +601,9 @@ std::optional<mctp_eid_t>
 {
     if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
     {
+        EndpointProperties epProperties;
         std::optional<mctp_eid_t> destEID =
-            busOwnerRegisterEndpoint(yield, bindingPrivate, eid);
+            busOwnerRegisterEndpoint(yield, bindingPrivate, eid, epProperties);
 
         // Handle the device if removed and the device reset due to Frimware
         // update/hot plugged.

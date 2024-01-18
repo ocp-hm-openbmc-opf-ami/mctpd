@@ -92,7 +92,8 @@ class MCTPBridge : public MCTPEndpoint
     std::optional<mctp_eid_t>
         busOwnerRegisterEndpoint(boost::asio::yield_context& yield,
                                  const std::vector<uint8_t>& bindingPrivate,
-                                 mctp_eid_t eid);
+                                 mctp_eid_t eid,
+                                 EndpointProperties& epProperties);
     void sendRoutingTableEntriesToBridge(
         const mctp_eid_t bridge, const std::vector<uint8_t>& bindingPrivate);
     void sendNewRoutingTableEntryToAllBridges(
