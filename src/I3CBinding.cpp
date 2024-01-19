@@ -480,14 +480,13 @@ void I3CBinding::processRoutingTableChanges(
      * in the newly read routing table remove dbus interface
      * for this device
      */
+    // processRoutingTableChanges will be called only if routing table changed.
+    // Unregister old EIDs and register new ones
     for (auto& routingEntry : routingTableResp)
     {
-        if (find(newTable.begin(), newTable.end(), routingEntry) ==
-            newTable.end())
-        {
-            unregisterEndpoint(std::get<0>(routingEntry));
-        }
+        unregisterEndpoint(std::get<0>(routingEntry));
     }
+    routingTableResp.clear();
 
     /* find new endpoints, in case entry is in the newly read
      * routing table but not present in the routing table stored as
