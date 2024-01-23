@@ -68,6 +68,8 @@ class I3CBinding : public MctpBinding
                                  [[maybe_unused]] void* bindingPrivate,
                                  [[maybe_unused]] std::vector<uint8_t>& request,
                                  std::vector<uint8_t>& response) override;
+    bool handleAllocateEID(std::vector<uint8_t>& request,
+                                   std::vector<uint8_t>& response) override;
     void populateDeviceProperties(
         const mctp_eid_t eid,
         const std::vector<uint8_t>& bindingPrivate) override;

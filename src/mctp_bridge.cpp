@@ -557,8 +557,11 @@ std::optional<mctp_eid_t> MCTPBridge::busOwnerRegisterEndpoint(
     {
         return std::nullopt;
     }
-    eid = destEID.value();
-
+    if (eidPool.contains(*destEID))
+    {
+        eid = destEID.value();
+    }
+    
     logUnsupportedMCTPVersion(getMctpControlVersion.verNoEntry, eid);
 
     std::vector<uint8_t> getUuidResp = {};
@@ -618,7 +621,6 @@ std::optional<mctp_eid_t> MCTPBridge::busOwnerRegisterEndpoint(
             return std::nullopt;
         }
     }
-
     // TODO: Routing table construction
     // TODO: Assigne pool of EID if the endpoint is a bridge
     // TODO: Take care of EIDs(Static EID) which are not owned by us

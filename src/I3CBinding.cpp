@@ -706,6 +706,20 @@ bool I3CBinding::handleRoutingInfoUpdate(
     return encode_cc_only_response(MCTP_CTRL_CC_SUCCESS, resp);
 }
 
+bool I3CBinding::handleAllocateEID(std::vector<uint8_t>& request,
+                                   std::vector<uint8_t>& response)
+{
+    if (!this->isResetReachable)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "Handling AllocateEID as Reset event");
+        // AllocateEID can be treated as espi reset happened in bus owner
+        this->triggerDeviceDiscovery();
+    }
+
+    return MCTPEndpoint::handleAllocateEID(request, response);
+}
+
 void I3CBinding::initializeBinding()
 {
     int status = 0;
@@ -938,25 +952,33 @@ void I3CBinding::onEIDPool()
 
         mctp_eid_t destEid = getEidRespPtr->eid;
 
-        try
-        {
-            auto& entry = this->routingTable.getEntry(destEid);
-            if (entry.isUpstream == false)
-            {
-                phosphor::logging::log<phosphor::logging::level::INFO>(
-                    "Endpoint already registered");
-                return;
-            }
-        }
-        catch (const std::exception& e)
-        {
-            phosphor::logging::log<phosphor::logging::level::INFO>(
-                ("Continue registration. " + std::string(e.what())).c_str());
-        }
-
         if (!eidPool.contains(destEid))
         {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                ("EID pool doesnot contains current eid " +
+                 std::to_string(destEid))
+                    .c_str());
+            clearRegisteredDevice(destEid);
             destEid = MCTP_EID_NULL;
+        }
+        else
+        {
+            try
+            {
+                auto& entry = this->routingTable.getEntry(destEid);
+                if (entry.isUpstream == false)
+                {
+                    phosphor::logging::log<phosphor::logging::level::INFO>(
+                        "Endpoint already registered");
+                    return;
+                }
+            }
+            catch (const std::exception& e)
+            {
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    ("Continue registration. " + std::string(e.what()))
+                        .c_str());
+            }
         }
 
         auto endPoint = registerEndpoint(yield, prvData, destEid);

@@ -112,7 +112,8 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                          boost::asio::io_context& ioc,
                          const mctp_server::BindingTypes bindingType) :
     MCTPBridge(conn, ioc, objServer),
-    mctpServiceScanner(connection), regInProgress(ioc), bindingID(bindingType)
+    mctpServiceScanner(connection), regInProgress(ioc),
+    isResetReachable(conf.isResetReachable), bindingID(bindingType)
 {
     objServer->add_manager(objPath);
     mctpServiceScanner.setAllowedBuses(conf.allowedBuses.begin(),
@@ -884,6 +885,20 @@ bool MctpBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
             "Invalid EID range passed to us");
         return false;
     }
+
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        ("Setting EID pool " + std::to_string(startEID) + " + " +
+         std::to_string(poolSize))
+            .c_str());
+            
+    if (!this->isResetReachable)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "Reset not reachable in OnEIDPool");
+        // AllocateEID can be treated as espi reset happened in bus owner
+        this->triggerDeviceDiscovery();
+    }
+
     std::set<mctp_eid_t> eidRange;
 
     for (uint8_t i = startEID; i < (startEID + poolSize); i++)
@@ -891,10 +906,6 @@ bool MctpBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
         eidRange.insert(i);
     }
 
-    phosphor::logging::log<phosphor::logging::level::INFO>(
-        ("Setting EID pool " + std::to_string(startEID) + " + " +
-         std::to_string(poolSize))
-            .c_str());
 
     boost::asio::spawn(io, [this, eidRange](boost::asio::yield_context yield) {
         auto lock = regInProgress.lock(yield, regTimeout);

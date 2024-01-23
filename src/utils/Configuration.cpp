@@ -284,6 +284,7 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
     uint64_t requiredEIDPoolSizeFromBO = 0;
     bool forwaredEIDPoolToEP = false;
     bool blockDicoveryNotify = false;
+    bool isResetReachable = true;
 
     if (!getField(map, "PhysicalMediumID", physicalMediumID))
     {
@@ -360,6 +361,7 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
 
     getField(map, "ForwardEIDPool", forwaredEIDPoolToEP);
     getField(map, "BlockDiscoveryNotify", blockDicoveryNotify);
+    getField(map, "IsResetReachable", isResetReachable);
 
     I3CConfiguration config;
 
@@ -392,6 +394,7 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
     config.forwaredEIDPoolToEP = forwaredEIDPoolToEP;
     config.blockDiscoveryNotify = blockDicoveryNotify;
     config.networkId = getNetworkID(map);
+    config.isResetReachable = isResetReachable;
 
     return config;
 }

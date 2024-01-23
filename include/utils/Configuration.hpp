@@ -44,6 +44,7 @@ struct Configuration
     bool supportOEMBindingBehindBO = false;
     // Configuration to skip devices for MCTP communications
     std::vector<std::string> skipList;
+    bool isResetReachable = true;
 
     virtual ~Configuration();
 };
