@@ -379,13 +379,13 @@ void PCIeBinding::updateRoutingTable()
 {
     struct mctp_astpcie_pkt_private pktPrv;
     getRoutingTableTimer.expires_from_now(getRoutingInterval);
-    getRoutingTableTimer.async_wait(
-        std::bind(&PCIeBinding::updateRoutingTable, this));
 
     if (discoveredFlag != pcie_binding::DiscoveryFlags::Discovered)
     {
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "Get Routing Table failed, undiscovered");
+        getRoutingTableTimer.async_wait(
+            std::bind(&PCIeBinding::updateRoutingTable, this));
         return;
     }
     pktPrv.routing = PCIE_ROUTE_BY_ID;
@@ -417,6 +417,8 @@ void PCIeBinding::updateRoutingTable()
             processRoutingTableChanges(routingTableTmp, yield, prvData);
             routingTableResp = routingTableTmp;
         }
+        getRoutingTableTimer.async_wait(
+            std::bind(&PCIeBinding::updateRoutingTable, this));
     });
 }
 
