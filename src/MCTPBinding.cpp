@@ -112,7 +112,7 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                          boost::asio::io_context& ioc,
                          const mctp_server::BindingTypes bindingType) :
     MCTPBridge(conn, ioc, objServer),
-    mctpServiceScanner(connection), regInProgress(ioc), bindingID(bindingType)
+    regInProgress(ioc), bindingID(bindingType)
 {
     objServer->add_manager(objPath);
     mctpServiceScanner.setAllowedBuses(conf.allowedBuses.begin(),
