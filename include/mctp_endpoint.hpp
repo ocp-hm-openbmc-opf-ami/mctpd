@@ -17,6 +17,7 @@
 #pragma once
 
 #include "mctp_device.hpp"
+#include "service_scanner.hpp"
 
 #include <optional>
 
@@ -35,6 +36,7 @@ class MCTPEndpoint : public MCTPDevice
                  std::shared_ptr<object_server>& objServer);
     MCTPEndpoint() = delete;
     virtual ~MCTPEndpoint() = default;
+    bridging::MCTPServiceScanner mctpServiceScanner;
 
   protected:
     std::shared_ptr<sdbusplus::asio::connection> connection;

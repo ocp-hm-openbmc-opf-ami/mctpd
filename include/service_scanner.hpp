@@ -74,6 +74,16 @@ class MCTPServiceScanner
     {
         allowedDestBuses.insert(begin, end);
     }
+    size_t getAllowedCPUBusses()
+    {
+        // Return how many allowed busses contains the string CPU in it
+        size_t count = 0;
+        count = std::count_if(
+            allowedDestBuses.begin(), allowedDestBuses.end(),
+            [](const std::string& i) { return i.find("CPU") 
+                                       != std::string::npos; });
+        return count;
+    }
     void scan();
 
   private:

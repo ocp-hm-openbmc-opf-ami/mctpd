@@ -60,7 +60,6 @@ class MctpBinding : public MCTPBridge
     bool rsvBWActive = false;
     mctp_eid_t reservedEID = 0;
     mctpd::MctpTransmissionQueue transmissionQueue;
-    bridging::MCTPServiceScanner mctpServiceScanner;
     WaitCondition regInProgress;
     bool isResetReachable = true;
     static inline constexpr boost::posix_time::millisec regTimeout =

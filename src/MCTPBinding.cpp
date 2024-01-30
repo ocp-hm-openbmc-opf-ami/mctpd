@@ -111,8 +111,7 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                          const std::string& objPath, const Configuration& conf,
                          boost::asio::io_context& ioc,
                          const mctp_server::BindingTypes bindingType) :
-    MCTPBridge(conn, ioc, objServer),
-    mctpServiceScanner(connection), regInProgress(ioc),
+    MCTPBridge(conn, ioc, objServer), regInProgress(ioc),
     isResetReachable(conf.isResetReachable), bindingID(bindingType)
 {
     objServer->add_manager(objPath);
