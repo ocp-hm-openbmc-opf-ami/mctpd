@@ -362,6 +362,14 @@ MsgTypes MCTPDevice::getMsgTypes(const std::vector<uint8_t>& msgType)
                 messageTypes.securedMsg = true;
                 break;
             }
+            case MCTP_MESSAGE_TYPE_CXL_FM_API: {
+                messageTypes.cxlFmApi = true;
+                break;
+            }
+            case MCTP_MESSAGE_TYPE_CXL_CCI: {
+                messageTypes.cxlCci = true;
+                break;
+            }
             case MCTP_MESSAGE_TYPE_VDPCI: {
                 messageTypes.vdpci = true;
                 break;

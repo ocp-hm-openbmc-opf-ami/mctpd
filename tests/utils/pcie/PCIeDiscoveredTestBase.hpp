@@ -40,6 +40,8 @@ static const std::map<uint8_t, std::string> msgTypeToPropertyName{
     {MCTP_MESSAGE_TYPE_ETHERNET, "Ethernet"},
     {MCTP_MESSAGE_TYPE_NVME, "NVMeMgmtMsg"},
     {MCTP_MESSAGE_TYPE_SPDM, "SPDM"},
+    {MCTP_MESSAGE_TYPE_CXL_CCI, "CXLCCI"},
+    {MCTP_MESSAGE_TYPE_CXL_FM_API, "CXLFMAPI"},
     {MCTP_MESSAGE_TYPE_VDPCI, "VDPCI"},
     {MCTP_MESSAGE_TYPE_VDIANA, "VDIANA"}};
 

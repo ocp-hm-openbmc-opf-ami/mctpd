@@ -482,6 +482,8 @@ bool MctpBinding::registerUpperLayerResponder(uint8_t typeNo,
         case MCTP_MESSAGE_TYPE_ETHERNET:
         case MCTP_MESSAGE_TYPE_NVME:
         case MCTP_MESSAGE_TYPE_SPDM:
+        case MCTP_MESSAGE_TYPE_CXL_FM_API:
+        case MCTP_MESSAGE_TYPE_CXL_CCI:
         case MCTP_MESSAGE_TYPE_SECUREDMSG:
             ret = manageVersionInfo(typeNo, versionData);
             break;

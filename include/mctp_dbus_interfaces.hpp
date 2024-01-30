@@ -37,6 +37,8 @@ struct MsgTypes
     bool nvmeMgmtMsg = false;
     bool spdm = false;
     bool securedMsg = false;
+    bool cxlCci = false;
+    bool cxlFmApi = false;
     bool vdpci = false;
     bool vdiana = false;
 };
