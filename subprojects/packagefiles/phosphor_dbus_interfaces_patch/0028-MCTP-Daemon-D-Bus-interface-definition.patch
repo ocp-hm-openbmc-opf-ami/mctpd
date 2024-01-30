@@ -1,4 +1,4 @@
-From 7330be5fa9258d1cd2a11ff13381a22fcdd59642 Mon Sep 17 00:00:00 2001
+From b4fa0b5c3cc965132fc913e80d60bfaa998a7b11 Mon Sep 17 00:00:00 2001
 From: "Kowalski, Mariusz" <mariusz.kowalski@intel.com>
 Date: Thu, 27 Feb 2020 15:48:56 +0100
 Subject: [PATCH] MCTP Daemon D-Bus interface definition.
@@ -13,13 +13,13 @@ Signed-off-by: Karol Wachowski <karol.wachowski@intel.com>
 Change-Id: Ida66f8ffcf00003655edcb0fb0112202797b8e1a
 Upstream-Status: Pending
 ---
- .../openbmc_project/MCTP/Base.interface.yaml  | 227 ++++++++++++++++++
+ .../openbmc_project/MCTP/Base.interface.yaml  | 229 ++++++++++++++++++
  .../MCTP/Binding/PCIe.interface.yaml          |  29 +++
  .../MCTP/Binding/SMBus.interface.yaml         |  17 ++
  .../MCTP/BusOwner.interface.yaml              |  17 ++
- .../MCTP/Endpoint.interface.yaml              |   5 +
- .../MCTP/SupportedMessageTypes.interface.yaml |  36 +++
- 6 files changed, 331 insertions(+)
+ .../MCTP/Endpoint.interface.yaml              |  15 +-
+ .../MCTP/SupportedMessageTypes.interface.yaml |  44 ++++
+ 6 files changed, 346 insertions(+), 5 deletions(-)
  create mode 100644 yaml/xyz/openbmc_project/MCTP/Base.interface.yaml
  create mode 100644 yaml/xyz/openbmc_project/MCTP/Binding/PCIe.interface.yaml
  create mode 100644 yaml/xyz/openbmc_project/MCTP/Binding/SMBus.interface.yaml
@@ -28,10 +28,10 @@ Upstream-Status: Pending
 
 diff --git a/yaml/xyz/openbmc_project/MCTP/Base.interface.yaml b/yaml/xyz/openbmc_project/MCTP/Base.interface.yaml
 new file mode 100644
-index 0000000..9438551
+index 0000000..6208e61
 --- /dev/null
 +++ b/yaml/xyz/openbmc_project/MCTP/Base.interface.yaml
-@@ -0,0 +1,227 @@
+@@ -0,0 +1,229 @@
 +description: >
 +  Mandatory interface for each instance of the MCTP Daemon to expose
 +  the base MCTP daemon and medium type interfaces.
@@ -257,6 +257,8 @@ index 0000000..9438551
 +    - name: Ethernet
 +    - name: NVMeMgmtMsg
 +    - name: SPDM
++    - name: CXLCCI
++    - name: CXLFMAPI
 +    - name: VDPCI
 +    - name: VDIANA
 diff --git a/yaml/xyz/openbmc_project/MCTP/Binding/PCIe.interface.yaml b/yaml/xyz/openbmc_project/MCTP/Binding/PCIe.interface.yaml
@@ -296,7 +298,7 @@ index 0000000..1bd2881
 +        - name: NotApplicable
 diff --git a/yaml/xyz/openbmc_project/MCTP/Binding/SMBus.interface.yaml b/yaml/xyz/openbmc_project/MCTP/Binding/SMBus.interface.yaml
 new file mode 100644
-index 0000000..9219ad0
+index 0000000..a0c4a9f
 --- /dev/null
 +++ b/yaml/xyz/openbmc_project/MCTP/Binding/SMBus.interface.yaml
 @@ -0,0 +1,17 @@
@@ -341,12 +343,12 @@ index 0000000..d46298e
 +      type: boolean
 +      description: Indicates Eid pool is managed by self
 diff --git a/yaml/xyz/openbmc_project/MCTP/Endpoint.interface.yaml b/yaml/xyz/openbmc_project/MCTP/Endpoint.interface.yaml
-index 8cb0f13..abb3ac9 100644
+index 568fb99..d2dcd71 100644
 --- a/yaml/xyz/openbmc_project/MCTP/Endpoint.interface.yaml
 +++ b/yaml/xyz/openbmc_project/MCTP/Endpoint.interface.yaml
 @@ -6,6 +6,11 @@ description: >
      MCTP-capable management controllers and managed devices.
-
+ 
  properties:
 +    - name: Mode
 +      type: enum[xyz.openbmc_project.MCTP.Base.BindingModeTypes]
@@ -356,12 +358,26 @@ index 8cb0f13..abb3ac9 100644
      - name: NetworkId
        type: uint32
        description: >
+@@ -34,8 +39,8 @@ properties:
+           communication payload in an MCTP message. The well defined message
+           types are MCTP Control(0x00), PLDM(0x01), NC-SI over MCTP(0x02),
+           Ethernet over MCTP(0x03), NVM Express Management Messages over
+-          MCTP(0x04) and SPDM over MCTP(0x05). There are ranges for vendor
+-          defined message types. All the message types are specified in the
+-          DSP0239 specification. A device that supports a given message type may
+-          not support that message type equally across all buses that connect to
+-          the device.
++          MCTP(0x04) and SPDM over MCTP(0x05),CXL FM APIover MCTP(0x07),CXL 
++          CCI over MCTP(0x08).There are ranges for vendor defined message types.
++          All the message types are specified in the DSP0239 specification. 
++          A device that supports a given message type may not support that
++          message type equally across all buses that connect to the device.
 diff --git a/yaml/xyz/openbmc_project/MCTP/SupportedMessageTypes.interface.yaml b/yaml/xyz/openbmc_project/MCTP/SupportedMessageTypes.interface.yaml
 new file mode 100644
-index 0000000..fa447ee
+index 0000000..19c969b
 --- /dev/null
 +++ b/yaml/xyz/openbmc_project/MCTP/SupportedMessageTypes.interface.yaml
-@@ -0,0 +1,36 @@
+@@ -0,0 +1,44 @@
 +description:
 +  Interface used to represent the supported MCTP message types.
 +  This will be exposed by all MCTP endpoints.
@@ -391,6 +407,14 @@ index 0000000..fa447ee
 +      type: boolean
 +      description: Indicates support availability
 +
++    - name: CXLCCI
++      type: boolean
++      description: Indicates support availability
++
++    - name: CXLFMAPI
++      type: boolean
++      description: Indicates support availability
++
 +    - name: VDPCI
 +      type: boolean
 +      description: Indicates support availability
@@ -398,6 +422,6 @@ index 0000000..fa447ee
 +    - name: VDIANA
 +      type: boolean
 +      description: Indicates support availability
---
+-- 
 2.25.1
 
