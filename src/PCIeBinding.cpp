@@ -54,6 +54,13 @@ PCIeBinding::PCIeBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
         registerProperty(
             pcieInterface, "DiscoveredFlag",
             pcie_binding::convertDiscoveryFlagsToString(discoveredFlag));
+        
+        if (!pcieInterface->register_signal<void>("PCIeEnumerationChanged"))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Registering PCIe enum failed");
+        }
+        
         if (pcieInterface->initialize() == false)
         {
             throw std::system_error(
@@ -577,6 +584,14 @@ bool PCIeBinding::handlePrepareForEndpointDiscovery(
     changeDiscoveredFlag(pcie_binding::DiscoveryFlags::Undiscovered);
     resp->completion_code = MCTP_CTRL_CC_SUCCESS;
     pciePrivate->routing = PCIE_ROUTE_TO_RC;
+
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "Received PrepareEndPointDiscovery command, Asserting PCIe enumeration "
+        "signal");
+    auto enumChangeSignal =
+        this->pcieInterface->new_signal("PCIeEnumerationChanged");
+    enumChangeSignal.signal_send();
+
     return true;
 }
 

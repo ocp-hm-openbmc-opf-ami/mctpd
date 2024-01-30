@@ -834,7 +834,9 @@ MctpStatus MctpBinding::sendMctpRawPayload(const std::vector<uint8_t>& payload)
                 if (ec || sendStatus != 0)
                 {
                     phosphor::logging::log<phosphor::logging::level::ERR>(
-                        "Error bridging raw message",
+                        (std::string("Error bridging raw message. ") +
+                         ec.message())
+                            .c_str(),
                         phosphor::logging::entry("EID=%d", dstEid));
                 }
             };

@@ -74,6 +74,7 @@ class I3CBinding : public MctpBinding
         const mctp_eid_t eid,
         const std::vector<uint8_t>& bindingPrivate) override;
     void onEIDPool() override;
+    void clearAllRegisteredEIDs();
 
   private:
     std::set<mctp_eid_t> eidTable;
@@ -94,6 +95,7 @@ class I3CBinding : public MctpBinding
     std::vector<routingTableEntry_t> routingTableResp;
     bool forwaredEIDPoolToEP = false;
     bool blockDiscoveryNotify = false;
+    std::unique_ptr<sdbusplus::bus::match::match> pcieEnumChangeMatch{};
     std::vector<uint8_t>
         getPhysicalAddress(const std::vector<uint8_t>& bindingPrivate) override;
     uint8_t getTransportId() override;
@@ -136,4 +138,5 @@ class I3CBinding : public MctpBinding
                             const uint8_t poolSize) override;
     bool forwardEIDPool(boost::asio::yield_context& yield,
                         const uint8_t startEID, const uint8_t poolSize);
+    void onPCIeEnumerationChange();
 };

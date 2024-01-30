@@ -92,6 +92,16 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
             getRoutingTableTimer.async_wait(
                 std::bind(&I3CBinding::updateRoutingTable, this));
         }
+
+        std::string matchString = sdbusplus::bus::match::rules::type::signal() +
+                                  "interface='xyz.openbmc_project.MCTP.Binding."
+                                  "PCIe',path='/xyz/openbmc_project/mctp'";
+
+        pcieEnumChangeMatch = std::make_unique<sdbusplus::bus::match::match>(
+            static_cast<sdbusplus::bus::bus&>(*conn), matchString,
+            [this](sdbusplus::message::message&) {
+                this->onPCIeEnumerationChange();
+            });
     }
     catch (std::exception& e)
     {
@@ -123,11 +133,7 @@ void I3CBinding::triggerDeviceDiscovery()
         if (bindingModeType == mctp_server::BindingModeTypes::Bridge ||
             bindingModeType == mctp_server::BindingModeTypes::BusOwner)
         {
-            for (auto eid : eidTable)
-            {
-                clearRegisteredDevice(eid);
-            }
-            eidTable.clear();
+            clearAllRegisteredEIDs();
             eidPool.clearEIDPool();
         }
     });
@@ -823,10 +829,13 @@ std::vector<uint8_t> I3CBinding::getOwnPhysicalAddress()
 
 bool I3CBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
 {
+    clearAllRegisteredEIDs();
+
     if (!MctpBinding::setEIDPool(startEID, poolSize))
     {
         return false;
     }
+
     if (this->forwaredEIDPoolToEP)
     {
         boost::asio::spawn(
@@ -970,7 +979,7 @@ void I3CBinding::onEIDPool()
                 {
                     phosphor::logging::log<phosphor::logging::level::INFO>(
                         "Endpoint already registered");
-                    return;
+                    clearRegisteredDevice(destEid);
                 }
             }
             catch (const std::exception& e)
@@ -987,4 +996,32 @@ void I3CBinding::onEIDPool()
             eidTable.insert(endPoint.value());
         }
     });
+}
+
+void I3CBinding::onPCIeEnumerationChange()
+{
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "PCIe enumeration changed");
+
+    if (allocatedPoolSize == 0 || allocatedPoolFirstEID == 0)
+    {
+        return;
+    }
+    for (auto& [busName, allocInfo] : downstreamEIDPools)
+    {
+        allocInfo.allocated = false;
+        allocInfo.start = 0;
+    }
+    setDownStreamEIDPools(allocatedPoolSize, allocatedPoolFirstEID);
+}
+
+void I3CBinding::clearAllRegisteredEIDs()
+{
+    for (auto eid : eidTable)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("Unregistering " + std::to_string(eid)).c_str());
+        clearRegisteredDevice(eid);
+    }
+    eidTable.clear();
 }
