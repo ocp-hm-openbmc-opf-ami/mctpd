@@ -150,6 +150,7 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
     std::vector<uint64_t> eidPool;
     std::string bus;
     bool arpOwnerSupport = false;
+    bool supportsSPDMRequester = false;
     uint64_t bmcReceiverAddress = 0;
     uint64_t reqToRespTimeMs = 0;
     uint64_t reqRetryCount = 0;
@@ -233,6 +234,8 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
         ignoredEndpointTargetAddress = {};
     }
 
+    getField(map, "SupportsSPDMRequester", supportsSPDMRequester);
+
     auto endpointTargetAddress =
         std::set<uint8_t>(supportedEndpointTargetAddress.begin(),
                           supportedEndpointTargetAddress.end());
@@ -261,6 +264,7 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
     config.allowedBuses = getAllowedBuses(map);
     config.networkId = getNetworkID(map);
     config.skipList = skipSlotName;
+    config.supportsSPDMRequester = supportsSPDMRequester;
 
     return config;
 }
@@ -278,6 +282,7 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
     uint64_t reqRetryCount = 0;
     bool requiresCpuPidMask = false;
     bool supportsBridge = false;
+    bool supportsSPDMRequester = false;
     uint64_t provisionalIdMask = 0;
     uint64_t getRoutingInterval = 0;
     uint64_t requiredEIDPoolSize = 0;
@@ -361,6 +366,7 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
     getField(map, "ForwardEIDPool", forwaredEIDPoolToEP);
     getField(map, "BlockDiscoveryNotify", blockDicoveryNotify);
 
+    getField(map, "SupportsSPDMRequester", supportsSPDMRequester);
     I3CConfiguration config;
 
     // Learn about OEM binding endpoints behind busOwner
@@ -392,6 +398,7 @@ static std::optional<I3CConfiguration> getI3CConfiguration(const T& map)
     config.forwaredEIDPoolToEP = forwaredEIDPoolToEP;
     config.blockDiscoveryNotify = blockDicoveryNotify;
     config.networkId = getNetworkID(map);
+    config.supportsSPDMRequester = supportsSPDMRequester;
 
     return config;
 }
@@ -406,6 +413,7 @@ static std::optional<PcieConfiguration> getPcieConfiguration(const T& map)
     uint64_t reqToRespTimeMs;
     uint64_t reqRetryCount;
     uint64_t getRoutingInterval;
+    bool supportsSPDMRequester = false;
 
     if (!getField(map, "PhysicalMediumID", physicalMediumID))
     {
@@ -443,6 +451,8 @@ static std::optional<PcieConfiguration> getPcieConfiguration(const T& map)
         return std::nullopt;
     }
 
+    getField(map, "SupportsSPDMRequester", supportsSPDMRequester);
+
     PcieConfiguration config;
     config.mediumId = stringToMediumID.at(physicalMediumID);
     config.mode = stringToBindingModeMap.at(role);
@@ -456,6 +466,7 @@ static std::optional<PcieConfiguration> getPcieConfiguration(const T& map)
         config.supportOEMBindingBehindBO = true;
     }
     config.networkId = getNetworkID(map);
+    config.supportsSPDMRequester = supportsSPDMRequester;
 
     return config;
 }
