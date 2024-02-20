@@ -182,6 +182,8 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
         ctrlTxRetryDelay = conf.reqToRespTime;
         ctrlTxRetryCount = conf.reqRetryCount;
 
+        supportsSPDMRequester = conf.supportsSPDMRequester;
+
         createUuid();
         registerProperty(uuidIntface, "UUID", uuid);
 

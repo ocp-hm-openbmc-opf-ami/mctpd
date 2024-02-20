@@ -60,6 +60,7 @@ class MctpBinding : public MCTPBridge
         std::vector<uint8_t>& payload, uint16_t timeout);
 
   protected:
+    bool supportsSPDMRequester = false;
     bool rsvBWActive = false;
     mctp_eid_t reservedEID = 0;
     mctpd::MctpTransmissionQueue transmissionQueue;
