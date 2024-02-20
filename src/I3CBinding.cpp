@@ -151,6 +151,8 @@ void I3CBinding::triggerDeviceDiscovery()
         hw->pollRx();
         endpointDiscoveryFlow();
     }
+    this->isWaitingForCPUTimedout = false;
+    this->cpuDetectTimer = std::nullopt;
 }
 
 void I3CBinding::endpointDiscoveryFlow()

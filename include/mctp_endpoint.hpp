@@ -19,6 +19,7 @@
 #include "mctp_device.hpp"
 #include "service_scanner.hpp"
 
+#include <boost/asio/deadline_timer.hpp>
 #include <optional>
 
 struct InternalVdmSetDatabase
@@ -117,4 +118,8 @@ class MCTPEndpoint : public MCTPDevice
     std::vector<uint8_t> getBindingMsgTypes();
     void handleCtrlReq(uint8_t destEid, void* bindingPrivate, const void* req,
                        size_t len, uint8_t msgTag);
+
+    bool isWaitingForCPUTimedout = false;
+    std::optional<boost::asio::deadline_timer> cpuDetectTimer;
+    void updateWaitingForCPUTimeout();
 };

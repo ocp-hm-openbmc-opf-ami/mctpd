@@ -41,6 +41,8 @@ MCTPServiceScanner::MCTPServiceScanner(
     {
         throw std::invalid_argument("Expects valid asio connection");
     }
+    
+    getConnectedCPUs();
 }
 
 static mctp_eid_t
@@ -532,4 +534,50 @@ void MCTPServiceScanner::onEidRemoved(sdbusplus::message::message& message)
         phosphor::logging::log<phosphor::logging::level::ERR>(
             (std::string("onEidRemoved: ") + e.what()).c_str());
     }
+}
+
+void MCTPServiceScanner::getConnectedCPUs()
+{
+    boost::asio::spawn(this->connection->get_io_context(), 
+        [this](boost::asio::yield_context yield) {
+            constexpr const char* cpuSensorService =
+                "xyz.openbmc_project.IntelCPUSensor";
+            constexpr const char* cpuObj =
+                "/xyz/openbmc_project/inventory/system/chassis/motherboard/CPU_";
+            constexpr const char* inventoryItemIntf =
+                "xyz.openbmc_project.Inventory.Item";
+            constexpr const char* presentProperty = "Present";
+            size_t maxCPUs = getAllowedCPUBusses();
+            size_t cpuCountFromDbus = 0;
+            size_t i = 1; 
+
+            while (i <= maxCPUs)
+            {
+                int maxRetries = 20;
+                while (maxRetries-- > 0)
+                {
+                    try
+                    {
+                        std::string objPatch = cpuObj + std::to_string(i);
+                        bool isPresent = readPropertyValue<bool>(
+                            yield, *this->connection, cpuSensorService,
+                            objPatch, inventoryItemIntf, presentProperty);
+                        if (isPresent)
+                        {
+                            cpuCountFromDbus++;
+                        }
+                        break;
+                    }
+                    catch (const std::exception& e)
+                    {
+                        boost::asio::deadline_timer timer(
+                            this->connection->get_io_context());
+                        timer.expires_from_now(boost::posix_time::seconds(1));
+                        timer.async_wait(yield);
+                    }
+                }
+                i++;
+            }
+            this->detectedCPUs = cpuCountFromDbus;
+        });
 }
