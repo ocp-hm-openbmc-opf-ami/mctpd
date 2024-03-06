@@ -172,6 +172,7 @@ void I3CBinding::endpointDiscoveryFlow()
     }
 
     boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
+        auto lock = regInProgress.lock(yield, regTimeout);
         bool discoverNoftifyDone = false;
         constexpr const uint8_t maxRetryCount = 3;
         uint8_t retryCount = 0;
@@ -441,6 +442,7 @@ void I3CBinding::updateRoutingTable()
         std::vector<routingTableEntry_t> routingTableTmp;
         std::vector<calledBridgeEntry_t> calledBridges;
 
+        auto lock = regInProgress.lock(yield, regTimeout);
         readRoutingTable(routingTableTmp, calledBridges, prvData, yield,
                          busOwnerEid, ownI3cDAA);
 
