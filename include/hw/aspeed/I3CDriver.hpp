@@ -43,6 +43,12 @@ class I3CDriver : public hw::I3CDriver
     int getDriverFd() override;
     uint8_t getOwnAddress() override;
     uint8_t getDeviceAddress() override;
+    bool isControllerRole() override
+    {
+        return this->isController;
+    }
+    void rescanBus() override;
+    bool getTargetStatus(uint32_t&) override;
 
   private:
     boost::asio::posix::stream_descriptor streamMonitor;
@@ -53,7 +59,6 @@ class I3CDriver : public hw::I3CDriver
     std::optional<uint16_t> pidMask;
     uint8_t busNum;
     void discoverI3CDevices();
-    void rescanI3CBus();
     void closeFile();
 };
 

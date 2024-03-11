@@ -891,7 +891,10 @@ bool MctpBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
         ("Setting EID pool " + std::to_string(startEID) + " + " +
          std::to_string(poolSize))
             .c_str());
-            
+    
+    this->allocatedPoolFirstEID = startEID;
+    this->allocatedPoolSize = poolSize;
+    
     if (!this->isResetReachable)
     {
         phosphor::logging::log<phosphor::logging::level::INFO>(

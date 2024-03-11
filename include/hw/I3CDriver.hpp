@@ -36,6 +36,9 @@ class I3CDriver
     virtual int getDriverFd() = 0;
     virtual uint8_t getOwnAddress() = 0;
     virtual uint8_t getDeviceAddress() = 0;
+    virtual bool isControllerRole() = 0;
+    virtual void rescanBus() = 0;
+    virtual bool getTargetStatus(uint32_t&) = 0;
 
     virtual ~I3CDriver() = default;
 };

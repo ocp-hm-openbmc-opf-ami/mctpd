@@ -35,7 +35,8 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
     hw{std::move(hwParam)}, getRoutingInterval(conf.getRoutingInterval),
     getRoutingTableTimer(ioc, getRoutingInterval), i3cConf(conf),
     forwaredEIDPoolToEP(conf.forwaredEIDPoolToEP),
-    blockDiscoveryNotify(conf.blockDiscoveryNotify)
+    blockDiscoveryNotify(conf.blockDiscoveryNotify),
+    targetStatusTimer(ioc)
 {
     i3cInterface =
         objServer->add_interface(objPath, I3CBindingServer::interface);
@@ -102,6 +103,8 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
             [this](sdbusplus::message::message&) {
                 this->onPCIeEnumerationChange();
             });
+        
+        checkI3CTargetStatus();
     }
     catch (std::exception& e)
     {
@@ -845,10 +848,29 @@ bool I3CBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
         boost::asio::spawn(
             this->connection->get_io_context(),
             [this, startEID, poolSize](boost::asio::yield_context yield) {
-                if (!this->forwardEIDPool(yield, startEID, poolSize))
+                int maxRetries = 6;
+                // Timeout for attempting allocate eid command again
+                constexpr std::chrono::seconds timeout(11);
+                boost::system::error_code ec;
+                boost::asio::steady_timer timer(
+                    this->connection->get_io_context());
+
+                while (--maxRetries > 0 &&
+                       !this->forwardEIDPool(yield, startEID, poolSize) && !ec)
                 {
+                    timer.expires_after(timeout);
+                    timer.async_wait(yield[ec]);
+                }
+
+                if (ec || maxRetries == 0)
+                {
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        ("Dropping AllocateEID at " +
+                         std::to_string(maxRetries) + " Error. " + ec.message())
+                            .c_str());
                     return;
                 }
+
                 // Add forwarded eid entries in routing table with physical
                 // details of i3c target device
                 for (uint8_t i = 0; i < poolSize; i++)
@@ -910,6 +932,10 @@ bool I3CBinding::forwardEIDPool(boost::asio::yield_context& yield,
     uint8_t eid;
     for (eid = 0; eid < poolSize; eid++)
     {
+        if (eidTable.contains(eid))
+        {
+            continue;
+        }
         phosphor::logging::log<phosphor::logging::level::INFO>(
             ("Registering downstream eid " + std::to_string(startEID + eid))
                 .c_str());
@@ -1028,4 +1054,48 @@ void I3CBinding::clearAllRegisteredEIDs()
         clearRegisteredDevice(eid);
     }
     eidTable.clear();
+}
+
+void I3CBinding::checkI3CTargetStatus()
+{
+    if (!this->hw->isControllerRole() || !forwaredEIDPoolToEP)
+    {
+        return;
+    }
+
+    constexpr std::chrono::seconds timeout(10);
+    static bool targetWasAlive = true;
+    targetStatusTimer.expires_after(timeout);
+
+    targetStatusTimer.async_wait([this](boost::system::error_code ec) {
+        if (ec)
+        {
+            return;
+        }
+
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "Checking I3C target status");
+
+        uint32_t status;
+        bool isTargetAlive = this->hw->getTargetStatus(status);
+        if (!isTargetAlive)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "I3C Target not responding for GetStatus CCC");
+            this->hw->rescanBus();
+            targetWasAlive = false;
+        }
+        else
+        {
+            if (!targetWasAlive)
+            {
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    "I3C Target came back");
+                this->setEIDPool(this->allocatedPoolFirstEID, this->allocatedPoolSize);
+            }
+            targetWasAlive = true;
+        }
+
+        checkI3CTargetStatus();
+    });
 }

@@ -49,7 +49,7 @@ I3CDriver::I3CDriver(boost::asio::io_context& ioc, uint8_t i3cBusNum,
     }
 }
 
-void I3CDriver::rescanI3CBus()
+void I3CDriver::rescanBus()
 {
     auto search = i3cBusMap.find(busNum);
     if (search != i3cBusMap.end())
@@ -139,7 +139,7 @@ void I3CDriver::discoverI3CDevices()
                 static constexpr uint16_t instIdMask = 0xFF00;
                 if ((pidMask.value() & instIdMask) == 0)
                 {
-                    rescanI3CBus();
+                    rescanBus();
                 }
                 else
                 {
@@ -285,6 +285,15 @@ uint8_t I3CDriver::getDeviceAddress()
         }
     }
     return deviceDAA;
+}
+
+bool I3CDriver::getTargetStatus(uint32_t& status)
+{
+    if (!isController)
+    {
+        return false;
+    }
+    return getStatus(i3cDeviceFile, status);
 }
 } // namespace aspeed
 } // namespace hw
