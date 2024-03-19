@@ -17,6 +17,7 @@
 #include "hw/aspeed/I3CDriver.hpp"
 
 #include "utils/i3c_utils.hpp"
+#include "utils/utils.hpp"
 
 #include <sys/ioctl.h>
 #include <unistd.h>
@@ -79,6 +80,7 @@ void I3CDriver::rescanBus()
         int fd = open(rescanFilePath.c_str(), O_WRONLY);
         if (fd > 0)
         {
+            FileHandle handle(reinterpret_cast<int*>(fd), closeFileFromPointer);
             phosphor::logging::log<phosphor::logging::level::INFO>(
                 "Running rescan");
             const char* writeData = "1";
@@ -159,6 +161,8 @@ void I3CDriver::discoverI3CDevices()
                     "Error opening I3C device file");
                 return;
             }
+            FileHandle handle(reinterpret_cast<int*>(streamMonitorFd),
+                              closeFileFromPointer);
             uint32_t status = 0;
             /*
              * Although the device is there - it may be not accessible due to
@@ -174,12 +178,11 @@ void I3CDriver::discoverI3CDevices()
                 ioctl(streamMonitorFd, I3C_MCTP_IOCTL_REGISTER_DEFAULT_CLIENT);
             if (rc < 0 && isController)
             {
-                close(streamMonitorFd);
                 phosphor::logging::log<phosphor::logging::level::ERR>(
                     "Error registering MCTP o. I3C default client");
                 return;
             }
-            streamMonitor.assign(streamMonitorFd);
+            streamMonitor.assign(reinterpret_cast<int>(handle.release()));
             break;
         }
         else
