@@ -21,6 +21,7 @@
 #include <phosphor-logging/log.hpp>
 #include <sdbusplus/asio/connection.hpp>
 #include <sdbusplus/bus/match.hpp>
+#include <libmctp-cmds.h>
 
 static std::unique_ptr<sdbusplus::bus::match::match> powerMatch = nullptr;
 static std::unique_ptr<sdbusplus::bus::match::match> hostResetMatch = nullptr;
@@ -198,3 +199,13 @@ T* castVectorToStruct(std::vector<uint8_t>& response)
     response.resize(sizeof(T));
     return reinterpret_cast<T*>(response.data());
 }
+
+constexpr void closeFileFromPointer(int* fd)
+{
+    if (fd)
+    {
+        close(reinterpret_cast<long>(fd));
+    }
+}
+
+using FileHandle = std::unique_ptr<int, std::function<void(int*)>>;
