@@ -18,6 +18,7 @@
 
 #include "PCIeBinding.hpp"
 #include "SMBusBinding.hpp"
+#include "unix_sock_intf.hpp"
 #include "utils/dbus_helper.hpp"
 #include "utils/utils.hpp"
 
@@ -111,8 +112,10 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                          const std::string& objPath, const Configuration& conf,
                          boost::asio::io_context& ioc,
                          const mctp_server::BindingTypes bindingType) :
-    MCTPBridge(conn, ioc, objServer),
-    regInProgress(ioc), bindingID(bindingType)
+    MCTPBridge(conn, ioc, objServer), regInProgress(ioc),
+    bindingID(bindingType), localSocketEp(unix_ipc::unix_path::getSockPath()),
+    acceptor(ioc, localSocketEp)
+
 {
     objServer->add_manager(objPath);
     mctpServiceScanner.setAllowedBuses(conf.allowedBuses.begin(),
@@ -193,7 +196,8 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
 
         registerProperty(mctpInterface, "BindingID",
                          mctp_server::convertBindingTypesToString(bindingID));
-
+        registerProperty(mctpInterface, "SocketPath",
+                         unix_ipc::unix_path::getPIDStr());
         registerProperty(
             mctpInterface, "BindingMediumID",
             mctp_server::convertMctpPhysicalMediumIdentifiersToString(
@@ -889,6 +893,25 @@ void MctpBinding::onNewService(const std::string& service)
 
 void MctpBinding::onEIDPool()
 {
+}
+
+void MctpBinding::acceptConnections()
+{
+    acceptor.async_accept(localSocketEp,
+                          [this](boost::system::error_code ec,
+                                 boost::asio::local::stream_protocol::socket) {
+                              if (ec)
+                              {
+                              }
+                              else
+                              {
+                                  /*
+                                  TODO: will be adding the logic for accepting
+                                  new connection in next PR
+                                  */
+                              }
+                              acceptConnections();
+                          });
 }
 
 std::vector<uint8_t> MctpBinding::sendReceiveMctpMessagePayload(

@@ -80,6 +80,7 @@ set(SRC_FILES
     ${PROJECT_SOURCE_DIR}/src/smbus_device.cpp
     ${PROJECT_SOURCE_DIR}/src/smbus_endpoint.cpp
     ${PROJECT_SOURCE_DIR}/src/smbus_bridge.cpp
+    ${PROJECT_SOURCE_DIR}/src/unix_sock_intf.cpp
     )
 
 set(HEADER_FILES
@@ -94,7 +95,9 @@ set(HEADER_FILES
     ${PROJECT_SOURCE_DIR}/include/smbus_device.hpp
     ${PROJECT_SOURCE_DIR}/include/smbus_endpoint.hpp
     ${PROJECT_SOURCE_DIR}/include/smbus_bridge.hpp
+    ${PROJECT_SOURCE_DIR}/include/unix_sock_intf.hpp
     ${PROJECT_SOURCE_DIR}/include/I3CBinding.hpp)
+    
 
 
 include_directories(${PROJECT_SOURCE_DIR}/include)

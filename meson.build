@@ -119,6 +119,7 @@ src_files = [
 	'src/MCTPBinding.cpp',
 	'src/SMBusBinding.cpp',
 	'src/PCIeBinding.cpp',
+	'src/unix_sock_intf.cpp',
 	'src/hw/DeviceMonitor.cpp',
 	'src/hw/PCIeDriver.cpp',
 	'src/hw/aspeed/PCIeMonitor.cpp',
