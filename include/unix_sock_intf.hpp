@@ -16,8 +16,12 @@
 
 #pragma once
 
+#include <boost/asio.hpp>
+#include <boost/asio/spawn.hpp>
+#include <cstdint>
 #include <string>
 
+class MctpBinding;
 namespace unix_ipc
 {
 
@@ -26,4 +30,44 @@ namespace unix_path
 std::string getPIDStr();
 std::string getSockPath();
 } // namespace unix_path
+
+namespace unix_protocol
+{
+enum class OpCode : uint8_t
+{
+    sendReceive,
+    sendOnly,
+    broadCastResponse,
+    directedResponse,
+    ping
+};
+
+struct Message
+{
+    uint8_t eid;
+    OpCode opCode;
+    uint16_t len;
+} __attribute__((packed));
+} // namespace unix_protocol
+
+class Session
+{
+  public:
+    Session(boost::asio::local::stream_protocol::socket skt,
+            boost::asio::io_context& ioc, MctpBinding& obj,
+            unsigned long token) :
+        socket(std::move(skt)), io(ioc), mctp(obj), sessionID(token)
+    {
+    }
+    ~Session();
+
+  private:
+    void waitForRequest();
+    boost::asio::local::stream_protocol::socket socket;
+    boost::asio::io_context& io;
+    MctpBinding& mctp;
+    unsigned long sessionID;
+    boost::asio::streambuf buffer;
+};
+
 } // namespace unix_ipc

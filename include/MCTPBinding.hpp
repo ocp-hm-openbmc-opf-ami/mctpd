@@ -121,8 +121,10 @@ class MctpBinding : public MCTPBridge
 
     void createUuid();
     MctpStatus sendMctpRawPayload(const std::vector<uint8_t>& data);
+    MctpBinding& getPtr();
     void acceptConnections();
     boost::asio::local::basic_endpoint<boost::asio::local::stream_protocol>
         localSocketEp;
     boost::asio::local::stream_protocol::acceptor acceptor;
 };
+

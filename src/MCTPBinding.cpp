@@ -198,6 +198,7 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                          mctp_server::convertBindingTypesToString(bindingID));
         registerProperty(mctpInterface, "SocketPath",
                          unix_ipc::unix_path::getPIDStr());
+      
         registerProperty(
             mctpInterface, "BindingMediumID",
             mctp_server::convertMctpPhysicalMediumIdentifiersToString(
@@ -893,6 +894,11 @@ void MctpBinding::onNewService(const std::string& service)
 
 void MctpBinding::onEIDPool()
 {
+}
+
+MctpBinding& MctpBinding::getPtr()
+{
+    return *this;
 }
 
 void MctpBinding::acceptConnections()
