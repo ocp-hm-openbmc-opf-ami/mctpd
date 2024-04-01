@@ -802,7 +802,7 @@ void SMBusBridge::initEndpointDiscovery(boost::asio::yield_context& yield)
                  " is no longer available")
                     .c_str());
             clearRegisteredDevice(it->first);
-            it = removeDeviceTableEntry(it->first);
+            it = smbusDeviceTable.erase(it);
             continue;
         }
         it++;
