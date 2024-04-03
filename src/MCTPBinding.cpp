@@ -112,8 +112,9 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                          const std::string& objPath, const Configuration& conf,
                          boost::asio::io_context& ioc,
                          const mctp_server::BindingTypes bindingType) :
-    MCTPBridge(conn, ioc, objServer), regInProgress(ioc),
-    bindingID(bindingType), localSocketEp(unix_ipc::unix_path::getSockPath()),
+    MCTPBridge(conn, ioc, objServer),
+    regInProgress(ioc), bindingID(bindingType),
+    localSocketEp(unix_ipc::unix_path::getSockPath()),
     acceptor(ioc, localSocketEp)
 
 {
@@ -198,7 +199,7 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                          mctp_server::convertBindingTypesToString(bindingID));
         registerProperty(mctpInterface, "SocketPath",
                          unix_ipc::unix_path::getPIDStr());
-      
+
         registerProperty(
             mctpInterface, "BindingMediumID",
             mctp_server::convertMctpPhysicalMediumIdentifiersToString(

@@ -1,5 +1,6 @@
 build/*
 bin/*
+include/linux/*
 .vscode/*
 /subprojects/*
 !/subprojects/packagefiles/

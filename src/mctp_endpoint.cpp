@@ -31,8 +31,7 @@ MCTPEndpoint::MCTPEndpoint(std::shared_ptr<sdbusplus::asio::connection> conn,
                            boost::asio::io_context& ioc,
                            std::shared_ptr<object_server>& objServer) :
     MCTPDevice(ioc, objServer),
-    mctpServiceScanner(conn),
-    connection(conn)
+    mctpServiceScanner(conn), connection(conn)
 {
 }
 
@@ -215,7 +214,8 @@ bool MCTPEndpoint::passEIDPoolTo(boost::asio::yield_context yield,
     if (downstreamServicePool->second.start == 0)
     {
         phosphor::logging::log<phosphor::logging::level::INFO>(
-            ("Pool for downstream service " + service + " not received").c_str());
+            ("Pool for downstream service " + service + " not received")
+                .c_str());
         return false;
     }
 
@@ -636,8 +636,7 @@ bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,
     // Get Allowed CPU Busses count
     size_t cpuBusCnt = mctpServiceScanner.getAllowedCPUBusses();
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
-            ("CPU Bus count = " + std::to_string(cpuBusCnt))
-                .c_str());
+        ("CPU Bus count = " + std::to_string(cpuBusCnt)).c_str());
 
     bool status = false;
     const mctpd::RoutingTable::EntryMap& entries =
@@ -645,7 +644,8 @@ bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,
 
     // Count CPU EIDs present in the routing table
     size_t cpuEIDCnt = 0;
-    const uint8_t cpuEIDNums[8] = {0x1D, 0x9D, 0x5D, 0xDD, 0x3D, 0xBD, 0x7D, 0xFD};
+    const uint8_t cpuEIDNums[8] = {0x1D, 0x9D, 0x5D, 0xDD,
+                                   0x3D, 0xBD, 0x7D, 0xFD};
     for (const auto& eid : cpuEIDNums)
     {
         if (entries.find(eid) != entries.end())

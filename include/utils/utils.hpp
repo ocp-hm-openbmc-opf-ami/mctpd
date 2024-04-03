@@ -15,13 +15,14 @@
 */
 
 #pragma once
+#include <libmctp-cmds.h>
+
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/container/flat_map.hpp>
 #include <phosphor-logging/log.hpp>
 #include <sdbusplus/asio/connection.hpp>
 #include <sdbusplus/bus/match.hpp>
-#include <libmctp-cmds.h>
 
 static std::unique_ptr<sdbusplus::bus::match::match> powerMatch = nullptr;
 static std::unique_ptr<sdbusplus::bus::match::match> hostResetMatch = nullptr;

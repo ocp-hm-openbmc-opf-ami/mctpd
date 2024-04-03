@@ -127,4 +127,3 @@ class MctpBinding : public MCTPBridge
         localSocketEp;
     boost::asio::local::stream_protocol::acceptor acceptor;
 };
-

@@ -168,9 +168,11 @@ void I3CDriver::discoverI3CDevices()
              * Although the device is there - it may be not accessible due to
              * power shortage or some other reason.
              * Issue GETSTATUS CCC to the device to ensure it is ready to
-             * communicate via I3C. If not - allow another DAA happen and try again.
+             * communicate via I3C. If not - allow another DAA happen and try
+             * again.
              */
-            if (isController && !getStatus(i3cDeviceFile, status)) {
+            if (isController && !getStatus(i3cDeviceFile, status))
+            {
                 sleep(1);
                 continue;
             }

@@ -56,7 +56,8 @@ class Session
     Session(boost::asio::local::stream_protocol::socket skt,
             boost::asio::io_context& ioc, MctpBinding& obj,
             unsigned long token) :
-        socket(std::move(skt)), io(ioc), mctp(obj), sessionID(token)
+        socket(std::move(skt)),
+        io(ioc), mctp(obj), sessionID(token)
     {
     }
     ~Session();
