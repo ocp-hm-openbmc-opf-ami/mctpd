@@ -38,8 +38,7 @@ enum class OpCode : uint8_t
     sendReceive,
     sendOnly,
     broadCastResponse,
-    directedResponse,
-    ping
+    directedResponse
 };
 
 struct Message
@@ -60,7 +59,8 @@ class Session
         io(ioc), mctp(obj), sessionID(token)
     {
     }
-    ~Session();
+    ~Session() = default;
+    void run();
 
   private:
     void waitForRequest();
@@ -70,5 +70,8 @@ class Session
     unsigned long sessionID;
     boost::asio::streambuf buffer;
 };
+
+void addSessionToList(unsigned long connectionCount,
+                      std::shared_ptr<Session> connection);
 
 } // namespace unix_ipc

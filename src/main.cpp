@@ -22,6 +22,7 @@
 #include "hw/aspeed/I3CDriver.hpp"
 #include "hw/aspeed/PCIeDriver.hpp"
 #include "hw/aspeed/PCIeMonitor.hpp"
+#include "unix_sock_intf.hpp"
 
 #include <CLI/CLI.hpp>
 #include <boost/asio/signal_set.hpp>

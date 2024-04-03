@@ -117,6 +117,7 @@ class MctpBinding : public MCTPBridge
 
   private:
     bool staticEid;
+    unsigned long socketConnCount;
     mctp_server::BindingTypes bindingID{};
 
     void createUuid();

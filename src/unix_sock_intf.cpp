@@ -39,6 +39,18 @@ std::string getSockPath()
 }
 } // namespace unix_path
 
+namespace session_list
+{
+static std::unordered_map<unsigned long, std::shared_ptr<Session>> sessionList;
+}
+
+void addSessionToList(unsigned long connectionCount,
+                      std::shared_ptr<Session> connection)
+{
+    session_list::sessionList.insert(
+        std::make_pair(connectionCount, std::move(connection)));
+}
+
 using It = boost::asio::buffers_iterator<boost::asio::const_buffers_1>;
 std::pair<It, bool> isCompleteRequest(It begin, It end)
 {
@@ -98,6 +110,11 @@ void Session::waitForRequest()
             Will be adding the logic for processing received packet in next PR
             */
         });
+}
+
+void Session::run()
+{
+    waitForRequest();
 }
 
 } // namespace unix_ipc
