@@ -921,8 +921,7 @@ bool I3CBinding::forwardEIDPool(boost::asio::yield_context& yield,
             "Allocate EID was not succesful");
         return false;
     }
-    if (respData.operation !=
-        mctp_ctrl_cmd_allocate_eids_resp_op::allocation_accepted)
+    if (op != mctp_ctrl_cmd_allocate_eids_resp_op::allocation_accepted)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Allocate EID rejected by the endpoint");
