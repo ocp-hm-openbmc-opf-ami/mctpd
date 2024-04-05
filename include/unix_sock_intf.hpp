@@ -41,6 +41,11 @@ enum class OpCode : uint8_t
     directedResponse
 };
 
+struct SendReceiveRequest
+{
+    uint16_t timeOut;
+} __attribute__((packed));
+
 struct Message
 {
     uint8_t eid;
@@ -55,12 +60,12 @@ class Session
     Session(boost::asio::local::stream_protocol::socket skt,
             boost::asio::io_context& ioc, MctpBinding& obj,
             unsigned long token) :
-        socket(std::move(skt)),
-        io(ioc), mctp(obj), sessionID(token)
+        socket(std::move(skt)), io(ioc), mctp(obj), sessionID(token)
     {
     }
     ~Session() = default;
     void run();
+    void writeSocket(const std::vector<uint8_t>& response);
 
   private:
     void waitForRequest();

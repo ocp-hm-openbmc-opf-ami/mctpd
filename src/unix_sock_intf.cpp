@@ -16,6 +16,8 @@
 
 #include "unix_sock_intf.hpp"
 
+#include "MCTPBinding.hpp"
+
 #include <unistd.h>
 
 #include <filesystem>
@@ -49,6 +51,26 @@ void addSessionToList(unsigned long connectionCount,
 {
     session_list::sessionList.insert(
         std::make_pair(connectionCount, std::move(connection)));
+}
+
+void fillHeader(std::vector<uint8_t>& response, unix_protocol::OpCode opCode,
+                uint16_t len, uint8_t eid)
+{
+    unix_protocol::Message respMsg;
+    respMsg.opCode = opCode;
+    respMsg.len = len;
+    respMsg.eid = eid;
+    auto const ptr = reinterpret_cast<uint8_t*>(&respMsg);
+    response.reserve(sizeof(unix_protocol::Message) + 1);
+    std::copy(ptr, ptr + sizeof(unix_protocol::Message),
+              std::back_inserter(response));
+}
+
+void Session::writeSocket(const std::vector<uint8_t>& response)
+{
+
+    boost::asio::write(socket,
+                       boost::asio::buffer(response.data(), response.size()));
 }
 
 using It = boost::asio::buffers_iterator<boost::asio::const_buffers_1>;
@@ -105,10 +127,40 @@ void Session::waitForRequest()
             boost::asio::buffer_copy(boost::asio::buffer(reqBuf),
                                      this->buffer.data(), length);
             buffer.consume(length);
-            /*
-            TODO:
-            Will be adding the logic for processing received packet in next PR
-            */
+            boost::asio::spawn(io, [reqBuf = std::move(reqBuf),
+                                    this](boost::asio::yield_context yield) {
+                auto msg = reinterpret_cast<const unix_protocol::Message*>(
+                    reqBuf.data());
+
+                int len = 0;
+                if (msg->opCode == unix_protocol::OpCode::sendReceive)
+                {
+                    len = sizeof(unix_protocol::SendReceiveRequest);
+
+                    std::vector<uint8_t> payload(
+                        reqBuf.begin() + sizeof(unix_protocol::Message) + len,
+                        reqBuf.end());
+
+                    auto timeOut =
+                        reinterpret_cast<
+                            const unix_protocol::SendReceiveRequest*>(
+                            reqBuf.data() + sizeof(unix_protocol::Message))
+                            ->timeOut;
+
+                    auto resp = this->mctp.sendReceiveMctpMessagePayload(
+                        yield, msg->eid, payload, timeOut);
+                    std::vector<uint8_t> response;
+                    fillHeader(
+                        response, unix_protocol::OpCode::directedResponse,
+                        static_cast<uint16_t>(resp.size() +
+                                              sizeof(unix_protocol::Message)),
+                        msg->eid);
+                    response.insert(response.end(), resp.begin(), resp.end());
+                    writeSocket(response);
+                }
+            });
+
+            waitForRequest();
         });
 }
 
