@@ -53,6 +53,11 @@ void addSessionToList(unsigned long connectionCount,
         std::make_pair(connectionCount, std::move(connection)));
 }
 
+void removeFromList(unsigned long sessionID)
+{
+    session_list::sessionList.erase(sessionID);
+}
+
 void fillHeader(std::vector<uint8_t>& response, unix_protocol::OpCode opCode,
                 uint16_t len, uint8_t eid, int32_t error)
 {
@@ -112,10 +117,7 @@ void Session::waitForRequest()
             {
                 if (ec == boost::asio::error::eof)
                 {
-                    /*
-                    other end of the socket is closed,need to remove the session
-                    info ToDo:  will be pushed in upcoming PR
-                    */
+                    removeFromList(this->sessionID);
                 }
                 else
                 {
