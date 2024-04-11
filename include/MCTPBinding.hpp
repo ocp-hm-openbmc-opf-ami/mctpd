@@ -55,9 +55,11 @@ class MctpBinding : public MCTPBridge
     virtual ~MctpBinding() = default;
     virtual void initializeBinding() = 0;
     virtual bool skipListPath(std::vector<uint8_t> /*payload*/);
-    std::vector<uint8_t> sendReceiveMctpMessagePayload(
-        boost::asio::yield_context yield, uint8_t dstEid,
-        std::vector<uint8_t>& payload, uint16_t timeout);
+    std::pair<std::error_code, std::vector<uint8_t>>
+        sendReceiveMctpMessagePayload(boost::asio::yield_context yield,
+                                      uint8_t dstEid,
+                                      std::vector<uint8_t>& payload,
+                                      uint16_t timeout);
 
   protected:
     bool supportsSPDMRequester = false;

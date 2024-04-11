@@ -51,6 +51,7 @@ struct Message
     uint8_t eid;
     OpCode opCode;
     uint16_t len;
+    int32_t errorCode;
 } __attribute__((packed));
 } // namespace unix_protocol
 

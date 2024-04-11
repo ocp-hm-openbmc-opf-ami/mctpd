@@ -54,12 +54,13 @@ void addSessionToList(unsigned long connectionCount,
 }
 
 void fillHeader(std::vector<uint8_t>& response, unix_protocol::OpCode opCode,
-                uint16_t len, uint8_t eid)
+                uint16_t len, uint8_t eid, int32_t error)
 {
     unix_protocol::Message respMsg;
     respMsg.opCode = opCode;
     respMsg.len = len;
     respMsg.eid = eid;
+    respMsg.errorCode = error;
     auto const ptr = reinterpret_cast<uint8_t*>(&respMsg);
     response.reserve(sizeof(unix_protocol::Message) + 1);
     std::copy(ptr, ptr + sizeof(unix_protocol::Message),
@@ -147,14 +148,15 @@ void Session::waitForRequest()
                             reqBuf.data() + sizeof(unix_protocol::Message))
                             ->timeOut;
 
-                    auto resp = this->mctp.sendReceiveMctpMessagePayload(
-                        yield, msg->eid, payload, timeOut);
+                    auto [error, resp] =
+                        this->mctp.sendReceiveMctpMessagePayload(
+                            yield, msg->eid, payload, timeOut);
                     std::vector<uint8_t> response;
                     fillHeader(
                         response, unix_protocol::OpCode::directedResponse,
                         static_cast<uint16_t>(resp.size() +
                                               sizeof(unix_protocol::Message)),
-                        msg->eid);
+                        msg->eid, error.value());
                     response.insert(response.end(), resp.begin(), resp.end());
                     writeSocket(response);
                 }

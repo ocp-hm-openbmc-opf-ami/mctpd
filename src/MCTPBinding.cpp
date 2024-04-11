@@ -309,8 +309,13 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
             [this](boost::asio::yield_context yield, uint8_t dstEid,
                    std::vector<uint8_t> payload,
                    uint16_t timeout) -> std::vector<uint8_t> {
-                return this->sendReceiveMctpMessagePayload(yield, dstEid,
-                                                           payload, timeout);
+                auto [error, resp] = this->sendReceiveMctpMessagePayload(
+                    yield, dstEid, payload, timeout);
+                if (error)
+                {
+                    throw std::system_error(error);
+                }
+                return resp;
             });
 
         mctpInterface->register_signal<uint8_t, uint8_t, uint8_t, bool,
@@ -925,9 +930,11 @@ void MctpBinding::acceptConnections()
         });
 }
 
-std::vector<uint8_t> MctpBinding::sendReceiveMctpMessagePayload(
-    boost::asio::yield_context yield, uint8_t dstEid,
-    std::vector<uint8_t>& payload, uint16_t timeout)
+std::pair<std::error_code, std::vector<uint8_t>>
+    MctpBinding::sendReceiveMctpMessagePayload(boost::asio::yield_context yield,
+                                               uint8_t dstEid,
+                                               std::vector<uint8_t>& payload,
+                                               uint16_t timeout)
 {
     if (rsvBWActive && dstEid != reservedEID)
     {
@@ -937,8 +944,8 @@ std::vector<uint8_t> MctpBinding::sendReceiveMctpMessagePayload(
               "active for EID: ") +
              std::to_string(reservedEID))
                 .c_str());
-        throw std::system_error(
-            std::make_error_code(std::errc::invalid_argument));
+        return std::make_pair(std::make_error_code(std::errc::invalid_argument),
+                              std::vector<uint8_t>{});
     }
 
     if (payload.size() > 0)
@@ -957,8 +964,8 @@ std::vector<uint8_t> MctpBinding::sendReceiveMctpMessagePayload(
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "SendReceiveMctpMessagePayload: Invalid destination "
             "EID");
-        throw std::system_error(
-            std::make_error_code(std::errc::invalid_argument));
+        return std::make_pair(std::make_error_code(std::errc::invalid_argument),
+                              std::vector<uint8_t>{});
     }
     boost::system::error_code ec;
     auto message = transmissionQueue.transmit(mctp, dstEid, std::move(payload),
@@ -969,20 +976,24 @@ std::vector<uint8_t> MctpBinding::sendReceiveMctpMessagePayload(
     {
         transmissionQueue.dispose(dstEid, message);
         phosphor::logging::log<phosphor::logging::level::ERR>("Timer failed");
-        throw std::system_error(
-            std::make_error_code(std::errc::connection_aborted));
+        return std::make_pair(
+            std::make_error_code(std::errc::connection_aborted),
+            std::vector<uint8_t>{});
     }
     if (!message->response)
     {
         transmissionQueue.dispose(dstEid, message);
         phosphor::logging::log<phosphor::logging::level::ERR>("No response");
-        throw std::system_error(std::make_error_code(std::errc::timed_out));
+        return std::make_pair(std::make_error_code(std::errc::timed_out),
+                              std::vector<uint8_t>{});
     }
     if (message->response->empty())
     {
         phosphor::logging::log<phosphor::logging::level::ERR>("Empty response");
-        throw std::system_error(
-            std::make_error_code(std::errc::no_message_available));
+        return std::make_pair(
+            std::make_error_code(std::errc::no_message_available),
+            std::vector<uint8_t>{});
     }
-    return std::move(message->response).value();
+    return std::make_pair(std::error_code(),
+                          std::move(message->response).value());
 }
