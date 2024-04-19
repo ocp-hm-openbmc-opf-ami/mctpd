@@ -46,12 +46,19 @@ struct SendReceiveRequest
     uint16_t timeOut;
 } __attribute__((packed));
 
+struct SendOnlyRequest
+{
+    uint8_t msgTag;
+    bool tagOwner;
+} __attribute__((packed));
+
 struct Message
 {
     uint8_t eid;
     OpCode opCode;
     uint16_t len;
-    int32_t errorCode;
+    uint32_t sqNum;
+    uint32_t errorCode;
 } __attribute__((packed));
 } // namespace unix_protocol
 
@@ -79,5 +86,5 @@ class Session
 
 void addSessionToList(unsigned long connectionCount,
                       std::shared_ptr<Session> connection);
-
+void broadCastAll(const std::vector<uint8_t>& response, uint8_t eid);
 } // namespace unix_ipc

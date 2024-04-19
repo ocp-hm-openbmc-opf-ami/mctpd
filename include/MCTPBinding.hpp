@@ -60,6 +60,8 @@ class MctpBinding : public MCTPBridge
                                       uint8_t dstEid,
                                       std::vector<uint8_t>& payload,
                                       uint16_t timeout);
+    int sendMctpMessagePayload(uint8_t dstEid, uint8_t msgTag, bool tagOwner,
+                               std::vector<uint8_t> payload);
 
   protected:
     bool supportsSPDMRequester = false;

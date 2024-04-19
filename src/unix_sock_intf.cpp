@@ -21,6 +21,7 @@
 #include <unistd.h>
 
 #include <filesystem>
+#include <phosphor-logging/log.hpp>
 
 namespace unix_ipc
 {
@@ -59,17 +60,47 @@ void removeFromList(unsigned long sessionID)
 }
 
 void fillHeader(std::vector<uint8_t>& response, unix_protocol::OpCode opCode,
-                uint16_t len, uint8_t eid, int32_t error)
+                uint16_t len, uint8_t eid, int32_t error, int sqnum)
 {
     unix_protocol::Message respMsg;
     respMsg.opCode = opCode;
     respMsg.len = len;
     respMsg.eid = eid;
     respMsg.errorCode = error;
+    respMsg.sqNum = sqnum;
     auto const ptr = reinterpret_cast<uint8_t*>(&respMsg);
     response.reserve(sizeof(unix_protocol::Message) + 1);
     std::copy(ptr, ptr + sizeof(unix_protocol::Message),
               std::back_inserter(response));
+}
+
+void broadCastAll(const std::vector<uint8_t>& response, uint8_t eid)
+{
+    std::vector<uint8_t> unixPayload;
+    unixPayload.reserve(response.size() + sizeof(unix_protocol::Message));
+    fillHeader(
+        unixPayload, unix_protocol::OpCode::broadCastResponse,
+        static_cast<uint16_t>(response.size() + sizeof(unix_protocol::Message)),
+        eid, 0, 0);
+    unixPayload.insert(unixPayload.end(), response.begin(), response.end());
+
+    for (auto pair : session_list::sessionList)
+    {
+        if (pair.second != nullptr)
+        {
+
+            try
+            {
+
+                pair.second->writeSocket(unixPayload);
+            }
+            catch (...)
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    "broadcast failed");
+            }
+        }
+    }
 }
 
 void Session::writeSocket(const std::vector<uint8_t>& response)
@@ -158,9 +189,24 @@ void Session::waitForRequest()
                         response, unix_protocol::OpCode::directedResponse,
                         static_cast<uint16_t>(resp.size() +
                                               sizeof(unix_protocol::Message)),
-                        msg->eid, error.value());
+                        msg->eid, error.value(), msg->sqNum);
                     response.insert(response.end(), resp.begin(), resp.end());
                     writeSocket(response);
+                }
+                else if (msg->opCode == unix_protocol::OpCode::sendOnly)
+                {
+                    len = sizeof(unix_protocol::SendOnlyRequest);
+                    std::vector<uint8_t> payload(
+                        reqBuf.begin() + sizeof(unix_protocol::Message) + len,
+                        reqBuf.end());
+
+                    auto sendOnlyReq =
+                        reinterpret_cast<const unix_protocol::SendOnlyRequest*>(
+                            reqBuf.data() + sizeof(unix_protocol::Message));
+
+                    this->mctp.sendMctpMessagePayload(
+                        msg->eid, sendOnlyReq->msgTag, sendOnlyReq->tagOwner,
+                        payload);
                 }
             });
 
