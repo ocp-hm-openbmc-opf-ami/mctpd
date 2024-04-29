@@ -127,6 +127,9 @@ void I3CBinding::triggerDeviceDiscovery()
         allocInfo.second.allocated = false;
     }
 
+    this->isWaitingForCPUTimedout = false;
+    this->cpuDetectTimer = std::nullopt;
+
     boost::asio::spawn(io, [this](boost::asio::yield_context yield) {
         auto lock = regInProgress.lock(yield, regTimeout);
 
@@ -139,23 +142,21 @@ void I3CBinding::triggerDeviceDiscovery()
             clearAllRegisteredEIDs();
             eidPool.clearEIDPool();
         }
-    });
 
-    if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
-    {
-        discoveredFlag = I3CBindingServer::DiscoveryFlags::Undiscovered;
-        for (auto& routingEntry : routingTableResp)
+        if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
         {
-            unregisterEndpoint(std::get<0>(routingEntry));
+            discoveredFlag = I3CBindingServer::DiscoveryFlags::Undiscovered;
+            for (auto& routingEntry : routingTableResp)
+            {
+                unregisterEndpoint(std::get<0>(routingEntry));
+            }
+            routingTableResp = {};
+            mctpI3CFd = hw->getDriverFd();
+            busOwnerAddress = hw->getDeviceAddress();
+            hw->pollRx();
+            endpointDiscoveryFlow();
         }
-        routingTableResp = {};
-        mctpI3CFd = hw->getDriverFd();
-        busOwnerAddress = hw->getDeviceAddress();
-        hw->pollRx();
-        endpointDiscoveryFlow();
-    }
-    this->isWaitingForCPUTimedout = false;
-    this->cpuDetectTimer = std::nullopt;
+    });
 }
 
 void I3CBinding::endpointDiscoveryFlow()
@@ -327,8 +328,8 @@ void I3CBinding::readRoutingTable(
 
             if (routingTableEntry->starting_eid == ownEid)
             {
-                entryOffset += (sizeof(get_routing_table_entry)) + 
-                    routingTableEntry->phys_address_size;
+                entryOffset += (sizeof(get_routing_table_entry)) +
+                               routingTableEntry->phys_address_size;
                 continue;
             }
 
@@ -1032,16 +1033,37 @@ void I3CBinding::onPCIeEnumerationChange()
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "PCIe enumeration changed");
 
-    if (allocatedPoolSize == 0 || allocatedPoolFirstEID == 0)
-    {
-        return;
-    }
-    for (auto& [busName, allocInfo] : downstreamEIDPools)
-    {
-        allocInfo.allocated = false;
-        allocInfo.start = 0;
-    }
-    setDownStreamEIDPools(allocatedPoolSize, allocatedPoolFirstEID);
+    this->isWaitingForCPUTimedout = false;
+    this->cpuDetectTimer = std::nullopt;
+
+    boost::asio::spawn(
+        this->connection->get_io_context(),
+        [this, &io = this->connection->get_io_context()](
+            boost::asio::yield_context yield) {
+            boost::asio::steady_timer timer(io);
+            // OOBMSM takes 2.5 seconds to refresh the routing table.
+            timer.expires_after(std::chrono::seconds(3));
+            timer.async_wait(yield);
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "Triggering GetRouting table");
+
+            getRoutingTableTimer.cancel();
+            // Wait for routing table update and send SetEID to PFR
+            timer.expires_after(std::chrono::seconds(1));
+            timer.async_wait(yield);
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "Setting EID pool on PCIe enum change");
+
+            if (allocatedPoolSize != 0 && allocatedPoolFirstEID != 0)
+            {
+                for (auto& [busName, allocInfo] : downstreamEIDPools)
+                {
+                    allocInfo.allocated = false;
+                    allocInfo.start = 0;
+                }
+                setDownStreamEIDPools(allocatedPoolSize, allocatedPoolFirstEID);
+            }
+        });
 }
 
 void I3CBinding::clearAllRegisteredEIDs()

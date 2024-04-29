@@ -126,8 +126,8 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                 return;
             }
 
-            phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                ("NewEID " + std::to_string(ep.eid) + " of type " +
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                ("New EID " + std::to_string(ep.eid) + " of type " +
                  ep.endpointType +
                  (isHotplugged ? " hotplugged" : " existing") + " on " +
                  ep.service.name)

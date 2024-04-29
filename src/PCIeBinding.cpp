@@ -585,13 +585,6 @@ bool PCIeBinding::handlePrepareForEndpointDiscovery(
     resp->completion_code = MCTP_CTRL_CC_SUCCESS;
     pciePrivate->routing = PCIE_ROUTE_TO_RC;
 
-    phosphor::logging::log<phosphor::logging::level::INFO>(
-        "Received PrepareEndPointDiscovery command, Asserting PCIe enumeration "
-        "signal");
-    auto enumChangeSignal =
-        this->pcieInterface->new_signal("PCIeEnumerationChanged");
-    enumChangeSignal.signal_send();
-
     return true;
 }
 
@@ -617,6 +610,14 @@ bool PCIeBinding::handleEndpointDiscovery(
 
     resp->completion_code = MCTP_CTRL_CC_SUCCESS;
     pciePrivate->routing = PCIE_ROUTE_TO_RC;
+
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "Received PrepareEndPointDiscovery command, Asserting PCIe enumeration "
+        "signal");
+    auto enumChangeSignal =
+        this->pcieInterface->new_signal("PCIeEnumerationChanged");
+    enumChangeSignal.signal_send();
+
     return true;
 }
 
