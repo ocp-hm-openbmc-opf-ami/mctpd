@@ -35,7 +35,7 @@ using MctpPropertiesVariantType =
 
 MCTPServiceScanner::MCTPServiceScanner(
     std::shared_ptr<sdbusplus::asio::connection>& conn) :
-    connection(conn)
+    connection(conn), busUpdateCond(conn->get_io_context())
 {
     if (!connection)
     {
@@ -278,6 +278,10 @@ bool MCTPServiceScanner::isAllowedBus(const std::string& bus,
 {
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
         ("Checking if bridging is allowed on bus " + bus).c_str());
+
+    // Wait if another isAllowedBus is running
+    auto lock = busUpdateCond.lock(yield, boost::posix_time::millisec(10000));
+
     // If allowed bus list is empty then all serives bridging to all the
     // services is disabled by default
     if (bus.empty() || disallowedDestBuses.count(bus) > 0 ||
@@ -291,8 +295,12 @@ bool MCTPServiceScanner::isAllowedBus(const std::string& bus,
         return true;
     }
 
-    auto mctpServices = getMCTPServices(yield);
-    for (const auto& service : allowedDestBuses)
+    // Since this is a coroutine there is chance that another coroutine may
+    // modify allowedDestBuses while yield_method_call call is ongoing which
+    // will create invalid iterator issues. So use a copy to loop through
+    // allowedDestBuses
+    auto allowedDestBusesCopy = allowedDestBuses;
+    for (const auto& service : allowedDestBusesCopy)
     {
         if (!service.empty() && service.front() == ':')
         {
@@ -302,25 +310,35 @@ bool MCTPServiceScanner::isAllowedBus(const std::string& bus,
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             ("Checkig if " + bus + " is " + service).c_str());
         boost::system::error_code ec;
-        std::string uniqueName = connection->yield_method_call<std::string>(
-            yield, ec, "org.freedesktop.DBus", "/org/freedesktop/DBus",
-            "org.freedesktop.DBus", "GetNameOwner", service.c_str());
-
-        if (ec)
+        std::string uniqueName = "";
+        auto it = dbusUniqueNameMap.find(service);
+        if (it != dbusUniqueNameMap.end())
         {
-            std::string errMsg = std::string("GetUniqueName unsuccesful for ") +
-                                 service + ". " + ec.message();
-            phosphor::logging::log<phosphor::logging::level::WARNING>(
-                errMsg.c_str());
-            continue;
+            uniqueName = it->second;
         }
+        else
+        {
+            uniqueName = connection->yield_method_call<std::string>(
+                yield, ec, "org.freedesktop.DBus", "/org/freedesktop/DBus",
+                "org.freedesktop.DBus", "GetNameOwner", service.c_str());
 
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
-            ("Unique name of " + service + " is " + uniqueName + ". Target " +
-             bus)
-                .c_str());
+            if (ec)
+            {
+                std::string errMsg =
+                    std::string("GetUniqueName unsuccesful for ") + service +
+                    ". " + ec.message();
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    errMsg.c_str());
+                return false;
+            }
 
-        dbusUniqueNameMap.insert_or_assign(service, uniqueName);
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                ("Unique name of " + service + " is " + uniqueName +
+                 ". Target " + bus)
+                    .c_str());
+
+            dbusUniqueNameMap.insert_or_assign(service, uniqueName);
+        }
 
         if (uniqueName == bus)
         {
@@ -330,6 +348,8 @@ bool MCTPServiceScanner::isAllowedBus(const std::string& bus,
             return true;
         }
     }
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        ("Adding " + bus + " into disallowed list").c_str());
     disallowedDestBuses.insert(bus);
     return false;
 }
@@ -479,6 +499,20 @@ void MCTPServiceScanner::onEidRemoved(sdbusplus::message::message& message)
                 this->allowedDestBuses.erase(serviceName);
                 this->disallowedDestBuses.erase(serviceName);
             }
+
+            auto it = std::find_if(
+                dbusUniqueNameMap.begin(),
+                dbusUniqueNameMap.end(), [serviceName](const auto& keyval) {
+                    return keyval.first == serviceName ||
+                           keyval.second == serviceName;
+                });
+            if (dbusUniqueNameMap.end() != it)
+            {
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    ("Erasing " + serviceName + " from unique map").c_str());
+                dbusUniqueNameMap.erase(it);
+            }
+
         }
 
         auto endpointIntf = std::find(interfaces.begin(), interfaces.end(),
