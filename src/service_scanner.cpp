@@ -280,7 +280,7 @@ bool MCTPServiceScanner::isAllowedBus(const std::string& bus,
         ("Checking if bridging is allowed on bus " + bus).c_str());
 
     // Wait if another isAllowedBus is running
-    auto lock = busUpdateCond.lock(yield, boost::posix_time::millisec(10000));
+    auto lock = busUpdateCond.lock(yield, std::chrono::milliseconds(10000));
 
     // If allowed bus list is empty then all serives bridging to all the
     // services is disabled by default

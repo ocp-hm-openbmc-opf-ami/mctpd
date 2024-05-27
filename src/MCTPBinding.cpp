@@ -112,8 +112,9 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                          const std::string& objPath, const Configuration& conf,
                          boost::asio::io_context& ioc,
                          const mctp_server::BindingTypes bindingType) :
-    MCTPBridge(conn, ioc, objServer), regInProgress(ioc),
-    bindingID(bindingType), localSocketEp(unix_ipc::unix_path::getSockPath()),
+    MCTPBridge(conn, ioc, objServer),
+    regInProgress(ioc), bindingID(bindingType),
+    localSocketEp(unix_ipc::unix_path::getSockPath()),
     acceptor(ioc, localSocketEp)
 
 {
@@ -841,12 +842,12 @@ void MctpBinding::onNewService(const std::string& service)
     boost::asio::spawn(
         this->connection->get_io_context(),
         [this, service](boost::asio::yield_context yield) {
-            constexpr boost::posix_time::milliseconds dbusDelay(200);
-            boost::asio::deadline_timer setEIDPoolTimer(
+            constexpr std::chrono::milliseconds dbusDelay(200);
+            boost::asio::steady_timer setEIDPoolTimer(
                 connection->get_io_context());
             boost::system::error_code ec;
 
-            setEIDPoolTimer.expires_from_now(dbusDelay);
+            setEIDPoolTimer.expires_after(dbusDelay);
             setEIDPoolTimer.async_wait(yield[ec]);
 
             if (ec)

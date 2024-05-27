@@ -414,7 +414,7 @@ void I3CBinding::processBridgeEntries(
 void I3CBinding::updateRoutingTable()
 {
     struct mctp_asti3c_pkt_private pktPrv;
-    getRoutingTableTimer.expires_from_now(getRoutingInterval);
+    getRoutingTableTimer.expires_after(getRoutingInterval);
 
     if (!this->blockDiscoveryNotify &&
         discoveredFlag != I3CBindingServer::DiscoveryFlags::Discovered)
@@ -786,8 +786,8 @@ void I3CBinding::changeDiscoveredFlag(I3CBindingServer::DiscoveryFlags flag)
     if (I3CBindingServer::DiscoveryFlags::Discovered == flag)
     {
         constexpr const uint8_t waitForEidPoolDelaySeconds = 5;
-        getRoutingTableTimer.expires_from_now(
-            boost::posix_time::seconds{waitForEidPoolDelaySeconds});
+        getRoutingTableTimer.expires_after(
+            std::chrono::seconds{waitForEidPoolDelaySeconds});
     }
 }
 

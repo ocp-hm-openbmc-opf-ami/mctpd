@@ -24,7 +24,7 @@
 #include <libmctp-asti3c.h>
 #include <libmctp-cmds.h>
 
-#include <boost/asio/deadline_timer.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <xyz/openbmc_project/MCTP/Binding/I3C/server.hpp>
 
 using I3CBindingServer =
@@ -86,8 +86,8 @@ class I3CBinding : public MctpBinding
     uint8_t bus = 0;
     std::shared_ptr<dbus_interface> i3cInterface;
     I3CBindingServer::DiscoveryFlags discoveredFlag{};
-    boost::posix_time::seconds getRoutingInterval;
-    boost::asio::deadline_timer getRoutingTableTimer;
+    std::chrono::seconds getRoutingInterval;
+    boost::asio::steady_timer getRoutingTableTimer;
     I3CConfiguration i3cConf{};
     std::vector<routingTableEntry_t> routingTableResp;
     bool forwaredEIDPoolToEP = false;

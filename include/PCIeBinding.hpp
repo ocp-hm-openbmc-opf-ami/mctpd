@@ -23,7 +23,7 @@
 #include <libmctp-astpcie.h>
 #include <libmctp-cmds.h>
 
-#include <boost/asio/deadline_timer.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <xyz/openbmc_project/MCTP/Binding/PCIe/server.hpp>
 
 using pcie_binding =
@@ -92,8 +92,8 @@ class PCIeBinding : public MctpBinding,
     uint16_t busOwnerBdf;
     std::shared_ptr<dbus_interface> pcieInterface;
     pcie_binding::DiscoveryFlags discoveredFlag{};
-    boost::posix_time::seconds getRoutingInterval;
-    boost::asio::deadline_timer getRoutingTableTimer;
+    std::chrono::seconds getRoutingInterval;
+    boost::asio::steady_timer getRoutingTableTimer;
     std::vector<routingTableEntry_t> routingTableResp;
     void endpointDiscoveryFlow();
     void updateRoutingTable();

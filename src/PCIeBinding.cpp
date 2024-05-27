@@ -378,7 +378,7 @@ void PCIeBinding::processBridgeEntries(
 void PCIeBinding::updateRoutingTable()
 {
     struct mctp_astpcie_pkt_private pktPrv;
-    getRoutingTableTimer.expires_from_now(getRoutingInterval);
+    getRoutingTableTimer.expires_after(getRoutingInterval);
 
     if (discoveredFlag != pcie_binding::DiscoveryFlags::Discovered)
     {
@@ -863,7 +863,7 @@ void PCIeBinding::changeDiscoveredFlag(pcie_binding::DiscoveryFlags flag)
 
     if (pcie_binding::DiscoveryFlags::Discovered == flag)
     {
-        getRoutingTableTimer.expires_from_now(boost::posix_time::seconds{0});
+        getRoutingTableTimer.expires_after(std::chrono::seconds{0});
     }
     else if (pcie_binding::DiscoveryFlags::Undiscovered == flag)
     {

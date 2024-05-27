@@ -25,9 +25,9 @@ class WaitCondition
     WaitCondition(const WaitCondition&) = delete;
     WaitCondition(WaitCondition&&) = default;
 
-    using Timer = boost::asio::deadline_timer;
+    using Timer = boost::asio::steady_timer;
     using TimerPtr = std::shared_ptr<Timer>;
-    using Timeout = boost::posix_time::millisec;
+    using Timeout = std::chrono::milliseconds;
 
     class Lock
     {
@@ -58,7 +58,7 @@ class WaitCondition
     };
 
     inline WaitCondition(boost::asio::io_context& ioc) :
-        io(ioc), timer(std::make_shared<boost::asio::deadline_timer>(ioc))
+        io(ioc), timer(std::make_shared<boost::asio::steady_timer>(ioc))
     {
     }
 
@@ -76,7 +76,7 @@ class WaitCondition
             // Coroutine pending
             boost::system::error_code ec;
             auto copy = std::move(timer);
-            copy->expires_from_now(timeout);
+            copy->expires_after(timeout);
 
             timer = std::make_shared<Timer>(io);
             auto lock = Lock(timer);

@@ -69,8 +69,8 @@ class MctpBinding : public MCTPBridge
     mctp_eid_t reservedEID = 0;
     mctpd::MctpTransmissionQueue transmissionQueue;
     WaitCondition regInProgress;
-    static inline constexpr boost::posix_time::millisec regTimeout =
-        boost::posix_time::millisec(1500);
+    static inline constexpr std::chrono::milliseconds regTimeout =
+        std::chrono::milliseconds(1500);
 
     virtual bool reserveBandwidth(boost::asio::yield_context yield,
                                   const mctp_eid_t eid, const uint16_t timeout);
