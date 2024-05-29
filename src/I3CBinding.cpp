@@ -130,21 +130,21 @@ void I3CBinding::triggerDeviceDiscovery()
             eidTable.clear();
             eidPool.clearEIDPool();
         }
-    });
 
-    if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
-    {
-        discoveredFlag = I3CBindingServer::DiscoveryFlags::Undiscovered;
-        for (auto& routingEntry : routingTableResp)
+        if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
         {
-            unregisterEndpoint(std::get<0>(routingEntry));
+            discoveredFlag = I3CBindingServer::DiscoveryFlags::Undiscovered;
+            for (auto& routingEntry : routingTableResp)
+            {
+                unregisterEndpoint(std::get<0>(routingEntry));
+            }
+            routingTableResp = {};
+            mctpI3CFd = hw->getDriverFd();
+            busOwnerAddress = hw->getDeviceAddress();
+            hw->pollRx();
+            endpointDiscoveryFlow();
         }
-        routingTableResp = {};
-        mctpI3CFd = hw->getDriverFd();
-        busOwnerAddress = hw->getDeviceAddress();
-        hw->pollRx();
-        endpointDiscoveryFlow();
-    }
+    });
 }
 
 void I3CBinding::endpointDiscoveryFlow()
@@ -537,14 +537,18 @@ void I3CBinding::processRoutingTableChanges(
             std::vector<uint8_t> prvDataCopy = prvData;
             try
             {
-                registerEndpoint(yield, prvDataCopy, remoteEid,
-                                 getBindingMode(routingEntry));
-
-                phosphor::logging::log<phosphor::logging::level::INFO>(
-                    ("I3C device at bus " + std::to_string(bus) +
-                     " and address " + std::to_string(ownI3cDAA) +
-                     " registered at EID " + std::to_string(remoteEid))
-                        .c_str());
+                auto eidRegistered =
+                    registerEndpoint(yield, prvDataCopy, remoteEid,
+                                     getBindingMode(routingEntry));
+                if (eidRegistered.has_value() &&
+                    eidRegistered.value() != MCTP_EID_NULL)
+                {
+                    phosphor::logging::log<phosphor::logging::level::INFO>(
+                        ("I3C device at bus " + std::to_string(bus) +
+                         " and address " + std::to_string(ownI3cDAA) +
+                         " registered at EID " + std::to_string(remoteEid))
+                            .c_str());
+                }
             }
             catch (const std::exception& e)
             {
