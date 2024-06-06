@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "utils/wait_cond.hpp"
+
 #include <functional>
 #include <sdbusplus/asio/connection.hpp>
 #include <sdbusplus/bus/match.hpp>
@@ -108,5 +110,6 @@ class MCTPServiceScanner
     std::unordered_set<std::string> disallowedDestBuses;
     std::unordered_map<std::string, std::string> dbusUniqueNameMap;
     size_t detectedCPUs = 0;
+    WaitCondition busUpdateCond;
 };
 } // namespace bridging
