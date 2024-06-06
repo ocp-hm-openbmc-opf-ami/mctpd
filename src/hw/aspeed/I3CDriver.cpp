@@ -184,7 +184,7 @@ void I3CDriver::discoverI3CDevices()
                     "Error registering MCTP o. I3C default client");
                 return;
             }
-            streamMonitor.assign(reinterpret_cast<int>(handle.release()));
+            streamMonitor.assign(reinterpret_cast<long int>(handle.release()));
             break;
         }
         else
