@@ -77,10 +77,12 @@ bool updatePhysicalDetails(
                 break;
             case MCTP_BINDING_I3C:
                 // TODO I3C address needs to be tested
-                phyAddress =
-                    readPropertyValue<size_t>(yield, *connection, serviceName,
-                                              object_path, i3cIntf, "Address");
-                ep.physicalAddress.push_back(static_cast<uint8_t>(phyAddress));
+                {
+                    uint8_t i3cAddress =
+                        readPropertyValue<uint8_t>(yield, *connection, serviceName,
+                                                object_path, i3cIntf, "Address");
+                    ep.physicalAddress.push_back(i3cAddress);
+                }
                 break;
             default:
                 phosphor::logging::log<phosphor::logging::level::ERR>(

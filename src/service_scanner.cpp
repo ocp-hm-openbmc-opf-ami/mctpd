@@ -25,6 +25,7 @@
 #include <boost/asio.hpp>
 #include <phosphor-logging/log.hpp>
 #include <unordered_map>
+#include <regex>
 
 using MCTPServiceScanner = bridging::MCTPServiceScanner;
 template <typename T1, typename T2>
@@ -444,13 +445,27 @@ void MCTPServiceScanner::onHotPluggedEid(sdbusplus::message::message& message)
                     }
                     ep.service = this->getMctpServiceDetails(
                         yield, message.get_sender());
-                    if (!updatePhysicalDetails(connection, yield, objectPath,
-                                               serviceName, ep))
+
+                    // EID added event gets received before binding decorator
+                    // interface and Address fields is populated
+                    uint8_t updPhysRetry = 3;
+                    while (updPhysRetry > 0 && ep.physicalAddress.size() == 0)
+                    {
+                        updPhysRetry--;
+                        if (!updatePhysicalDetails(connection, yield,
+                                                   objectPath, serviceName, ep))
+                        {
+                            sleepFor(this->connection->get_io_context(), yield,
+                                     std::chrono::milliseconds(100));
+                        }
+                    }
+                    if (ep.physicalAddress.size() == 0)
                     {
                         phosphor::logging::log<
                             phosphor::logging::level::WARNING>(
-                            "onHotPlugged failed to get physical address "
-                            "details");
+                            ("onHotPlugged failed to get physical address. " +
+                             objectPath.str)
+                                .c_str());
                     }
                     this->onNewEid(ep, true);
                 }
@@ -570,10 +585,56 @@ void MCTPServiceScanner::onEidRemoved(sdbusplus::message::message& message)
     }
 }
 
+static std::pair<bool, uint8_t> isModular(boost::asio::yield_context yield,
+                                          sdbusplus::asio::connection& bus)
+{
+    static std::optional<uint8_t> cpuCount = std::nullopt;
+
+    if (cpuCount)
+    {
+        return std::make_pair(true, *cpuCount);
+    }
+
+    try
+    {
+        std::string bmcMode = readPropertyValue<std::string>(
+            yield, bus, "xyz.openbmc_project.modular",
+            "/xyz/openbmc_project/modular", "xyz.openbmc_project.modular.state",
+            "BMCMode");
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("Modular system: " + bmcMode).c_str());
+        if (bmcMode == "EightSocket")
+        {
+            cpuCount = 8;
+            return std::make_pair(true, 8);
+        }
+        else if (bmcMode == "FourSocket")
+        {
+            cpuCount = 4;
+            return std::make_pair(true, 4);
+        }
+    }
+    catch (const std::exception& e)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            (std::string("Error checking modular service. ") + e.what())
+                .c_str());
+    }
+    return std::make_pair(false, 0);
+}
+
 void MCTPServiceScanner::getConnectedCPUs()
 {
-    boost::asio::spawn(this->connection->get_io_context(), 
+    boost::asio::spawn(
+        this->connection->get_io_context(),
         [this](boost::asio::yield_context yield) {
+            auto modularCPUCount = isModular(yield, *this->connection);
+            if (modularCPUCount.first)
+            {
+                this->detectedCPUs = modularCPUCount.second;
+                return;
+            }
+
             constexpr const char* cpuSensorService =
                 "xyz.openbmc_project.IntelCPUSensor";
             constexpr const char* cpuObj =
@@ -614,4 +675,23 @@ void MCTPServiceScanner::getConnectedCPUs()
             }
             this->detectedCPUs = cpuCountFromDbus;
         });
+}
+
+size_t MCTPServiceScanner::getAllowedCPUBusses()
+{
+    size_t count = 0;
+    for (const auto& serviceName : allowedDestBuses)
+    {
+        if (std::regex_search(serviceName, std::regex("CPU\\d$")))
+        {
+            count++;
+        }
+        else if (std::regex_search(serviceName, std::regex("SEC_LBMC$")))
+        {
+            count = this->detectedCPUs;
+            break;
+        }
+    }
+
+    return detectedCPUs == 0 ? count : std::min(count, detectedCPUs);
 }

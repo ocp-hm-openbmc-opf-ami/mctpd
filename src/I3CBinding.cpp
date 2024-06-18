@@ -17,6 +17,7 @@
 #include "I3CBinding.hpp"
 
 #include "utils/utils.hpp"
+#include "utils/dbus_helper.hpp"
 
 #include <phosphor-logging/log.hpp>
 
@@ -34,7 +35,6 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                 mctp_server::BindingTypes::MctpOverI3c),
     hw{std::move(hwParam)}, getRoutingInterval(conf.getRoutingInterval),
     getRoutingTableTimer(ioc, getRoutingInterval), i3cConf(conf),
-    forwaredEIDPoolToEP(conf.forwaredEIDPoolToEP),
     blockDiscoveryNotify(conf.blockDiscoveryNotify),
     targetStatusTimer(ioc)
 {
@@ -172,6 +172,7 @@ void I3CBinding::endpointDiscoveryFlow()
     {
         phosphor::logging::log<phosphor::logging::level::INFO>(
             "Discovery notify sending disabled using config value");
+        getRoutingTableTimer.cancel();
         return;
     }
 
@@ -354,7 +355,10 @@ void I3CBinding::readRoutingTable(
                 continue;
             }
             std::optional<uint8_t> entryPhysAddr =
-                getRoutingEntryPhysAddr(getRoutingTableEntryResp, entryOffset);
+                routingTableEntry->phys_address_size == 0
+                    ? 0
+                    : getRoutingEntryPhysAddr(getRoutingTableEntryResp,
+                                              entryOffset);
 
             if (!entryPhysAddr)
             {
@@ -544,6 +548,7 @@ void I3CBinding::processRoutingTableChanges(
                     std::vector<uint8_t>({std::get<1>(routingEntry)}));
                 MctpBinding::routingTable.updateEntry(remoteEid, entry);
                 populateEndpointProperties(epProperties);
+                populateDeviceProperties(remoteEid, {});
                 continue;
             }
             std::vector<uint8_t> prvDataCopy = prvData;
@@ -932,16 +937,19 @@ bool I3CBinding::forwardEIDPool(boost::asio::yield_context& yield,
     uint8_t eid;
     for (eid = 0; eid < poolSize; eid++)
     {
-        if (eidTable.contains(eid))
-        {
-            continue;
-        }
         phosphor::logging::log<phosphor::logging::level::INFO>(
             ("Registering downstream eid " + std::to_string(startEID + eid))
                 .c_str());
         EndpointProperties epProperties;
         epProperties.endpointMsgTypes.mctpControl = false;
         epProperties.endpointEid = startEID + eid;
+
+        if (eidTable.contains(epProperties.endpointEid))
+        {
+            logLine("Ignoring already existing EID ",
+                    static_cast<int>(epProperties.endpointEid));
+            continue;
+        }
         epProperties.mode = sdbusplus::xyz::openbmc_project::MCTP::server::
             Base::BindingModeTypes::Endpoint;
 

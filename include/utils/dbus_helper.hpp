@@ -74,3 +74,14 @@ inline std::string arrToString(Arr&& arr)
     }
     return ss.str();
 }
+
+template <typename T>
+boost::system::error_code sleepFor(boost::asio::io_context& io,
+                                   boost::asio::yield_context yield, T timeout)
+{
+    boost::asio::steady_timer timer(io);
+    timer.expires_after(timeout);
+    boost::system::error_code ec;
+    timer.async_wait(yield[ec]);
+    return ec;
+}

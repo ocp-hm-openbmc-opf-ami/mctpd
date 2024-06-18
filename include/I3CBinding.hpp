@@ -93,7 +93,6 @@ class I3CBinding : public MctpBinding
     boost::asio::deadline_timer getRoutingTableTimer;
     I3CConfiguration i3cConf{};
     std::vector<routingTableEntry_t> routingTableResp;
-    bool forwaredEIDPoolToEP = false;
     bool blockDiscoveryNotify = false;
     std::unique_ptr<sdbusplus::bus::match::match> pcieEnumChangeMatch{};
     boost::asio::steady_timer targetStatusTimer;

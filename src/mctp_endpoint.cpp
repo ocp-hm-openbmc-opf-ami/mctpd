@@ -765,7 +765,8 @@ bool MCTPEndpoint::discoveryNotifyCtrlCmd(
 
 void MCTPEndpoint::updateWaitingForCPUTimeout()
 {
-    const boost::posix_time::seconds timeout{20};
+    // Wait until atleast max routing info update interval which is 60
+    const boost::posix_time::seconds timeout{65};
     if (!cpuDetectTimer)
     {
         cpuDetectTimer =

@@ -112,7 +112,9 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                          boost::asio::io_context& ioc,
                          const mctp_server::BindingTypes bindingType) :
     MCTPBridge(conn, ioc, objServer), regInProgress(ioc),
-    isResetReachable(conf.isResetReachable), bindingID(bindingType)
+    isResetReachable(conf.isResetReachable),
+    forwaredEIDPoolToEP(conf.forwaredEIDPoolToEP), sendRoutingUpdateTimer(ioc),
+    bindingID(bindingType)
 {
     objServer->add_manager(objPath);
     mctpServiceScanner.setAllowedBuses(conf.allowedBuses.begin(),
@@ -141,6 +143,25 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
             entry.isUpstream = true;
             routingTable.updateEntry(ep.eid, entry);
             sendNewRoutingTableEntryToAllBridges(entry);
+
+            if (this->forwaredEIDPoolToEP)
+            {
+                // Accumulate routing info update for 1 second and send only the
+                // last enrty.
+                std::vector<decltype(entry.routeEntry)> libmctpEntries{
+                    entry.routeEntry};
+                this->sendRoutingUpdateTimer.cancel();
+                sendRoutingUpdateTimer.expires_after(std::chrono::seconds(1));
+                sendRoutingUpdateTimer.async_wait(
+                    [this, libmctpEntries](boost::system::error_code ec) {
+                        if (ec)
+                        {
+                            return;
+                        }
+                        sendRoutingTableEntries(libmctpEntries, std::nullopt,
+                                                0);
+                    });
+            }
         });
     mctpServiceScanner.setEidRemovedCallback(
         [this](bridging::MCTPServiceScanner::EndPoint ep) {

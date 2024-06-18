@@ -104,12 +104,13 @@ class MCTPBridge : public MCTPEndpoint
         const mctp_eid_t startEID, const uint8_t poolSize,
         std::vector<uint8_t>& resp);
 
-  private:
-    void logUnsupportedMCTPVersion(
-        const std::vector<struct MCTPVersionFields> versionsData,
-        const mctp_eid_t eid);
     void sendRoutingTableEntries(
         const std::vector<mctpd::RoutingTable::Entry::MCTPLibData>& entries,
         std::optional<std::vector<uint8_t>> bindingPrivateData,
         const mctp_eid_t eid = 0);
+
+  private:
+    void logUnsupportedMCTPVersion(
+        const std::vector<struct MCTPVersionFields> versionsData,
+        const mctp_eid_t eid);
 };

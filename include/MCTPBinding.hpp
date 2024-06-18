@@ -62,6 +62,8 @@ class MctpBinding : public MCTPBridge
     mctpd::MctpTransmissionQueue transmissionQueue;
     WaitCondition regInProgress;
     bool isResetReachable = true;
+    bool forwaredEIDPoolToEP = false;
+    boost::asio::steady_timer sendRoutingUpdateTimer;
     static inline constexpr boost::posix_time::millisec regTimeout =
         boost::posix_time::millisec(1500);
 

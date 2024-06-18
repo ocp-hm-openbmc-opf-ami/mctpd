@@ -45,6 +45,7 @@ struct Configuration
     // Configuration to skip devices for MCTP communications
     std::vector<std::string> skipList;
     bool isResetReachable = true;
+    bool forwaredEIDPoolToEP = false;
 
     virtual ~Configuration();
 };
@@ -78,7 +79,6 @@ struct I3CConfiguration : Configuration
     bool requiresCpuPidMask = true;
     uint16_t provisionalIdMask;
     uint16_t getRoutingInterval = 0;
-    bool forwaredEIDPoolToEP = false;
     bool blockDiscoveryNotify = false;
 
     ~I3CConfiguration() override;
