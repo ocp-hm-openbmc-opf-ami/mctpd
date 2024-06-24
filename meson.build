@@ -141,7 +141,8 @@ src_files = [
 	'src/smbus_bridge.cpp',
 	'src/I3CBinding.cpp',
 	'src/utils/i3c_utils.cpp',
-	'src/hw/aspeed/I3CDriver.cpp'
+	'src/hw/aspeed/I3CDriver.cpp',
+	'src/hw/aspeed/i3c_utils.cpp'
 ]
 
 exe_options = ['warning_level=3']
