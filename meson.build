@@ -2,14 +2,16 @@ project(
     'mctpd', ['c','cpp'],
     license: 'Apache-2.0',
     version: '0.1',
+    meson_version: '>=1.1.1',
     default_options: [
         'warning_level=3',
         'werror=true',
         'cpp_std=c++23',
         'c_std=gnu11',
     ],
-        version: '0.1',
 )
+
+cmake = import('cmake')
 
 # Supress Zero-size array error from libmctp
 add_project_arguments(
@@ -19,6 +21,7 @@ add_project_arguments(
 )
 
 yocto_build = get_option('yocto_dep')
+build_tests = get_option('tests')
 
 dep_required = false
 if yocto_build.enabled()
@@ -58,25 +61,28 @@ if not sdbusplus.found()
     sdbusplus = sdbusplus_proj.get_variable('sdbusplus_dep')
 endif
 
-libmctp_dep = meson.get_compiler('cpp').find_library('mctp_intel', required : dep_required)
-if not libmctp_dep.found()
-    cmake = import('cmake')
+if not yocto_build.enabled() and build_tests.enabled()
     opt_var = cmake.subproject_options()
     opt_var.append_compile_args('c', '-Wno-pedantic')
     libmctp_proj = cmake.subproject('libmctp', options: opt_var)
     libmctp_dep = libmctp_proj.dependency('mctp_intel')
-endif
 
-phosphor_dbus_interfaces_dep = dependency('phosphor-dbus-interfaces', required: dep_required)
-if not phosphor_dbus_interfaces_dep.found()
     phosphor_dbus_interfaces_proj = subproject('phosphor-dbus-interfaces')
     phosphor_dbus_interfaces_dep = phosphor_dbus_interfaces_proj.get_variable('phosphor_dbus_interfaces_dep')
-endif
 
-phosphor_logging_dep = dependency('phosphor-logging', required : dep_required)
-if not phosphor_logging_dep.found()
     phosphor_dbus_interfaces_proj = subproject('phosphor-logging')
     phosphor_logging_dep = phosphor_dbus_interfaces_proj.get_variable('phosphor_logging_dep')
+else
+    libmctp_dep = meson.get_compiler('cpp').find_library('mctp_intel', required : dep_required)
+    if not libmctp_dep.found()
+        opt_var = cmake.subproject_options()
+        opt_var.append_compile_args('c', '-Wno-pedantic')
+        libmctp_proj = cmake.subproject('libmctp', options: opt_var)
+        libmctp_dep = libmctp_proj.dependency('mctp_intel')
+    endif
+
+    phosphor_dbus_interfaces_dep = dependency('phosphor-dbus-interfaces', required : true)
+    phosphor_logging_dep = dependency('phosphor-logging', required : true)
 endif
 
 CLI11_dep = dependency('CLI11', required : dep_required)
@@ -160,4 +166,26 @@ executable(
       install: true,
       install_dir: get_option('bindir'),
       override_options : exe_options
+
 )
+
+if build_tests.enabled()
+    gtest_dep = dependency('gtest', required:true)
+    gmocktest_dep = dependency('gmock', required:true)
+
+    common_test_deps = [
+        gtest_dep,
+        gmocktest_dep,
+        boost,
+        nlohmann_json_dep,
+        threads,
+        sdbusplus,
+        phosphor_dbus_interfaces_dep,
+        phosphor_logging_dep,
+        libmctp_dep,
+        CLI11_dep,
+        i2c,
+        udev
+    ]
+
+endif

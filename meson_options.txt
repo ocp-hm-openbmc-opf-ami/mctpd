@@ -1,3 +1,6 @@
 option(
+    'tests', type: 'feature',  description: 'to build unit test', value:'enabled'
+)
+option(
     'yocto_dep', type: 'feature',  description: 'Use yocto dependencies'
 )
