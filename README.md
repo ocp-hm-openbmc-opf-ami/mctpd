@@ -1,16 +1,20 @@
 # MCTP Daemon
+
 This component implements MCTP Base Specification DSP0236(MCTP Base
 Specification), DSP0237(MCTP SMBus/I2C Transport Binding Specification) and
 DSP0238(MCTP PCIe VDM Transport Binding Specification).
 
 ## Overview
+
 MCTP service is responsible for discovering endpoints in the network (either as
 a bus owner or by querying routing table from bus owner). This also provides
 mechanisms(D-Bus methods) for upper layer applications to transmit and receive
 MCTP packets.
 
 ## MCTP Over SMBus support(As MCTP bus owner)
+
 Supports
+
 1. Seperate instances on different physical bus
 2. Device discovery
 3. Hotplug device discovery
@@ -20,16 +24,18 @@ Supports
 6. MCTP supported device list filter
 
 ### Assumptions
+
 1. Bus Owners to have a statically allocated pool of EIDs
 2. SMBus ARP Controller is out of scope for this document
 3. PLDM, Intel Vendor Defined Messages and other MCTP Message Types are out of
    scope
 
 ### Device Discovery
+
 BMC takes statically configurations(EID pool, bus path etc..) exposed by
-`entity-manager`. BMC scans those buses for MCTP capable devices
-and executes the bus owner responsibilities of EID assignment and device
-capability discovery.
+`entity-manager`. BMC scans those buses for MCTP capable devices and executes
+the bus owner responsibilities of EID assignment and device capability
+discovery.
 
 ### MCTP Control Commands Supported on SMBus Binding
 
@@ -43,6 +49,7 @@ capability discovery.
 | **Get Vendor Defined Message Support** | 0x06             | Supported     | Supported     | Clause 12.8 in DPS0236 v1.3.0                                                                                           |
 
 ### I2C Multiplexer Support
+
 BMC needs to keep the I2C Mux channel open for the endpoint devices to send the
 responses. In addition, "pull model" MCTP message support(Mux channels need to
 be opened for MCTP messages originating from the endpoint to reach BMC) is
@@ -50,7 +57,9 @@ implemented using `ReserveBandwidth` and `ReleaseBandwidth` D-Bus method calls
 (Usecase: PLDM firmware update).
 
 ## MCTP over PCIe VDM(As MCTP endpoint)
+
 Supports
+
 1. Discovery by a bus owner on the PCIe bus
 2. MCTP communication with other endpoints on PCIe bus
 3. Support for MCTP VDM PCI message format
@@ -71,7 +80,9 @@ Supports
 | **Discovery Notify**                   | 0x0D             | Supported     | N/A           | Clause 12.15 in DPS0236 v1.3.0                                                                                                                       |
 
 ## Standalone Build
+
 To build the package do the following
+
 1. mkdir build
 2. cd build
 3. cmake -DBUILD_STANDALONE=ON -DMCTPD_BUILD_UT=ON ../
@@ -84,4 +95,5 @@ To build the package do the following
 3. meson compile -C build
 
 ## TODO Items
+
 1. MCTP bridging
