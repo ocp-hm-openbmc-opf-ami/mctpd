@@ -14,6 +14,7 @@ project(
 # Supress Zero-size array error from libmctp
 add_project_arguments(
     '-Wno-pedantic',
+    '-DBOOST_DISABLE_ASSERTS',
     language: 'cpp',
 )
 
