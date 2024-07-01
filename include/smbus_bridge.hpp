@@ -49,10 +49,11 @@ class SMBusBridge : public SMBusEndpoint
     std::set<uint8_t> supportedEndpointTargetAddress;
     std::set<std::pair<int, uint8_t>> rootDeviceMap;
 
-    void setMuxIdleMode(const MuxIdleModes mode);
+    void setMuxIdleMode(const std::string& bus, const MuxIdleModes mode);
     void setupMuxMonitor();
-    std::map<std::string, std::string> getMuxPorts();
+    std::map<std::string, std::string> getMuxPorts(const std::string& rootPort);
     std::map<int, int> getMuxFds(const std::string& rootPort);
+    void initializeRootI2CBusses();
     void scanDevices();
     void scanPort(const int scanFd,
                   std::set<std::pair<int, uint8_t>>& deviceMap);
@@ -75,7 +76,8 @@ class SMBusBridge : public SMBusEndpoint
     void restoreMuxIdleMode();
     inline void handleMuxInotifyEvent(const std::string& name);
     void monitorMuxChange();
-    void scanMuxBus(std::set<std::pair<int, uint8_t>>& deviceMap);
+    void scanMuxBus(std::map<int, int> muxPortMap,
+                    std::set<std::pair<int, uint8_t>>& deviceMap);
     void initEndpointDiscovery(boost::asio::yield_context& yield);
     bool reserveBandwidth(boost::asio::yield_context yield,
                           const mctp_eid_t eid,

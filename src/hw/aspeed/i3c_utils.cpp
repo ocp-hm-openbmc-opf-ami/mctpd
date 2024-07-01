@@ -39,8 +39,9 @@ std::set<uint8_t> getI2CPortsOnHub(uint8_t i3cBusNum)
     }
 
     const std::string busName = search->second;
-    std::string deviceDirPath =
-        "/sys/devices/platform/ahb/ahb:apb/ahb:apb:bus@1e7a0000/" + busName;
+    const std::string rootBusDir =
+        "/sys/devices/platform/ahb/ahb:apb/ahb:apb:bus@1e7a0000/";
+    std::string deviceDirPath = rootBusDir + busName;
     if (!std::filesystem::exists(deviceDirPath))
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(

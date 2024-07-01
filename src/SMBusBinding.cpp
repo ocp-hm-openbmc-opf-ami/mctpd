@@ -23,6 +23,7 @@
 
 #include <optional>
 #include <phosphor-logging/log.hpp>
+#include <regex>
 #include <xyz/openbmc_project/Inventory/Decorator/I2CDevice/server.hpp>
 #include <xyz/openbmc_project/MCTP/Binding/SMBus/server.hpp>
 
@@ -43,7 +44,20 @@ SMBusBinding::SMBusBinding(
     try
     {
         arpControllerSupport = conf.arpControllerSupport;
-        bus = conf.bus;
+        busses = conf.busses;
+
+        // The configuration 'bus' got updated to 'busses'. But it is possible
+        // that older generation platforms still use 'bus' configuration. Thus
+        // for backward compatibility check if it has such an entry and modify
+        // it as per new format. This code can be remove when 'bus' property
+        // support is completely removed.
+        std::size_t pos = conf.bus.find("i2c-");
+        if (pos != std::string::npos)
+        {
+            std::string busName = conf.bus.substr(pos);
+            busses.insert(busName);
+        }
+
         bmcTargetAddr = conf.bmcTargetAddr;
         supportedEndpointTargetAddress = conf.supportedEndpointTargetAddress;
         scanInterval = conf.scanInterval;
@@ -69,7 +83,14 @@ SMBusBinding::SMBusBinding(
                          convertToString(discoveredFlag));
         registerProperty(smbusInterface, "ArpControllerSupport",
                          arpControllerSupport);
-        registerProperty(smbusInterface, "BusPath", bus);
+
+        std::string combinedPaths = std::accumulate(
+            std::next(busses.begin()), busses.end(), *busses.begin(),
+            [](std::string a, std::string b) { return a + ", " + b; });
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("SMBus Bus Paths: " + combinedPaths).c_str());
+        registerProperty(smbusInterface, "BusPath", combinedPaths);
+
         registerProperty(smbusInterface, "BmcTargetAddress", bmcTargetAddr);
 
         if (!skipListPaths(conf.skipList))
@@ -100,29 +121,18 @@ SMBusBinding::~SMBusBinding()
 
 void SMBusBinding::initializeBinding()
 {
-    try
-    {
-        initializeMctp();
-        auto rootPort = SMBusInit();
-        phosphor::logging::log<phosphor::logging::level::INFO>(
-            "Scanning root port");
-        setMuxIdleMode(MuxIdleModes::muxIdleModeDisconnect);
-        muxPortMap = getMuxFds(rootPort);
-    }
 
-    catch (const std::exception& e)
-    {
-        auto error =
-            "Failed to initialise SMBus binding: " + std::string(e.what());
-        phosphor::logging::log<phosphor::logging::level::ERR>(error.c_str());
-        return;
-    }
-
+    initializeMctp();
+    smbusInit();
     setupPowerMatch(connection, this);
     setupMuxMonitor();
     if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
     {
         scanDevices();
+    }
+    else
+    {
+        initializeRootI2CBusses();
     }
 }
 

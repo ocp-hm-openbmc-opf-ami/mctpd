@@ -16,6 +16,7 @@
 
 #include "smbus_device.hpp"
 
+#include "hw/aspeed/i3c_utils.hpp"
 #include "utils/smbus_utils.hpp"
 #include "utils/utils.hpp"
 
@@ -30,28 +31,17 @@ SMBusDevice::SMBusDevice(std::shared_ptr<sdbusplus::asio::connection> conn,
                          boost::asio::io_context& ioc) :
     MctpBinding(conn, objServer, objPath, conf, ioc,
                 mctp_server::BindingTypes::MctpOverSmbus),
-    smbusReceiverFd(ioc)
+    ioc(ioc)
 {
 }
 
 SMBusDevice::~SMBusDevice()
 {
-    if (smbusReceiverFd.native_handle() >= 0)
-    {
-        smbusReceiverFd.release();
-    }
-    if (inFd >= 0)
-    {
-        close(inFd);
-    }
-    if (outFd >= 0)
-    {
-        close(outFd);
-    }
+    rootBusMap.clear();
     mctp_smbus_free(smbus);
 }
 
-std::string SMBusDevice::SMBusInit()
+void SMBusDevice::smbusInit()
 {
     smbus = mctp_smbus_init();
     if (smbus == nullptr)
@@ -69,12 +59,22 @@ std::string SMBusDevice::SMBusInit()
     mctp_set_rx_raw(mctp, &MctpBinding::onRawMessage);
     mctp_set_rx_ctrl(mctp, &MctpBinding::handleMCTPControlRequests,
                      static_cast<MctpBinding*>(this));
+
+    // Source target address is in 8 bit format and should always be an odd
+    // number
+    mctp_smbus_set_src_target_addr(smbus, bmcTargetAddr | 0x01);
+}
+
+std::unique_ptr<RootBusInfo> SMBusDevice::rootBusInit(const std::string& bus)
+{
+    auto busInfo = std::make_unique<RootBusInfo>(ioc);
     std::string rootPort;
 
     if (!getBusNumFromPath(bus, rootPort))
     {
-        throwRunTimeError("Error in opening smbus rootport");
+        throwRunTimeError("Error in opening smbus root port");
     }
+    busInfo->rootPortNo = rootPort;
 
     std::stringstream addrStream;
     addrStream.str("");
@@ -94,14 +94,11 @@ std::string SMBusDevice::SMBusInit()
     std::string inputDevice = "/sys/bus/i2c/devices/" + rootPort + "-" +
                               hexTargetAddr + "/slave-mqueue";
 
-    // Source target address is in 8 bit format and should always be an odd
-    // number
-    mctp_smbus_set_src_target_addr(smbus, bmcTargetAddr | 0x01);
-
-    inFd = open(inputDevice.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+    busInfo->inFd =
+        open(inputDevice.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
 
     // Doesn't exist, try to create one
-    if (inFd < 0)
+    if (busInfo->inFd < 0)
     {
         std::string newInputDevice =
             "/sys/bus/i2c/devices/i2c-" + rootPort + "/new_device";
@@ -112,26 +109,26 @@ std::string SMBusDevice::SMBusInit()
         deviceFile.open(newInputDevice, std::ios::out);
         deviceFile << para;
         deviceFile.close();
-        inFd = open(inputDevice.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+        busInfo->inFd =
+            open(inputDevice.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
 
-        if (inFd < 0)
+        if (busInfo->inFd < 0)
         {
             throwRunTimeError("Error in opening smbus binding in_bus");
         }
     }
 
     // Open root bus
-    outFd = open(bus.c_str(), O_RDWR | O_NONBLOCK | O_CLOEXEC);
-    if (outFd < 0)
+    busInfo->outFd = open(bus.c_str(), O_RDWR | O_NONBLOCK | O_CLOEXEC);
+    if (busInfo->outFd < 0)
     {
         throwRunTimeError("Error in opening smbus binding out bus");
     }
-    mctp_smbus_set_in_fd(smbus, inFd);
-    mctp_smbus_set_out_fd(smbus, outFd);
 
-    smbusReceiverFd.assign(inFd);
-    readResponse();
-    return rootPort;
+    busInfo->smbusReceiverFd.assign(busInfo->inFd);
+    busInfo->readResponse(smbus);
+
+    return busInfo;
 }
 
 std::optional<std::vector<uint8_t>>
@@ -145,7 +142,13 @@ std::optional<std::vector<uint8_t>>
         {
             mctp_smbus_pkt_private temp = std::get<1>(device);
             prvt.fd = temp.fd;
-            if (muxPortMap.count(prvt.fd) != 0)
+            auto it = std::find_if(rootBusMap.begin(), rootBusMap.end(),
+                                   [&prvt](const auto& rootBus) {
+                                       const auto& rootBusInfo = rootBus.second;
+                                       return rootBusInfo->muxPortMap.count(
+                                                  prvt.fd) > 0;
+                                   });
+            if (it != rootBusMap.end())
             {
                 prvt.mux_hold_timeout = 1000;
                 prvt.mux_flags = IS_MUX_PORT;
@@ -165,36 +168,28 @@ std::optional<std::vector<uint8_t>>
 
 int SMBusDevice::getBusNumByFd(const int fd)
 {
-    if (muxPortMap.count(fd))
+    auto it = std::find_if(rootBusMap.begin(), rootBusMap.end(),
+                           [fd](const auto& rootBus) {
+                               const auto& rootBusInfo = rootBus.second;
+                               return rootBusInfo->muxPortMap.count(fd) > 0;
+                           });
+    if (it != rootBusMap.end())
     {
-        return muxPortMap.at(fd);
+        return it->second->muxPortMap.at(fd);
     }
 
-    std::string busNum;
-    if (getBusNumFromPath(bus, busNum))
+    it = std::find_if(rootBusMap.begin(), rootBusMap.end(),
+                      [fd](const auto& rootBus) {
+                          const auto& rootBusInfo = rootBus.second;
+                          return rootBusInfo->outFd == fd;
+                      });
+    if (it != rootBusMap.end())
     {
-        return std::stoi(busNum);
+        return std::stoi(it->second->rootPortNo);
     }
 
     // bus cannot be negative, return -1 on error
     return -1;
-}
-
-void SMBusDevice::readResponse()
-{
-    smbusReceiverFd.async_wait(
-        boost::asio::posix::stream_descriptor::wait_error,
-        [this](const boost::system::error_code& ec) {
-            if (ec)
-            {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "Error: mctp_smbus_read()");
-                readResponse();
-            }
-            // through libmctp this will invoke rxMessage and message assembly
-            mctp_smbus_read(smbus);
-            readResponse();
-        });
 }
 
 std::vector<DeviceTableEntry_t>::iterator
@@ -350,4 +345,38 @@ std::vector<uint8_t>
     auto smbusData =
         reinterpret_cast<const mctp_smbus_pkt_private*>(privateData.data());
     return std::vector<uint8_t>{smbusData->target_addr};
+}
+
+std::set<std::string>
+    SMBusDevice::getRootI2CBusses(std::set<uint8_t> i2cBusNums,
+                                  std::set<uint8_t> i3cBusNums)
+{
+
+    const std::string devDir = "/dev/i2c-";
+
+    std::set<std::string> i2cRootDevBusses;
+    // Directly create i2c root bus dev paths from i2c bus numbers
+    for (const auto& i2cBusNum : i2cBusNums)
+    {
+        i2cRootDevBusses.insert(devDir + std::to_string(i2cBusNum));
+    }
+
+    // Find i2c bus ports behind hub
+    std::set<uint8_t> i2cRootBussesBehindHub;
+    for (const auto& i3cBusNum : i3cBusNums)
+    {
+        auto rootBusTemp = hw::aspeed::getI2CPortsOnHub(i3cBusNum);
+        i2cRootBussesBehindHub.insert(rootBusTemp.begin(), rootBusTemp.end());
+    }
+    for (const auto& i2cBusNum : i2cRootBussesBehindHub)
+    {
+        i2cRootDevBusses.insert(devDir + std::to_string(i2cBusNum));
+    }
+
+    for (auto const& bus : i2cRootDevBusses)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("Root i2c bus found: " + bus).c_str());
+    }
+    return i2cRootDevBusses;
 }

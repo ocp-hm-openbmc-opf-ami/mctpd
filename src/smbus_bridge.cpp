@@ -98,12 +98,33 @@ void SMBusBridge::scanPort(const int scanFd,
          * i2c devices, which needs to be part of root bus's devicemap.
          * Skip adding them to the muxfd related devicemap */
 
-        if (scanFd != outFd &&
-            rootDeviceMap.count(std::make_pair(outFd, it)) != 0)
+        auto rootBusIt = std::find_if(rootBusMap.begin(), rootBusMap.end(),
+                                      [&scanFd](const auto& rootBus) {
+                                          const auto& rootBusInfo =
+                                              rootBus.second;
+                                          return rootBusInfo->outFd == scanFd;
+                                      });
+        if (rootBusIt == rootBusMap.end())
         {
-            phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                ("Skipping device " + std::to_string(it)).c_str());
-            continue;
+            // We are scanning muxFd. Now find it's root bus
+            auto rootBusItOfMuxFd =
+                std::find_if(rootBusMap.begin(), rootBusMap.end(),
+                             [&scanFd](const auto& rootBus) {
+                                 const auto& rootBusInfo = rootBus.second;
+                                 return rootBusInfo->muxPortMap.count(scanFd);
+                             });
+            if (rootBusItOfMuxFd != rootBusMap.end())
+            {
+                // Check if the device is already part of root bus's devicemap
+                const auto& rootBusInfo = rootBusItOfMuxFd->second;
+                if (rootDeviceMap.count(
+                        std::make_pair(rootBusInfo->outFd, it)) != 0)
+                {
+                    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                        ("Skipping device " + std::to_string(it)).c_str());
+                    continue;
+                }
+            }
         }
 
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
@@ -115,7 +136,8 @@ void SMBusBridge::scanPort(const int scanFd,
     }
 }
 
-std::map<std::string, std::string> SMBusBridge::getMuxPorts()
+std::map<std::string, std::string>
+    SMBusBridge::getMuxPorts(const std::string& rootPort)
 {
     auto devDir = fs::path("/dev/");
     auto matchString = std::string(R"(i2c-\d+$)");
@@ -144,6 +166,22 @@ std::map<std::string, std::string> SMBusBridge::getMuxPorts()
             continue; // we found regular i2c port
         }
 
+        std::string rootBus;
+        if (!getTopMostRootBus(i2cPort, rootBus))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Error getting root port for the bus",
+                phosphor::logging::entry("BUS:", i2cPort.c_str()));
+            continue;
+        }
+        if (rootPort != rootBus)
+        {
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                ("Skipping mux port: " + i2cPort + ", i2cPath: " + i2cPath)
+                    .c_str());
+            continue;
+        }
+
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             ("Mux port: " + i2cPort + ", i2cPath: " + i2cPath).c_str());
         i2cPortAndPath.emplace(i2cPort, i2cPath);
@@ -153,7 +191,7 @@ std::map<std::string, std::string> SMBusBridge::getMuxPorts()
 
 std::map<int, int> SMBusBridge::getMuxFds(const std::string& rootPort)
 {
-    std::map<std::string, std::string> i2cPortAndPath = getMuxPorts();
+    std::map<std::string, std::string> i2cPortAndPath = getMuxPorts(rootPort);
     std::map<int, int> muxes;
     for (const auto& [i2cPort, i2cPath] : i2cPortAndPath)
     {
@@ -219,7 +257,10 @@ bool SMBusBridge::reserveBandwidth(boost::asio::yield_context yield,
             return false;
         }
         // TODO: Set only the required MUX.
-        setMuxIdleMode(MuxIdleModes::muxIdleModeConnect);
+        for (auto const& [bus, _] : rootBusMap)
+        {
+            setMuxIdleMode(bus, MuxIdleModes::muxIdleModeConnect);
+        }
         rsvBWActive = true;
         reservedEID = eid;
     }
@@ -297,7 +338,11 @@ void SMBusBridge::startTimerAndReleaseBW(const uint16_t interval,
                                       "xyz.openbmc_project.PFR.Mailbox",
                                       "InitiateBMCBusyPeriod", false);
 
-        setMuxIdleMode(MuxIdleModes::muxIdleModeDisconnect);
+        // TODO: Identify the MUX and set only that MUX to disconnect.
+        for (auto const& [bus, _] : rootBusMap)
+        {
+            setMuxIdleMode(bus, MuxIdleModes::muxIdleModeDisconnect);
+        }
         if (mctp_smbus_exit_pull_model(&prvt) < 0)
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -307,6 +352,103 @@ void SMBusBridge::startTimerAndReleaseBW(const uint16_t interval,
         rsvBWActive = false;
         reservedEID = 0;
     });
+}
+
+void SMBusBridge::initializeRootI2CBusses()
+{
+    auto extractBusNo = [](const std::set<std::string>& busses,
+                           const std::string& prefix,
+                           std::set<uint8_t>& values) {
+        std::for_each(
+            busses.begin(), busses.end(), [&](const std::string& bus) {
+                std::size_t pos = bus.find(prefix);
+                if (pos != std::string::npos)
+                {
+                    std::string busNoStr = bus.substr(pos + prefix.size());
+                    try
+                    {
+                        int busNo = std::stoi(busNoStr);
+                        if (busNo >= 0 &&
+                            busNo <= std::numeric_limits<uint8_t>::max())
+                        {
+                            values.insert(static_cast<uint8_t>(busNo));
+                        }
+                    }
+                    catch (const std::invalid_argument&)
+                    {
+                        phosphor::logging::log<phosphor::logging::level::ERR>(
+                            ("Invalid bus number: " + busNoStr).c_str());
+                    }
+                    catch (const std::out_of_range&)
+                    {
+                        phosphor::logging::log<phosphor::logging::level::ERR>(
+                            ("Bus number out of range: " + busNoStr).c_str());
+                    }
+                }
+            });
+    };
+
+    std::set<uint8_t> i2cBusNums;
+    std::set<uint8_t> i3cBusNums;
+    extractBusNo(busses, "i2c-", i2cBusNums);
+    extractBusNo(busses, "i3c-", i3cBusNums);
+    auto i2cRootBusses = getRootI2CBusses(i2cBusNums, i3cBusNums);
+    if (i2cRootBusses.empty())
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "No root i2c bus found");
+        return;
+    }
+
+    std::erase_if(rootBusMap, [&](const auto& busInfo) {
+        const auto& bus = busInfo.first;
+        bool isBusRemoved =
+            std::find(i2cRootBusses.begin(), i2cRootBusses.end(), bus) ==
+            i2cRootBusses.end();
+        if (isBusRemoved)
+        {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                ("Root i2c bus: " + bus + " is removed").c_str());
+        }
+        return isBusRemoved;
+    });
+
+    for (auto const& bus : i2cRootBusses)
+    {
+        // Check if the bus is already initialized. This can happen if it's
+        // triggered by a re-scan loop.
+        if (rootBusMap.find(bus) != rootBusMap.end())
+        {
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                ("Root bus: " + bus + " already exists in rootBusMap").c_str());
+            continue;
+        }
+
+        // In case of i3c hub, all i3c hub ports will considered as another
+        // logical root i2c bus.
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            ("Scanning root port: " + bus).c_str());
+
+        try
+        {
+            std::unique_ptr<RootBusInfo> busInfo = rootBusInit(bus);
+            setMuxIdleMode(bus, MuxIdleModes::muxIdleModeDisconnect);
+            busInfo->muxPortMap = getMuxFds(busInfo->rootPortNo);
+            rootBusMap.emplace(bus, std::move(busInfo));
+
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                ("Root bus: " + bus + " is initialized").c_str());
+        }
+        catch (const std::exception& e)
+        {
+            auto error = "Failed to initialise SMBus binding for bus: " + bus +
+                         "Error :" + std::string(e.what());
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                error.c_str());
+            // Try to initialize other busses
+            continue;
+        }
+    }
 }
 
 void SMBusBridge::triggerDeviceDiscovery()
@@ -322,6 +464,7 @@ void SMBusBridge::scanDevices()
         if (!rsvBWActive)
         {
             deviceWatcher.deviceDiscoveryInit();
+            initializeRootI2CBusses();
             initEndpointDiscovery(yield);
         }
         else
@@ -382,12 +525,13 @@ void SMBusBridge::restoreMuxIdleMode()
     }
 }
 
-void SMBusBridge::setMuxIdleMode(const MuxIdleModes mode)
+void SMBusBridge::setMuxIdleMode(const std::string& bus,
+                                 const MuxIdleModes mode)
 {
     auto itr = muxIdleModesMap.find(mode);
     if (itr == muxIdleModesMap.end())
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
             "Inavlid mux idle mode");
         return;
     }
@@ -446,10 +590,39 @@ void SMBusBridge::setMuxIdleMode(const MuxIdleModes mode)
 
 inline void SMBusBridge::handleMuxInotifyEvent(const std::string& name)
 {
+    static std::set<std::string> updatedRootBusCache;
     if (boost::starts_with(name, "i2c-"))
     {
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             ("Detected change on bus " + name).c_str());
+
+        std::string newI2CPort;
+        if (!getBusNumFromPath(name, newI2CPort))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "i2c bus path is malformed",
+                phosphor::logging::entry("PATH=%s", name.c_str()));
+            return;
+        }
+
+        // rescan should be triggered only if the new addition/deletion
+        // of i2c device has the same rootbus the daemon is serving.
+        for (auto& [busPath, rootBusInfo] : rootBusMap)
+        {
+            std::map<std::string, std::string> muxPortsAndPaths =
+                getMuxPorts(rootBusInfo->rootPortNo);
+            if (!muxPortsAndPaths.count(newI2CPort))
+            {
+                phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                    ("Bus " + name + " is not part of root bus " +
+                     rootBusInfo->rootPortNo + ". Skipping bus re-scan.")
+                        .c_str());
+                continue;
+            }
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                (busPath + " cached for re-scan").c_str());
+            updatedRootBusCache.insert(busPath);
+        }
 
         // Delay mctp discovery by 10s so that
         // 1. We only need to refresh i2c device list once as multiple inotify
@@ -457,6 +630,8 @@ inline void SMBusBridge::handleMuxInotifyEvent(const std::string& name)
         // 2. Other services triggered by inotify event will get a chance to
         // scan the bus first. Which helps to avoid i2c traffic congestion.
         // 3. FruDevice service will take around 3-4 sec to complete the scan.
+        // 4. Root bus paths will be cached and discovery will be triggered only
+        // once for a group of inotify events
         refreshMuxTimer.expires_after(std::chrono::seconds(10));
         refreshMuxTimer.async_wait([this, name](
                                        const boost::system::error_code& ec2) {
@@ -468,38 +643,33 @@ inline void SMBusBridge::handleMuxInotifyEvent(const std::string& name)
                 return;
             }
 
-            std::string rootPort;
-            if (!getBusNumFromPath(bus, rootPort))
-            {
-                throwRunTimeError("Error in finding root port");
-            }
-
-            std::string i2cPort;
-            if (!getBusNumFromPath(name, i2cPort))
-            {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "i2c bus path is malformed",
-                    phosphor::logging::entry("PATH=%s", name.c_str()));
-                return;
-            }
-            // rescan should be triggered only if the new addition/deletion
-            // of i2c device has the same rootbus the daemon is serving.
-
-            std::map<std::string, std::string> muxPortsAndPaths = getMuxPorts();
-            if (!muxPortsAndPaths.count(i2cPort))
+            if (updatedRootBusCache.empty())
             {
                 phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                    ("Bus " + name + " is not part of root bus " + bus +
-                     ". Skipping bus re-scan.")
-                        .c_str());
+                    "Root bus cache empty. Ignoring the inotify event");
                 return;
             }
 
             phosphor::logging::log<phosphor::logging::level::INFO>(
-                "i2c bus change detected, refreshing "
-                "muxPortMap");
-            // rescan will update muxFd.
-            muxPortMap = getMuxFds(rootPort);
+                "i2c bus change detected, refreshing muxPortMap");
+            for (auto& busPath : updatedRootBusCache)
+            {
+                auto it = rootBusMap.find(busPath);
+                if (it != rootBusMap.end())
+                {
+                    auto& rootBusInfo = it->second;
+                    // rescan will update muxFd.
+                    auto tempMuxPortMap = getMuxFds(rootBusInfo->rootPortNo);
+                    rootBusInfo->muxPortMap = std::move(tempMuxPortMap);
+                }
+                else
+                {
+                    // Ideally this will not happen
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "Root bus not found in rootBusMap.");
+                }
+            }
+            updatedRootBusCache.clear();
             scanTimer.cancel();
         });
     }
@@ -557,7 +727,8 @@ void SMBusBridge::setupMuxMonitor()
     monitorMuxChange();
 }
 
-void SMBusBridge::scanMuxBus(std::set<std::pair<int, uint8_t>>& deviceMap)
+void SMBusBridge::scanMuxBus(std::map<int, int> muxPortMap,
+                             std::set<std::pair<int, uint8_t>>& deviceMap)
 {
     updateSkipListSet(disabledMuxPortList);
     for (const auto& [muxFd, muxPort] : muxPortMap)
@@ -776,12 +947,16 @@ void SMBusBridge::initEndpointDiscovery(boost::asio::yield_context& yield)
     // clearing rootDeviceMap before scanning the root port
     rootDeviceMap.clear();
 
-    // Scan root port
-    scanPort(outFd, rootDeviceMap);
-    registerDeviceMap.insert(rootDeviceMap.begin(), rootDeviceMap.end());
-    // Scan mux bus to get the list of fd and the corresponding target address
-    // of all the mux ports
-    scanMuxBus(registerDeviceMap);
+    for (auto const& [busPath, rootBusInfo] : rootBusMap)
+    {
+        // Scan root port
+        scanPort(rootBusInfo->outFd, rootDeviceMap);
+        registerDeviceMap.insert(rootDeviceMap.begin(), rootDeviceMap.end());
+
+        // Scan mux bus to get the list of fd and the corresponding target
+        // address of all the mux ports
+        scanMuxBus(rootBusInfo->muxPortMap, registerDeviceMap);
+    }
 
     // Unregister devices that is no longer available
     auto it = smbusDeviceTable.begin();
@@ -812,6 +987,9 @@ void SMBusBridge::initEndpointDiscovery(boost::asio::yield_context& yield)
      * in flight, we cannot register multiple endpoints in parallel.
      * Thus, in a single yield_context, all the discovered devices
      * are attempted with registration sequentially */
+
+    // It might be ok to scan all the root ports in parallel. But, let's do it
+    // one after the other for simplicity. This can be a future improvement.
     for (const auto& device : registerDeviceMap)
     {
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
@@ -822,7 +1000,13 @@ void SMBusBridge::initEndpointDiscovery(boost::asio::yield_context& yield)
         struct mctp_smbus_pkt_private smbusBindingPvt;
         smbusBindingPvt.fd = std::get<0>(device);
 
-        if (muxPortMap.count(smbusBindingPvt.fd) != 0)
+        auto it = std::find_if(rootBusMap.begin(), rootBusMap.end(),
+                               [&smbusBindingPvt](const auto& rootBus) {
+                                   const auto& rootBusInfo = rootBus.second;
+                                   return rootBusInfo->muxPortMap.count(
+                                              smbusBindingPvt.fd) > 0;
+                               });
+        if (it != rootBusMap.end())
         {
             smbusBindingPvt.mux_hold_timeout = ctrlTxRetryDelay;
             smbusBindingPvt.mux_flags = 0x80;

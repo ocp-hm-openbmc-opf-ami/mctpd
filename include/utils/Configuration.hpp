@@ -52,7 +52,11 @@ struct Configuration
 struct SMBusConfiguration : Configuration
 {
     std::set<uint8_t> eidPool;
+    // 'bus' is a legacy field and will be removed in future. Keeping it for
+    // backward compatibility
     std::string bus;
+    // TODO: Get this configuration from entity manager
+    std::set<std::string> busses;
     bool arpControllerSupport;
     uint8_t bmcTargetAddr;
     std::set<uint8_t> supportedEndpointTargetAddress;

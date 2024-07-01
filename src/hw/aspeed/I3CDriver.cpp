@@ -16,6 +16,7 @@
 
 #include "hw/aspeed/I3CDriver.hpp"
 
+#include "hw/aspeed/i3c_utils.hpp"
 #include "utils/i3c_utils.hpp"
 #include "utils/utils.hpp"
 
@@ -32,10 +33,6 @@ namespace hw
 {
 namespace aspeed
 {
-
-std::unordered_map<uint8_t, std::string> i3cBusMap{
-    {0, "1e7a2000.i3c0"}, {1, "1e7a3000.i3c1"}, {2, "1e7a4000.i3c2"},
-    {3, "1e7a5000.i3c3"}, {4, "1e7a6000.i3c4"}, {5, "1e7a7000.i3c5"}};
 
 I3CDriver::I3CDriver(boost::asio::io_context& ioc, uint8_t i3cBusNum,
                      std::optional<uint16_t> cpuPidMask) :
