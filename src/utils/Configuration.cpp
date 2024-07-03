@@ -149,6 +149,7 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
     uint64_t defaultEID = 0;
     std::vector<uint64_t> eidPool;
     std::string bus;
+    std::vector<std::string> buses;
     bool arpOwnerSupport = false;
     bool supportsSPDMRequester = false;
     uint64_t bmcReceiverAddress = 0;
@@ -177,7 +178,8 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
         return std::nullopt;
     }
 
-    if (!getField(map, "Bus", bus) && !getField(map, "bus", bus))
+    if (!getField(map, "Bus", bus) && !getField(map, "bus", bus) &&
+        !getField(map, "Buses", buses))
     {
         return std::nullopt;
     }
@@ -256,6 +258,7 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
     }
     config.supportedEndpointTargetAddress = endpointTargetAddress;
     config.bus = bus;
+    config.busses = std::set<std::string>(buses.begin(), buses.end());
     config.arpControllerSupport = arpOwnerSupport;
     config.bmcTargetAddr = static_cast<uint8_t>(bmcReceiverAddress);
     config.reqToRespTime = static_cast<unsigned int>(reqToRespTimeMs);
