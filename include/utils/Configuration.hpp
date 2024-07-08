@@ -21,6 +21,7 @@
 #include <filesystem>
 #include <set>
 #include <string>
+#include <unordered_set>
 
 struct Configuration
 {
@@ -62,6 +63,7 @@ struct SMBusConfiguration : Configuration
     std::set<uint8_t> supportedEndpointTargetAddress;
     uint8_t routingIntervalSec;
     uint64_t scanInterval;
+    std::unordered_set<I2CAddress> skipReregisterForI2CSlaves;
 
     ~SMBusConfiguration() override;
 };

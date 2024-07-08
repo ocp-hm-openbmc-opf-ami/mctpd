@@ -46,9 +46,9 @@ SMBusBridge::SMBusBridge(
     const SMBusConfiguration& conf, boost::asio::io_context& ioc,
     std::shared_ptr<boost::asio::posix::stream_descriptor>&& i2cMuxMonitor) :
     SMBusEndpoint(conn, objServer, objPath, conf, ioc),
-    reserveBWTimer(ioc), refreshMuxTimer(ioc), scanTimer(ioc),
-    muxMonitor{std::move(i2cMuxMonitor)}
-
+    reserveBWTimer(ioc), refreshMuxTimer(ioc),
+    scanTimer(ioc), muxMonitor{std::move(i2cMuxMonitor)},
+    skipReregisterForI2CSlaves(conf.skipReregisterForI2CSlaves)
 {
 }
 
@@ -1030,8 +1030,19 @@ void SMBusBridge::initEndpointDiscovery(boost::asio::yield_context& yield)
         }
 
         mctp_eid_t registeredEid = getEIDFromDeviceTable(bindingPvtVect);
-        std::optional<mctp_eid_t> eid =
-            registerEndpoint(yield, bindingPvtVect, registeredEid);
+        std::optional<mctp_eid_t> eid;
+
+        if (skipReregisterForI2CSlaves.contains(device.second) &&
+            registeredEid != MCTP_EID_NULL)
+        {
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                ("Skipping I2C address from rescan " + std::to_string(device.second)).c_str());
+            eid = registeredEid;
+        }
+        else
+        {
+            eid = registerEndpoint(yield, bindingPvtVect, registeredEid);
+        }
 
         if (eid.has_value() && eid.value() != MCTP_EID_NULL)
         {

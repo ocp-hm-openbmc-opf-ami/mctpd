@@ -72,6 +72,7 @@ class SMBusBridge : public SMBusEndpoint
     boost::asio::steady_timer scanTimer;
     std::unordered_map<std::string, std::string> muxIdleModeMap{};
     std::shared_ptr<boost::asio::posix::stream_descriptor> muxMonitor;
+    std::unordered_set<I2CAddress> skipReregisterForI2CSlaves;
 
     void restoreMuxIdleMode();
     inline void handleMuxInotifyEvent(const std::string& name);

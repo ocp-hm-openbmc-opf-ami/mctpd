@@ -34,3 +34,5 @@ using mctp_server = sdbusplus::xyz::openbmc_project::MCTP::server::Base;
 using mctp_endpoint = sdbusplus::xyz::openbmc_project::MCTP::server::Endpoint;
 using mctp_msg_types =
     sdbusplus::xyz::openbmc_project::MCTP::server::SupportedMessageTypes;
+
+using I2CAddress = uint8_t;
