@@ -58,7 +58,7 @@ struct SMBusConfiguration : Configuration
     std::string bus;
     // TODO: Get this configuration from entity manager
     std::set<std::string> busses;
-    bool arpControllerSupport;
+    bool arpControllerSupport = false;
     uint8_t bmcTargetAddr;
     std::set<uint8_t> supportedEndpointTargetAddress;
     uint8_t routingIntervalSec;

@@ -122,34 +122,34 @@ deps = [
 ]
 
 src_files = [
-	'src/main.cpp',
-	'src/MCTPBinding.cpp',
-	'src/SMBusBinding.cpp',
-	'src/PCIeBinding.cpp',
-	'src/unix_sock_intf.cpp',
-	'src/hw/DeviceMonitor.cpp',
-	'src/hw/PCIeDriver.cpp',
-	'src/hw/aspeed/PCIeMonitor.cpp',
-	'src/hw/aspeed/PCIeDriver.cpp',
-	'src/utils/Configuration.cpp',
-	'src/utils/device_watcher.cpp',
-	'src/utils/transmission_queue.cpp',
-	'src/utils/eid_pool.cpp',
-	'src/utils/smbus_utils.cpp',
-	'src/utils/binding_utils.cpp',
-	'src/routing_table.cpp',
-	'src/service_scanner.cpp',
-	'src/mctp_dbus_interfaces.cpp',
-	'src/mctp_device.cpp',
-	'src/mctp_endpoint.cpp',
-	'src/mctp_bridge.cpp',
-	'src/smbus_device.cpp',
-	'src/smbus_endpoint.cpp',
-	'src/smbus_bridge.cpp',
-	'src/I3CBinding.cpp',
-	'src/utils/i3c_utils.cpp',
-	'src/hw/aspeed/I3CDriver.cpp',
-	'src/hw/aspeed/i3c_utils.cpp'
+    'src/MCTPBinding.cpp',
+    'src/hw/aspeed/I3CDriver.cpp',
+    'src/hw/aspeed/i3c_utils.cpp',
+    'src/hw/aspeed/PCIeMonitor.cpp',
+    'src/hw/aspeed/PCIeDriver.cpp',
+    'src/hw/DeviceMonitor.cpp',
+    'src/hw/PCIeDriver.cpp',
+    'src/utils/binding_utils.cpp',
+    'src/utils/Configuration.cpp',
+    'src/utils/device_watcher.cpp',
+    'src/utils/eid_pool.cpp',
+    'src/utils/i3c_utils.cpp',
+    'src/utils/smbus_utils.cpp',
+    'src/utils/transmission_queue.cpp',
+    'src/I3CBinding.cpp',
+    'src/mctp_bridge.cpp',
+    'src/mctp_dbus_interfaces.cpp',
+    'src/mctp_device.cpp',
+    'src/mctp_endpoint.cpp',
+    'src/MCTPBinding.cpp',
+    'src/PCIeBinding.cpp',
+    'src/routing_table.cpp',
+    'src/service_scanner.cpp',
+    'src/smbus_bridge.cpp',
+    'src/smbus_device.cpp',
+    'src/smbus_endpoint.cpp',
+    'src/SMBusBinding.cpp',
+    'src/unix_sock_intf.cpp', 
 ]
 
 exe_options = ['warning_level=3']
@@ -159,7 +159,7 @@ endif
 
 executable(
       'mctpd',
-      src_files,
+      [src_files, 'src/main.cpp'],
       include_directories : incdir,
       implicit_include_directories: false,
       dependencies: deps,
@@ -172,9 +172,11 @@ executable(
 if build_tests.enabled()
     gtest_dep = dependency('gtest', required:true)
     gmocktest_dep = dependency('gmock', required:true)
+    gtest_main_dep = dependency('gtest_main', required: true)
 
     common_test_deps = [
         gtest_dep,
+        gtest_main_dep,
         gmocktest_dep,
         boost,
         nlohmann_json_dep,
@@ -187,5 +189,24 @@ if build_tests.enabled()
         i2c,
         udev
     ]
+
+    test_incdir = include_directories(
+        'include',
+        'tests'
+    )
+
+    mctp_test_src = [
+        'tests/test-mctpd.cpp',
+    ]
+
+    mctp_test_exe = executable(
+        'mctp_test',
+        [src_files, mctp_test_src],
+        include_directories: test_incdir,
+        dependencies: common_test_deps,
+        c_args: ['-std=gnu11'],
+        cpp_args: ['-DUSE_MOCK', '-std=c++23']
+    )
+    test('mctpd test', mctp_test_exe, is_parallel : false)
 
 endif

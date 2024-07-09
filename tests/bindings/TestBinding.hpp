@@ -23,6 +23,23 @@ class TestBinding : public MctpBinding
 
     virtual ~TestBinding() = default;
 
+    uint8_t getTransportId() override
+    {
+        return 1;
+    }
+
+    std::vector<uint8_t>
+        getPhysicalAddress(const std::vector<uint8_t>& bindingPrivate) override
+    {
+        (void)bindingPrivate;
+        return {0xAA, 0xBB, 0xCC};
+    }
+
+    std::vector<uint8_t> getOwnPhysicalAddress() override
+    {
+        return {0xDD, 0xEE, 0xFF};
+    }
+
     void initializeBinding() override
     {
         initializeMctp();

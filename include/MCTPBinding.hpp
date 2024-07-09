@@ -120,7 +120,7 @@ class MctpBinding : public MCTPBridge
     virtual void onEIDPool();
 
   private:
-    bool staticEid;
+    bool staticEid = false;
     unsigned long socketConnCount;
     mctp_server::BindingTypes bindingID{};
 

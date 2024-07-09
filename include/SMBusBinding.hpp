@@ -35,4 +35,7 @@ class SMBusBinding : public SMBusBridge
     std::optional<std::string>
         getLocationCode(const std::vector<uint8_t>& bindingPrivate) override;
     std::vector<uint8_t> getOwnPhysicalAddress() override;
+
+    std::unique_ptr<sdbusplus::bus::match::match> powerMatch = nullptr;
+    boost::asio::steady_timer hostResetTimer;
 };

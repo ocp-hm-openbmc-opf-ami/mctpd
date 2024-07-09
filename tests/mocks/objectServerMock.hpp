@@ -239,7 +239,7 @@ class object_server_mock
 
 // DBus interface with list of property types supported
 using dbus_interface_mock = MockType<
-    impl::dbus_interface_mock<bool, uint8_t, uint16_t, const std::string&,
+    impl::dbus_interface_mock<std::size_t, bool, uint8_t, uint16_t, const std::string&,
                               std::vector<uint8_t>, std::vector<uint16_t>>>;
 
 using object_server_mock =

@@ -10,6 +10,7 @@ class BindingBasicTest : public AsyncTestBase, public ::testing::Test
 
     void SetUp() override
     {
+        conn = std::make_shared<sdbusplus::asio::connection>(ioc);
         bus = std::make_shared<mctpd_mock::object_server_mock>();
 
         mctpInterface = bus->backdoor.add_interface(
@@ -26,7 +27,7 @@ class BindingBasicTest : public AsyncTestBase, public ::testing::Test
         binding->initializeBinding();
     }
 
-    boost::asio::io_context io;
+    boost::asio::io_context ioc;
     std::shared_ptr<sdbusplus::asio::connection> conn;
     std::shared_ptr<TestBinding> binding;
 

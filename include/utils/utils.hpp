@@ -24,7 +24,6 @@
 #include <sdbusplus/asio/connection.hpp>
 #include <sdbusplus/bus/match.hpp>
 
-static std::unique_ptr<sdbusplus::bus::match::match> powerMatch = nullptr;
 static std::unique_ptr<sdbusplus::bus::match::match> hostResetMatch = nullptr;
 
 namespace power
@@ -47,26 +46,27 @@ constexpr const char* interface = "org.freedesktop.DBus.Properties";
 } // namespace properties
 
 template <class T>
-void setupPowerMatch(std::shared_ptr<sdbusplus::asio::connection> conn,
-                     const T& bindingPtr)
+static std::unique_ptr<sdbusplus::bus::match::match>
+     setupPowerMatch(std::shared_ptr<sdbusplus::asio::connection> conn,
+                     const T& bindingPtr, boost::asio::steady_timer& timer)
 {
-    if (powerMatch || bindingPtr == nullptr || conn == nullptr)
+
+    if (bindingPtr == nullptr || conn == nullptr)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Unable to setup power match");
-        return;
+        return nullptr;
     }
 
-    static boost::asio::steady_timer timer(conn->get_io_context());
     std::string matchString =
         sdbusplus::bus::match::rules::type::signal() +
         sdbusplus::bus::match::rules::interface(properties::interface) +
         sdbusplus::bus::match::rules::path(power::path) +
         sdbusplus::bus::match::rules::argN(0, power::interface);
 
-    powerMatch = std::make_unique<sdbusplus::bus::match::match>(
+    return std::make_unique<sdbusplus::bus::match::match>(
         static_cast<sdbusplus::bus::bus&>(*conn), matchString,
-        [bindingPtr](sdbusplus::message::message& message) {
+        [bindingPtr, &timer](sdbusplus::message::message& message) {
             std::string objectName;
             boost::container::flat_map<std::string, std::variant<std::string>>
                 values;

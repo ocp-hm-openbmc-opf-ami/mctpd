@@ -1,7 +1,13 @@
+#include<gtest/gtest.h>
+#include<gmock/gmock.h>
+
+#include <memory> 
+#include <sdbusplus/asio/connection.hpp>
+#include <xyz/openbmc_project/MCTP/Binding/SMBus/server.hpp>
+
 #include "PCIeBinding.hpp"
 #include "SMBusBinding.hpp"
-
-#include <xyz/openbmc_project/MCTP/Binding/SMBus/server.hpp>
+#include "mocks/objectServerMock.hpp"
 
 using ::testing::_;
 using ::testing::An;
@@ -9,7 +15,6 @@ using ::testing::Eq;
 using ::testing::Return;
 using ::testing::StrEq;
 
-std::shared_ptr<sdbusplus::asio::connection> conn;
 using smbus_server =
     sdbusplus::xyz::openbmc_project::MCTP::Binding::server::SMBus;
 
@@ -21,6 +26,9 @@ class MctpdBaseTest : public ::testing::Test
         bus = std::make_shared<mctpd_mock::object_server_mock>();
 
         // Create iface beforehand, to intercept calls
+        uuidIntface =
+            bus->backdoor.add_interface(mctpBaseObj, "xyz.openbmc_project.Common.UUID");
+
         mctpInterface =
             bus->backdoor.add_interface(mctpBaseObj, mctp_server::interface);
 
@@ -47,6 +55,7 @@ class MctpdBaseTest : public ::testing::Test
     SMBusConfiguration smbusConfig;
 
     std::shared_ptr<mctpd_mock::object_server_mock> bus;
+    std::shared_ptr<mctpd_mock::dbus_interface_mock> uuidIntface;
     std::shared_ptr<mctpd_mock::dbus_interface_mock> mctpInterface;
     std::shared_ptr<mctpd_mock::dbus_interface_mock> smbusInterface;
 };
@@ -60,10 +69,17 @@ class MctpdBaseTest : public ::testing::Test
 TEST_F(MctpdBaseTest, BaseIfPropertyTest)
 {
     MakeSmbusConfiguration(mctp_server::MctpPhysicalMediumIdentifiers::SmbusI2c,
-                           mctp_server::BindingModeTypes::BusOwner, 1,
+                           mctp_server::BindingModeTypes::BusOwner, 8,
                            {2, 3, 4, 5, 6}, "");
 
     /* Set test pass conditions */
+    EXPECT_CALL(
+        *uuidIntface,
+        register_property(StrEq("UUID"), An<const std::string&>(),
+                          Eq(sdbusplus::asio::PropertyPermission::readOnly)))
+        .Times(1)
+        .WillRepeatedly(Return(true));
+
     EXPECT_CALL(
         *mctpInterface,
         register_property(StrEq("Eid"), An<uint8_t>(),
@@ -87,6 +103,13 @@ TEST_F(MctpdBaseTest, BaseIfPropertyTest)
 
     EXPECT_CALL(
         *mctpInterface,
+        register_property(StrEq("SocketPath"), An<const std::string&>(),
+                          Eq(sdbusplus::asio::PropertyPermission::readOnly)))
+        .Times(1)
+        .WillRepeatedly(Return(true));
+
+    EXPECT_CALL(
+        *mctpInterface,
         register_property(StrEq("BindingMediumID"), An<const std::string&>(),
                           Eq(sdbusplus::asio::PropertyPermission::readOnly)))
         .Times(1)
@@ -101,17 +124,8 @@ TEST_F(MctpdBaseTest, BaseIfPropertyTest)
 
     EXPECT_CALL(
         *mctpInterface,
-        register_property(StrEq("Uuid"), An<std::vector<uint8_t>>(),
+        register_property(StrEq("NetworkID"), An<uint8_t>(),
                           Eq(sdbusplus::asio::PropertyPermission::readOnly)))
-        .Times(1)
-        .WillRepeatedly(Return(true));
-
-    EXPECT_CALL(*mctpInterface, register_signal(StrEq("MessageReceivedSignal")))
-        .Times(1)
-        .WillRepeatedly(Return(true));
-
-    EXPECT_CALL(*mctpInterface,
-                register_method(StrEq("RegisterVdpciResponder")))
         .Times(1)
         .WillRepeatedly(Return(true));
 
@@ -120,12 +134,11 @@ TEST_F(MctpdBaseTest, BaseIfPropertyTest)
         .Times(1)
         .WillRepeatedly(Return(true));
 
-    EXPECT_CALL(*mctpInterface,
-                register_method(StrEq("SendReceiveMctpMessagePayload")))
+    EXPECT_CALL(*mctpInterface, register_method(StrEq("ReserveBandwidth")))
         .Times(1)
         .WillRepeatedly(Return(true));
-
-    EXPECT_CALL(*mctpInterface, register_method(StrEq("ReserveBandwidth")))
+    
+    EXPECT_CALL(*mctpInterface, register_method(StrEq("SkipList")))
         .Times(1)
         .WillRepeatedly(Return(true));
 
@@ -133,7 +146,24 @@ TEST_F(MctpdBaseTest, BaseIfPropertyTest)
         .Times(1)
         .WillRepeatedly(Return(true));
 
+    EXPECT_CALL(*mctpInterface,
+                register_method(StrEq("SendReceiveMctpMessagePayload")))
+        .Times(1)
+        .WillRepeatedly(Return(true));
+
+    EXPECT_CALL(*mctpInterface, register_signal(StrEq("MessageReceivedSignal")))
+        .Times(1)
+        .WillRepeatedly(Return(true));
+
     EXPECT_CALL(*mctpInterface, register_method(StrEq("RegisterResponder")))
+        .Times(1)
+        .WillRepeatedly(Return(true));
+
+    EXPECT_CALL(*mctpInterface, register_method(StrEq("SetEIDPool")))
+        .Times(1)
+        .WillRepeatedly(Return(true));
+
+    EXPECT_CALL(*mctpInterface, register_method(StrEq("RegisterVdpciResponder")))
         .Times(1)
         .WillRepeatedly(Return(true));
 
@@ -143,6 +173,13 @@ TEST_F(MctpdBaseTest, BaseIfPropertyTest)
         .WillRepeatedly(Return(true));
 
     EXPECT_CALL(*mctpInterface, register_method(StrEq("SendMctpRawPayload")))
+        .Times(1)
+        .WillRepeatedly(Return(true));
+   
+    EXPECT_CALL(
+        *smbusInterface,
+        register_property(StrEq("DiscoveredFlag"), An<const std::string&>(),
+                          Eq(sdbusplus::asio::PropertyPermission::readOnly)))
         .Times(1)
         .WillRepeatedly(Return(true));
 
@@ -167,10 +204,7 @@ TEST_F(MctpdBaseTest, BaseIfPropertyTest)
         .Times(1)
         .WillRepeatedly(Return(true));
 
-    EXPECT_CALL(
-        *smbusInterface,
-        register_property(StrEq("DiscoveredFlag"), An<const std::string&>(),
-                          Eq(sdbusplus::asio::PropertyPermission::readOnly)))
+    EXPECT_CALL(*uuidIntface, initialize())
         .Times(1)
         .WillRepeatedly(Return(true));
 
@@ -182,10 +216,12 @@ TEST_F(MctpdBaseTest, BaseIfPropertyTest)
         .Times(1)
         .WillRepeatedly(Return(true));
 
-    /*Invoke constructor */
     boost::asio::io_context ioc;
+    auto conn = std::make_shared<sdbusplus::asio::connection>(ioc);
 
-    std::unique_ptr<MctpBinding> bindingPtr = std::make_unique<SMBusBinding>(
-        conn, bus, mctpBaseObj, smbusConfig, ioc);
+    std::shared_ptr<MctpBinding> bindingPtr = std::make_shared<SMBusBinding>(
+        conn, bus, mctpBaseObj, smbusConfig, ioc,
+        std::make_shared<boost::asio::posix::stream_descriptor>(ioc));
+
     bindingPtr->initializeBinding();
 }

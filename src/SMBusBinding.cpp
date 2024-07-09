@@ -37,7 +37,8 @@ SMBusBinding::SMBusBinding(
     std::shared_ptr<object_server>& objServer, const std::string& objPath,
     const SMBusConfiguration& conf, boost::asio::io_context& ioc,
     std::shared_ptr<boost::asio::posix::stream_descriptor>&& i2cMuxMonitor) :
-    SMBusBridge(conn, objServer, objPath, conf, ioc, std::move(i2cMuxMonitor))
+    SMBusBridge(conn, objServer, objPath, conf, ioc, std::move(i2cMuxMonitor)),
+    hostResetTimer(ioc)
 {
     smbusInterface = objServer->add_interface(objPath, smbus_server::interface);
 
@@ -85,7 +86,7 @@ SMBusBinding::SMBusBinding(
                          arpControllerSupport);
 
         std::string combinedPaths = std::accumulate(
-            std::next(busses.begin()), busses.end(), *busses.begin(),
+            busses.begin(), busses.end(), std::string(""),
             [](std::string a, std::string b) { return a + ", " + b; });
         phosphor::logging::log<phosphor::logging::level::INFO>(
             ("SMBus Bus Paths: " + combinedPaths).c_str());
@@ -124,7 +125,7 @@ void SMBusBinding::initializeBinding()
 
     initializeMctp();
     smbusInit();
-    setupPowerMatch(connection, this);
+    powerMatch = setupPowerMatch(connection, this, hostResetTimer);
     setupMuxMonitor();
     if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
     {
@@ -189,10 +190,11 @@ void SMBusBinding::populateDeviceProperties(
     std::shared_ptr<dbus_interface> smbusIntf;
     smbusIntf =
         objectServer->add_interface(mctpEpObj, I2CDeviceDecorator::interface);
-    smbusIntf->register_property<size_t>("Bus",
-                                         getBusNumByFd(smbusBindingPvt->fd));
-    smbusIntf->register_property<size_t>("Address",
-                                         smbusBindingPvt->target_addr);
+    
+    size_t getBusNumFd = getBusNumByFd(smbusBindingPvt->fd);
+    size_t targetAddress = smbusBindingPvt->target_addr;
+    smbusIntf->register_property("Bus", getBusNumFd);
+    smbusIntf->register_property("Address", targetAddress);
     smbusIntf->initialize();
     deviceInterface.emplace(eid, std::move(smbusIntf));
 }
