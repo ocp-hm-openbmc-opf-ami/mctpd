@@ -196,6 +196,7 @@ if build_tests.enabled()
     )
 
     mctp_test_src = [
+        'tests/test-binding.cpp',
         'tests/test-mctpd.cpp',
     ]
 

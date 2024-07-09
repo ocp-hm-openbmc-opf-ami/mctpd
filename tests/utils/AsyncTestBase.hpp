@@ -75,8 +75,10 @@ struct AsyncTestBase
     template <typename... Futures>
     bool waitAll(std::chrono::milliseconds timeout, Futures&... futures)
     {
-        auto now = std::chrono::high_resolution_clock::now().time_since_epoch();
-        const auto deadline = now + timeout;
+        auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::high_resolution_clock::now().time_since_epoch());
+        const auto deadline = 
+            std::chrono::duration_cast<std::chrono::milliseconds>((now + timeout));
 
         do
         {
@@ -86,11 +88,11 @@ struct AsyncTestBase
                 return true;
             }
 
-            now = std::chrono::high_resolution_clock::now().time_since_epoch();
+            now = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::high_resolution_clock::now().time_since_epoch());
         } while (deadline > now);
 
-        throw timeout_occurred(
-            "Timeout while waiting for promise to be fulfiled");
+        return false;
     }
 
     template <typename... Futures>
@@ -103,8 +105,10 @@ struct AsyncTestBase
     Result waitFor(std::chrono::milliseconds timeout,
                    std::future<Result>& future)
     {
-        waitAll(timeout, future);
-        return future.get();
+        if (waitAll(timeout, future)) {
+            return future.get();
+        }
+        return {};
     }
 
     template <typename Result>

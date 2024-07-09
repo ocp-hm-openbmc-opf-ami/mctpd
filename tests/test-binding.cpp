@@ -27,7 +27,6 @@ class BindingBasicTest : public AsyncTestBase, public ::testing::Test
         binding->initializeBinding();
     }
 
-    boost::asio::io_context ioc;
     std::shared_ptr<sdbusplus::asio::connection> conn;
     std::shared_ptr<TestBinding> binding;
 
@@ -49,7 +48,9 @@ TEST_F(BindingBasicTest, Send_GetEid_Positive)
         std::vector<uint8_t> prv, resp;
 
         bool result = binding->getEidCtrlCmd(yield, prv, DEST_EID, resp);
-        getEid.promise.set_value({result, resp});
+        if (getEid.future.valid()) {
+            getEid.promise.set_value({result, resp});
+        }
     });
 
     schedule([&]() {
@@ -65,18 +66,14 @@ TEST_F(BindingBasicTest, Send_GetEid_Positive)
     });
 
     // Verify GetEid contents
-    {
-        const auto [result, resp] = waitFor(getEid.future);
-        ASSERT_TRUE(result);
-        ASSERT_EQ(resp.size(), sizeof(mctp_ctrl_resp_get_eid));
-
-        auto response =
-            reinterpret_cast<const mctp_ctrl_resp_get_eid*>(resp.data());
-        ASSERT_EQ(response->completion_code, CC_OK);
-        ASSERT_EQ(response->eid, RESP_EID);
-        ASSERT_EQ(response->eid_type, RESP_EID_TYPE);
-        ASSERT_EQ(response->medium_data, RESP_MEDIUM_DATA);
-    }
+    const auto [result, resp] = waitFor(getEid.future);
+    ASSERT_TRUE(result);
+    auto response =
+        reinterpret_cast<const mctp_ctrl_resp_get_eid*>(resp.data());
+    ASSERT_EQ(response->completion_code, CC_OK);
+    ASSERT_EQ(response->eid, RESP_EID);
+    ASSERT_EQ(response->eid_type, RESP_EID_TYPE);
+    ASSERT_EQ(response->medium_data, RESP_MEDIUM_DATA);
 }
 
 TEST_F(BindingBasicTest, Send_GetEid_Negative)
@@ -88,7 +85,9 @@ TEST_F(BindingBasicTest, Send_GetEid_Negative)
     schedule([&](boost::asio::yield_context yield) {
         std::vector<uint8_t> prv, resp;
         bool result = binding->getEidCtrlCmd(yield, prv, DEST_EID, resp);
-        getEid.promise.set_value({result, resp});
+        if (getEid.future.valid()) {
+            getEid.promise.set_value({result, resp});
+        }
     });
 
     schedule([&]() {
@@ -99,15 +98,12 @@ TEST_F(BindingBasicTest, Send_GetEid_Negative)
     });
 
     // Check that GetEid failed
-    {
-        const auto [result, resp] = waitFor(getEid.future);
-        ASSERT_FALSE(result);
-        ASSERT_EQ(resp.size(), sizeof(mctp_ctrl_resp_get_eid));
-
-        auto response =
-            reinterpret_cast<const mctp_ctrl_resp_get_eid*>(resp.data());
-        ASSERT_EQ(response->completion_code, CC_FAIL);
-    }
+    const auto [result, resp] = waitFor(getEid.future);
+    ASSERT_FALSE(result);
+    ASSERT_EQ(resp.size(), sizeof(mctp_ctrl_resp_get_eid));
+    auto response =
+        reinterpret_cast<const mctp_ctrl_resp_get_eid*>(resp.data());
+    ASSERT_EQ(response->completion_code, CC_FAIL);
 }
 
 TEST_F(BindingBasicTest, Send_GetEid_Timeout)
@@ -119,13 +115,13 @@ TEST_F(BindingBasicTest, Send_GetEid_Timeout)
         std::vector<uint8_t> prv, resp;
 
         bool result = binding->getEidCtrlCmd(yield, prv, DEST_EID, resp);
-        getEid.promise.set_value({result, resp});
+        if (getEid.future.valid()) {
+            getEid.promise.set_value({result, resp});
+        }
     });
 
     // Check that GetEid has ended with timeout
-    {
-        const auto [result, resp] = waitFor(getEid.future);
-        ASSERT_FALSE(result);
-        ASSERT_EQ(0, resp.size());
-    }
+    const auto [result, resp] = waitFor(getEid.future);
+    ASSERT_FALSE(result);
+    ASSERT_EQ(0, resp.size());    
 }
