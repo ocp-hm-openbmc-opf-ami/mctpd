@@ -205,6 +205,9 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
         scanInterval = 600;
     }
 
+    std::vector<uint64_t> skipReregisterForI2CSlaves;
+    getField(map, "SkipReregisterForI2CSlaves", skipReregisterForI2CSlaves);
+
     const auto mode = stringToBindingModeMap.at(role);
     if (mode == mctp_server::BindingModeTypes::BusOwner &&
         !getField(map, "EIDPool", eidPool) &&
@@ -261,6 +264,11 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
     config.allowedBuses = getAllowedBuses(map);
     config.networkId = getNetworkID(map);
     config.skipList = skipSlotName;
+
+    for (const auto addr : skipReregisterForI2CSlaves)
+    {
+        config.skipReregisterForI2CSlaves.insert(static_cast<uint8_t>(addr));
+    }
 
     return config;
 }
