@@ -32,7 +32,7 @@ TEST_F(PCIeBindingDiscoveryTest, EndpointDiscovered)
     constexpr unsigned BUS_OWNER_BDF = 0x1234;
     constexpr unsigned ASSIGNED_EID = 0x99;
 
-    auto notifyCalled = makePromise<void>();
+    auto notifyCalled = makePromise<bool>();
     binding->backdoor.onOutgoingCtrlCommand(
         MCTP_CTRL_CMD_DISCOVERY_NOTIFY, [&]() {
             sendCtrlResponseAsync<mctp_ctrl_resp_discovery_notify>(
@@ -40,14 +40,16 @@ TEST_F(PCIeBindingDiscoveryTest, EndpointDiscovered)
                 [&](auto& payload) {
                     payload.completion_code = MCTP_CTRL_CC_SUCCESS;
                 });
-            notifyCalled.promise.set_value();
+            notifyCalled.promise.set_value(true);
         });
-    waitFor(notifyCalled.future);
+    bool flag = waitFor(notifyCalled.future);
+    (void)flag;
+ 
 
     {
         auto response = sendCtrlRequest<mctp_ctrl_msg_hdr,
                                         mctp_ctrl_resp_prepare_discovery>(
-            MCTP_CTRL_CMD_PREPARE_ENDPOINT_DISCOVERY, {0, 0},
+            MCTP_CTRL_CMD_PREPARE_ENDPOINT_DISCOVERY, {8, 0},
             {PCIE_BROADCAST_FROM_RC, BUS_OWNER_BDF});
         ASSERT_EQ(MCTP_CTRL_CC_SUCCESS, response.completion_code);
     }
@@ -55,7 +57,7 @@ TEST_F(PCIeBindingDiscoveryTest, EndpointDiscovered)
     {
         auto response = sendCtrlRequest<mctp_ctrl_msg_hdr,
                                         mctp_ctrl_resp_endpoint_discovery>(
-            MCTP_CTRL_CMD_ENDPOINT_DISCOVERY, {0, 0},
+            MCTP_CTRL_CMD_ENDPOINT_DISCOVERY, {8, 0},
             {PCIE_BROADCAST_FROM_RC, BUS_OWNER_BDF});
         ASSERT_EQ(MCTP_CTRL_CC_SUCCESS, response.completion_code);
     }
@@ -68,7 +70,7 @@ TEST_F(PCIeBindingDiscoveryTest, EndpointDiscovered)
                                      "DiscoveryFlags.Discovered")));
         auto response =
             sendCtrlRequest<mctp_ctrl_cmd_set_eid, mctp_ctrl_resp_set_eid>(
-                MCTP_CTRL_CMD_SET_ENDPOINT_ID, {0, 0},
+                MCTP_CTRL_CMD_SET_ENDPOINT_ID, {8, 0},
                 {PCIE_ROUTE_BY_ID, BUS_OWNER_BDF}, [&](auto& payload) {
                     payload.eid = ASSIGNED_EID;
                     payload.operation = set_eid;
@@ -80,7 +82,7 @@ TEST_F(PCIeBindingDiscoveryTest, EndpointDiscovered)
     {
         auto response =
             sendCtrlRequest<mctp_ctrl_cmd_get_eid, mctp_ctrl_resp_get_eid>(
-                MCTP_CTRL_CMD_GET_ENDPOINT_ID, {0, 0},
+                MCTP_CTRL_CMD_GET_ENDPOINT_ID, {8, 0},
                 {PCIE_ROUTE_BY_ID, BUS_OWNER_BDF});
         ASSERT_EQ(MCTP_CTRL_CC_SUCCESS, response.completion_code);
         ASSERT_EQ(ASSIGNED_EID, response.eid);

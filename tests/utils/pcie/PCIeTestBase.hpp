@@ -12,7 +12,7 @@ class PCIeTestBase : public AsyncTestBase
     PCIeTestBase()
     {
         bus = std::make_shared<mctpd_mock::object_server_mock>();
-
+        conn = std::make_shared<sdbusplus::asio::connection>(ioc);
         // Create ifaces beforehand, to configure mock
         mctpInterface = bus->backdoor.add_interface(
             "/xyz/openbmc_project/test_mctp", mctp_server::interface);
