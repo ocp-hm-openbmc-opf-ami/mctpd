@@ -40,11 +40,12 @@ class I3CDriver : public hw::I3CDriver
     void init() override;
     void pollRx() override;
     mctp_binding* binding() override;
-    int getDriverFd() override;
+    int getDriverFd(boost::asio::yield_context yc) override;
     uint8_t getOwnAddress() override;
     uint8_t getDeviceAddress() override;
 
   private:
+    boost::asio::io_context& io;
     boost::asio::posix::stream_descriptor streamMonitor;
     int streamMonitorFd = -1;
     mctp_binding_asti3c* i3c{};
@@ -52,9 +53,11 @@ class I3CDriver : public hw::I3CDriver
     std::string i3cDeviceFile;
     std::optional<uint16_t> pidMask;
     uint8_t busNum;
-    void discoverI3CDevices();
-    void rescanI3CBus();
+    bool discoverI3CDevices(boost::asio::yield_context);
+    bool rescanI3CBus(boost::asio::yield_context);
     void closeFile();
+    boost::system::error_code sleepFor(std::chrono::milliseconds,
+                                       boost::asio::yield_context);
 };
 
 } // namespace aspeed

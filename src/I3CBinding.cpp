@@ -27,79 +27,17 @@ I3CBinding::~I3CBinding()
 
 I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                        std::shared_ptr<object_server>& objServer,
-                       const std::string& objPath, const I3CConfiguration& conf,
+                       const std::string& objectPath,
+                       const I3CConfiguration& conf,
                        boost::asio::io_context& ioc,
                        std::unique_ptr<hw::I3CDriver>&& hwParam) :
-    MctpBinding(conn, objServer, objPath, conf, ioc,
+    MctpBinding(conn, objServer, objectPath, conf, ioc,
                 mctp_server::BindingTypes::MctpOverI3c),
     hw{std::move(hwParam)}, getRoutingInterval(conf.getRoutingInterval),
     getRoutingTableTimer(ioc, getRoutingInterval), i3cConf(conf),
     forwaredEIDPoolToEP(conf.forwaredEIDPoolToEP),
-    blockDiscoveryNotify(conf.blockDiscoveryNotify)
+    blockDiscoveryNotify(conf.blockDiscoveryNotify), mctpBaseObjPath(objectPath)
 {
-    i3cInterface =
-        objServer->add_interface(objPath, I3CBindingServer::interface);
-
-    setupHostResetMatch(connection, this);
-    try
-    {
-        mctpI3CFd = hw->getDriverFd();
-
-        if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
-        {
-            discoveredFlag = I3CBindingServer::DiscoveryFlags::NotApplicable;
-            if (conf.requiredEIDPoolSize > 0)
-            {
-                // EID pool will be assigned through a Topmost busowner
-                // dynamically
-                requiredEIDPoolSize = conf.requiredEIDPoolSize;
-            }
-            else
-            {
-                // Static EID pool
-                eidPool.initializeEidPool(conf.eidPool);
-            }
-        }
-        else
-        {
-            busOwnerAddress = hw->getDeviceAddress();
-            discoveredFlag = I3CBindingServer::DiscoveryFlags::Undiscovered;
-            if (conf.requiredEIDPoolSizeFromBO > 0)
-            {
-                requiredEIDPoolSizeFromBO = conf.requiredEIDPoolSizeFromBO;
-                for (const auto& dist : conf.downstreamEIDPoolDistribution)
-                {
-                    downstreamEIDPools[dist.first] = {0, dist.second, false,
-                                                      false};
-                }
-            }
-            supportOEMBindingBehindBO = conf.supportOEMBindingBehindBO;
-        }
-        ownI3cDAA = hw->getOwnAddress();
-        registerProperty(i3cInterface, "Address", ownI3cDAA);
-
-        registerProperty(
-            i3cInterface, "DiscoveredFlag",
-            I3CBindingServer::convertDiscoveryFlagsToString(discoveredFlag));
-        if (i3cInterface->initialize() == false)
-        {
-            throw std::system_error(
-                std::make_error_code(std::errc::function_not_supported));
-        }
-
-        if (bindingModeType != mctp_server::BindingModeTypes::BusOwner)
-        {
-            getRoutingTableTimer.async_wait(
-                std::bind(&I3CBinding::updateRoutingTable, this));
-        }
-    }
-    catch (std::exception& e)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "MCTP I3C Interface initialization failed.",
-            phosphor::logging::entry("Exception:", e.what()));
-        throw;
-    }
 }
 
 void I3CBinding::onI3CDeviceChangeCallback()
@@ -139,7 +77,7 @@ void I3CBinding::triggerDeviceDiscovery()
                 unregisterEndpoint(std::get<0>(routingEntry));
             }
             routingTableResp = {};
-            mctpI3CFd = hw->getDriverFd();
+            mctpI3CFd = hw->getDriverFd(yield);
             busOwnerAddress = hw->getDeviceAddress();
             hw->pollRx();
             endpointDiscoveryFlow();
@@ -714,8 +652,95 @@ bool I3CBinding::handleRoutingInfoUpdate(
 
 void I3CBinding::initializeBinding()
 {
+    boost::asio::spawn(io, [this](boost::asio::yield_context yield) {
+        initializeBinding(yield);
+    });
+}
+
+void I3CBinding::initializeBinding(boost::asio::yield_context yield)
+{
+    auto lock = regInProgress.lock(yield, regTimeout);
+
+    i3cInterface =
+        this->objectServer->add_interface(mctpBaseObjPath, I3CBindingServer::interface);
+
+    setupHostResetMatch(connection, this);
+
+    uint8_t retries = 20;
+    while (retries > 0)
+    {
+        retries--;
+        mctpI3CFd = hw->getDriverFd(yield);
+        if (mctpI3CFd < 0)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                ("Failed to get I3C driver fd. Retries left " +
+                 std::to_string(retries))
+                    .c_str());
+            boost::asio::steady_timer timer(io);
+            timer.expires_after(std::chrono::seconds(1));
+            timer.async_wait(yield);
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    if (retries == 0)
+    {
+        return;
+    }
+
+    if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
+    {
+        discoveredFlag = I3CBindingServer::DiscoveryFlags::NotApplicable;
+        if (i3cConf.requiredEIDPoolSize > 0)
+        {
+            // EID pool will be assigned through a Topmost busowner
+            // dynamically
+            requiredEIDPoolSize = i3cConf.requiredEIDPoolSize;
+        }
+        else
+        {
+            // Static EID pool
+            eidPool.initializeEidPool(i3cConf.eidPool);
+        }
+    }
+    else
+    {
+        busOwnerAddress = hw->getDeviceAddress();
+        discoveredFlag = I3CBindingServer::DiscoveryFlags::Undiscovered;
+        if (i3cConf.requiredEIDPoolSizeFromBO > 0)
+        {
+            requiredEIDPoolSizeFromBO = i3cConf.requiredEIDPoolSizeFromBO;
+            for (const auto& dist : i3cConf.downstreamEIDPoolDistribution)
+            {
+                downstreamEIDPools[dist.first] = {0, dist.second, false, false};
+            }
+        }
+        supportOEMBindingBehindBO = i3cConf.supportOEMBindingBehindBO;
+    }
+
+    ownI3cDAA = hw->getOwnAddress();
+    registerProperty(i3cInterface, "Address", ownI3cDAA);
+
+    registerProperty(
+        i3cInterface, "DiscoveredFlag",
+        I3CBindingServer::convertDiscoveryFlagsToString(discoveredFlag));
+    if (i3cInterface->initialize() == false)
+    {
+        throw std::system_error(
+            std::make_error_code(std::errc::function_not_supported));
+    }
+
+    if (bindingModeType != mctp_server::BindingModeTypes::BusOwner)
+    {
+        getRoutingTableTimer.async_wait(
+            std::bind(&I3CBinding::updateRoutingTable, this));
+    }
+
     int status = 0;
-    initializeMctp();
     hw->init();
     mctp_binding* binding = hw->binding();
     if (binding == nullptr)
@@ -746,6 +771,8 @@ void I3CBinding::initializeBinding()
     mctp_set_rx_ctrl(mctp, &MctpBinding::handleMCTPControlRequests,
                      static_cast<MctpBinding*>(this));
     mctp_binding_set_tx_enabled(binding, true);
+
+    initializeMctp();
 
     hw->pollRx();
 

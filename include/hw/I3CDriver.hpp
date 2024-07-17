@@ -17,6 +17,7 @@
 #pragma once
 
 #include <libmctp.h>
+#include <boost/asio/spawn.hpp>
 
 namespace hw
 {
@@ -33,7 +34,7 @@ class I3CDriver
     virtual void init() = 0;
     virtual void pollRx() = 0;
     virtual mctp_binding* binding() = 0;
-    virtual int getDriverFd() = 0;
+    virtual int getDriverFd(boost::asio::yield_context) = 0;
     virtual uint8_t getOwnAddress() = 0;
     virtual uint8_t getDeviceAddress() = 0;
 

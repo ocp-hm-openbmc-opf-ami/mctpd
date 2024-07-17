@@ -36,8 +36,7 @@ namespace aspeed
 
 I3CDriver::I3CDriver(boost::asio::io_context& ioc, uint8_t i3cBusNum,
                      std::optional<uint16_t> cpuPidMask) :
-    streamMonitor(ioc),
-    pidMask(cpuPidMask), busNum(i3cBusNum)
+    io(ioc), streamMonitor(ioc), pidMask(cpuPidMask), busNum(i3cBusNum)
 {
     if (pidMask.has_value())
     {
@@ -47,7 +46,7 @@ I3CDriver::I3CDriver(boost::asio::io_context& ioc, uint8_t i3cBusNum,
     }
 }
 
-void I3CDriver::rescanI3CBus()
+bool I3CDriver::rescanI3CBus(boost::asio::yield_context yield)
 {
     auto search = i3cBusMap.find(busNum);
     if (search != i3cBusMap.end())
@@ -71,7 +70,7 @@ void I3CDriver::rescanI3CBus()
 
         if (rescanFilePath.empty())
         {
-            return;
+            return false;
         }
 
         int fd = open(rescanFilePath.c_str(), O_WRONLY);
@@ -88,9 +87,10 @@ void I3CDriver::rescanI3CBus()
                     ("Write status " + std::to_string(status) + " Errno " +
                      std::to_string(errno))
                         .c_str());
+                return false;
             }
 
-            sleep(1);
+            sleepFor(std::chrono::milliseconds(1000), yield);
             // Remove after I3C stack is stable
             for (const auto& entry :
                  std::filesystem::directory_iterator("/sys/bus/i3c/devices"))
@@ -98,14 +98,15 @@ void I3CDriver::rescanI3CBus()
                 phosphor::logging::log<phosphor::logging::level::INFO>(
                     (std::string("Found ") + entry.path().c_str()).c_str());
             }
+            return true;
         }
         else
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "Error rescanning I3C driver");
-            return;
         }
     }
+    return false;
 }
 
 void I3CDriver::closeFile()
@@ -118,85 +119,91 @@ void I3CDriver::closeFile()
     streamMonitorFd = -1;
 }
 
-void I3CDriver::discoverI3CDevices()
+boost::system::error_code I3CDriver::sleepFor(std::chrono::milliseconds timeout,
+                                              boost::asio::yield_context yield)
+{
+    boost::asio::steady_timer timer(io);
+    timer.expires_after(timeout);
+    boost::system::error_code ec;
+    timer.async_wait(yield[ec]);
+    return ec;
+}
+
+bool I3CDriver::discoverI3CDevices(boost::asio::yield_context yield)
 {
     closeFile();
-    static constexpr int maxI3CRetries = 20;
-    int retriesLeft = maxI3CRetries;
-    while (retriesLeft > 0)
+    if (isController)
     {
-        retriesLeft--;
-        if (isController)
+        // Multiple daemon instances serve on the same I3C bus. To avoid
+        // rescanning from all the buses, rescan only from the first
+        // instance and simply do a block wait in other daemon instances.
+        // First instance is identified where instance id field in PID mask
+        // is 0
+        if (pidMask.has_value())
         {
-            // Multiple daemon instances serve on the same I3C bus. To avoid
-            // rescanning from all the buses, rescan only from the first
-            // instance and simply do a block wait in other daemon instances.
-            // First instance is identified where instance id field in PID mask
-            // is 0
-            if (pidMask.has_value())
+            static constexpr uint16_t instIdMask = 0xFF00;
+            if ((pidMask.value() & instIdMask) == 0)
             {
-                static constexpr uint16_t instIdMask = 0xFF00;
-                if ((pidMask.value() & instIdMask) == 0)
-                {
-                    rescanI3CBus();
-                }
-                else
-                {
-                    sleep(5);
-                }
+                rescanI3CBus(yield);
             }
-        }
-
-        if (findMCTPI3CDevice(busNum, pidMask, i3cDeviceFile))
-        {
-            phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                ("I3C device file: " + i3cDeviceFile).c_str());
-            streamMonitorFd = open(i3cDeviceFile.c_str(), O_RDWR);
-            if (streamMonitorFd < 0)
+            else
             {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "Error opening I3C device file");
-                return;
+                // Sleep for 2 seconds for device discovery
+                sleepFor(std::chrono::milliseconds(2000), yield);
             }
-            FileHandle handle(reinterpret_cast<int*>(streamMonitorFd),
-                              closeFileFromPointer);
-            uint32_t status = 0;
-            /*
-             * Although the device is there - it may be not accessible due to
-             * power shortage or some other reason.
-             * Issue GETSTATUS CCC to the device to ensure it is ready to
-             * communicate via I3C. If not - allow another DAA happen and try
-             * again.
-             */
-            if (isController && !getStatus(i3cDeviceFile, status))
-            {
-                sleep(1);
-                continue;
-            }
-            int rc =
-                ioctl(streamMonitorFd, I3C_MCTP_IOCTL_REGISTER_DEFAULT_CLIENT);
-            if (rc < 0 && isController)
-            {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "Error registering MCTP o. I3C default client");
-                return;
-            }
-            streamMonitor.assign(reinterpret_cast<long int>(handle.release()));
-            break;
-        }
-        else
-        {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "No device found");
-            sleep(1);
         }
     }
+
+    if (findMCTPI3CDevice(busNum, pidMask, i3cDeviceFile))
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("I3C device file: " + i3cDeviceFile).c_str());
+        streamMonitorFd = open(i3cDeviceFile.c_str(), O_RDWR);
+        if (streamMonitorFd < 0)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Error opening I3C device file");
+            return false;
+        }
+        FileHandle handle(reinterpret_cast<int*>(streamMonitorFd),
+                          closeFileFromPointer);
+        uint32_t status = 0;
+        /*
+         * Although the device is there - it may be not accessible due to
+         * power shortage or some other reason.
+         * Issue GETSTATUS CCC to the device to ensure it is ready to
+         * communicate via I3C. If not - allow another DAA happen and try
+         * again.
+         */
+        if (isController && !getStatus(i3cDeviceFile, status))
+        {
+            streamMonitorFd = -1;
+            phosphor::logging::log<phosphor::logging::level::ERR>("Get status failed");
+            return false;
+        }
+        int rc = ioctl(streamMonitorFd, I3C_MCTP_IOCTL_REGISTER_DEFAULT_CLIENT);
+        if (rc < 0 && isController)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Error registering MCTP o. I3C default client");
+            streamMonitorFd = -1;
+            return false;
+        }
+        streamMonitor.assign(reinterpret_cast<long int>(handle.release()));
+        return true;
+    }
+    else
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "No device found");
+    }
+    return false;
 }
 
 // Discovers I3C devices on sysfs, opens file and returns fd
-int I3CDriver::getDriverFd()
+int I3CDriver::getDriverFd(boost::asio::yield_context yield)
 {
-    discoverI3CDevices();
+    discoverI3CDevices(yield);
     return streamMonitorFd;
 }
 

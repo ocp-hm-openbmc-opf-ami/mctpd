@@ -41,6 +41,7 @@ class I3CBinding : public MctpBinding
                std::unique_ptr<hw::I3CDriver>&& hw);
     ~I3CBinding() override;
     void initializeBinding() override;
+    void initializeBinding(boost::asio::yield_context yield);
     void triggerDeviceDiscovery() override;
 
   protected:
@@ -92,6 +93,8 @@ class I3CBinding : public MctpBinding
     std::vector<routingTableEntry_t> routingTableResp;
     bool forwaredEIDPoolToEP = false;
     bool blockDiscoveryNotify = false;
+    std::string mctpBaseObjPath{};
+
     std::vector<uint8_t>
         getPhysicalAddress(const std::vector<uint8_t>& bindingPrivate) override;
     uint8_t getTransportId() override;
