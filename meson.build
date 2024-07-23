@@ -198,7 +198,8 @@ if build_tests.enabled()
     mctp_test_src = [
         'tests/test-binding.cpp',
         'tests/test-mctpd.cpp',
-	'tests/test-pcie_binding-discovery.cpp',
+        'tests/test-pcie_binding-devices.cpp',
+        'tests/test-pcie_binding-discovery.cpp',
     ]
 
     mctp_test_exe = executable(

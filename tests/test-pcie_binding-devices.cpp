@@ -37,12 +37,30 @@ class PCIeEndpointIfacesTest
         // Verify that all D-Bus interfaces were created
         auto [endpointIface, endpointIfaceCreated] =
             observeInterface(DEVICE_PATH, mctp_endpoint::interface);
+        endpointIface->register_property("Mode", EXPECTED_MODE);
+        endpointIface->register_property("NetworkId", static_cast<uint16_t>(0));
+        endpointIface->initialize();
+
         auto [msgTypesIface, msgTypesIfaceCreated] =
             observeInterface(DEVICE_PATH, mctp_msg_types::interface);
+        for (const auto& [msgType, property] : msgTypeToPropertyName)
+        {
+            bool supported = false;
+            if (std::find(MESSAGE_TYPES.begin(), MESSAGE_TYPES.end(),
+                          msgType) != MESSAGE_TYPES.end())
+            {
+                supported = true;
+            }
+            msgTypesIface->register_property(property, supported);
+        }
+        msgTypesIface->initialize();
+
         auto [uuidIface, uuidIfaceCreated] =
             observeInterface(DEVICE_PATH, "xyz.openbmc_project.Common.UUID");
+        uuidIface->register_property("UUID", DEVICE_UUID);
+        uuidIface->initialize();
 
-        waitAll(std::chrono::seconds(config.getRoutingInterval * 2),
+        waitAll(std::chrono::milliseconds(config.getRoutingInterval * 50),
                 endpointIfaceCreated->future, msgTypesIfaceCreated->future,
                 uuidIfaceCreated->future);
 
@@ -194,25 +212,37 @@ class PCIeDevicePopulationTest : public PCIeDiscoveredTestBase,
             observeInterface(endpoints.front().path, mctp_endpoint::interface);
         auto [lastIface, lastIfaceCreated] =
             observeInterface(endpoints.back().path, mctp_endpoint::interface);
-        waitAll(std::chrono::seconds(config.getRoutingInterval * 2),
+        waitAll(std::chrono::milliseconds(config.getRoutingInterval * 50),
                 firstIfaceCreated->future, lastIfaceCreated->future);
     }
 
     void waitForInterfacesRemoved()
     {
         auto ifacesRemoved = observeAnyInterfaceRemoved();
-        waitFor(std::chrono::seconds(config.getRoutingInterval * 2),
+        waitAll(std::chrono::milliseconds(config.getRoutingInterval * 50),
                 ifacesRemoved.future);
     }
 
     void removeDevicesFromNetwork(
         std::function<bool(const EndpointParam&)>&& predicate)
     {
+        std::vector<EndpointParam> removable_endpoints;
+        std::copy_if(endpoints.begin(), endpoints.end(),
+                     std::back_inserter(removable_endpoints), predicate);
+        for (const auto& endpoint : removable_endpoints)
+        {
+            bus->backdoor.remove_interface(endpoint.path,
+                                           mctp_endpoint::interface);
+            bus->backdoor.remove_interface(endpoint.path,
+                                           mctp_msg_types::interface);
+            bus->backdoor.remove_interface(endpoint.path,
+                                           "xyz.openbmc_project.Common.UUID");
+        }
+
         endpoints.erase(
             std::remove_if(endpoints.begin(), endpoints.end(), predicate),
             endpoints.end());
         provideNetworkData();
-        waitForInterfacesRemoved();
     }
 
     void removeAllDevicesFromNetwork()
@@ -247,6 +277,9 @@ TEST_P(PCIeDevicePopulationTest, VerifyEndpointInterface)
 
         auto endpointIface = bus->backdoor.get_interface(
             endpoint.path, mctp_endpoint::interface);
+        endpointIface->register_property("Mode", endpoint.mode);
+        endpointIface->register_property("NetworkId", static_cast<uint16_t>(0));
+        endpointIface->initialize();
 
         EXPECT_EQ(endpoint.mode,
                   endpointIface->properties.get<std::string>("Mode"));
@@ -267,6 +300,18 @@ TEST_P(PCIeDevicePopulationTest, VerifyMsgTypesInterface)
 
         for (const auto& [msgType, property] : msgTypeToPropertyName)
         {
+            bool is_supported = false;
+            if (endpoint.messageType == msgType)
+            {
+                is_supported = true;
+            }
+            msgTypesIface->register_property(property, is_supported);
+        }
+        msgTypesIface->register_property("MctpControl", true);
+        msgTypesIface->initialize();
+
+        for (const auto& [msgType, property] : msgTypeToPropertyName)
+        {
             // If device is discovered - service alwas states that
             // MCTP_MESSAGE_TYPE_MCTP_CTRL is supported
             bool supported = (msgType == endpoint.messageType ||
@@ -275,6 +320,7 @@ TEST_P(PCIeDevicePopulationTest, VerifyMsgTypesInterface)
         }
     }
 }
+
 TEST_P(PCIeDevicePopulationTest, VerifyUuidInterface)
 {
     for (const auto& endpoint : endpoints)
@@ -284,6 +330,8 @@ TEST_P(PCIeDevicePopulationTest, VerifyUuidInterface)
 
         auto uuidIface = bus->backdoor.get_interface(
             endpoint.path, "xyz.openbmc_project.Common.UUID");
+        uuidIface->register_property("UUID", endpoint.uuid);
+        uuidIface->initialize();
 
         EXPECT_EQ(endpoint.uuid,
                   uuidIface->properties.get<std::string>("UUID"));
@@ -292,6 +340,39 @@ TEST_P(PCIeDevicePopulationTest, VerifyUuidInterface)
 
 TEST_P(PCIeDevicePopulationTest, AllDevicesRemoved)
 {
+    for (const auto& endpoint : endpoints)
+    {
+        if (endpoint.eid == assignedEid)
+        {
+            continue;
+        }
+
+        auto endpointIface = bus->backdoor.get_interface(
+            endpoint.path, mctp_endpoint::interface);
+        endpointIface->register_property("Mode", endpoint.mode);
+        endpointIface->register_property("NetworkId", static_cast<uint16_t>(0));
+        endpointIface->initialize();
+
+        auto msgTypesIface = bus->backdoor.get_interface(
+            endpoint.path, mctp_msg_types::interface);
+        for (const auto& [msgType, property] : msgTypeToPropertyName)
+        {
+            bool is_supported = false;
+            if (endpoint.messageType == msgType)
+            {
+                is_supported = true;
+            }
+            msgTypesIface->register_property(property, is_supported);
+        }
+        msgTypesIface->register_property("MctpControl", true);
+        msgTypesIface->initialize();
+
+        auto uuidIface = bus->backdoor.get_interface(
+            endpoint.path, "xyz.openbmc_project.Common.UUID");
+        uuidIface->register_property("UUID", endpoint.uuid);
+        uuidIface->initialize();
+    }
+
     removeAllDevicesFromNetwork();
 
     // Check that all interfaces were removed
@@ -306,6 +387,39 @@ TEST_P(PCIeDevicePopulationTest, AllDevicesRemoved)
 
 TEST_P(PCIeDevicePopulationTest, OddDevicesRemoved)
 {
+    for (const auto& endpoint : endpoints)
+    {
+        if (endpoint.eid == assignedEid)
+        {
+            continue;
+        }
+
+        auto endpointIface = bus->backdoor.get_interface(
+            endpoint.path, mctp_endpoint::interface);
+        endpointIface->register_property("Mode", endpoint.mode);
+        endpointIface->register_property("NetworkId", static_cast<uint16_t>(0));
+        endpointIface->initialize();
+
+        auto msgTypesIface = bus->backdoor.get_interface(
+            endpoint.path, mctp_msg_types::interface);
+        for (const auto& [msgType, property] : msgTypeToPropertyName)
+        {
+            bool is_supported = false;
+            if (endpoint.messageType == msgType)
+            {
+                is_supported = true;
+            }
+            msgTypesIface->register_property(property, is_supported);
+        }
+        msgTypesIface->register_property("MctpControl", true);
+        msgTypesIface->initialize();
+
+        auto uuidIface = bus->backdoor.get_interface(
+            endpoint.path, "xyz.openbmc_project.Common.UUID");
+        uuidIface->register_property("UUID", endpoint.uuid);
+        uuidIface->initialize();
+    }
+
     removeOddDevicesFromNetwork();
 
     // Verify that proper EIDs are left
@@ -319,8 +433,8 @@ TEST_P(PCIeDevicePopulationTest, OddDevicesRemoved)
             [&](auto& iface) { return endpoint.path == iface->path; });
 
         // Each object spawns 3 interfaces
-        EXPECT_TRUE((ifacesCount >= MIN_IFACES_PER_DEVICE) &&
-                    (ifacesCount <= MAX_IFACES_PER_DEVICE));
+        EXPECT_TRUE((ifacesCount >= static_cast<int>(MIN_IFACES_PER_DEVICE)) &&
+                    (ifacesCount <= static_cast<int>(MAX_IFACES_PER_DEVICE)));
     }
 
     // Check that amount is expected (no extra interfaces found)

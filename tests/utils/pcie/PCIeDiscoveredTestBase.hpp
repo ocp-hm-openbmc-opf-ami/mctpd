@@ -58,7 +58,7 @@ class PCIeDiscoveredTestBase : public PCIeTestBase, public MessageHelpers
 
     void discoveryFlow()
     {
-        auto notifyCalled = makePromise<void>();
+        auto notifyCalled = makePromise<bool>();
         binding->backdoor.onOutgoingCtrlCommand(
             MCTP_CTRL_CMD_DISCOVERY_NOTIFY, [&]() {
                 sendCtrlResponseAsync<mctp_ctrl_resp_discovery_notify>(
@@ -66,9 +66,10 @@ class PCIeDiscoveredTestBase : public PCIeTestBase, public MessageHelpers
                     [](auto& payload) {
                         payload.completion_code = MCTP_CTRL_CC_SUCCESS;
                     });
-                notifyCalled.promise.set_value();
+                notifyCalled.promise.set_value(true);
             });
-        waitFor(notifyCalled.future);
+        bool wait1 = waitFor(notifyCalled.future);
+        (void)wait1;
 
         schedule([&]() {
             sendCtrlRequestAsync<mctp_ctrl_msg_hdr>(
@@ -82,7 +83,7 @@ class PCIeDiscoveredTestBase : public PCIeTestBase, public MessageHelpers
                 {PCIE_BROADCAST_FROM_RC, busOwnerBdf});
         });
 
-        auto discoveryDone = makePromise<void>();
+        auto discoveryDone = makePromise<bool>();
         schedule([&]() {
             sendCtrlRequestAsync<mctp_ctrl_cmd_set_eid>(
                 MCTP_CTRL_CMD_SET_ENDPOINT_ID, {0, 0},
@@ -90,10 +91,10 @@ class PCIeDiscoveredTestBase : public PCIeTestBase, public MessageHelpers
                     payload.eid = assignedEid;
                     payload.operation = set_eid;
                 });
-            discoveryDone.promise.set_value();
+            discoveryDone.promise.set_value(true);
         });
-
-        waitFor(discoveryDone.future);
+        bool wait2 = waitFor(discoveryDone.future);
+        (void)wait2;
     }
 
     struct RoutingTableParam
