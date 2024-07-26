@@ -127,6 +127,8 @@ void I3CBinding::triggerDeviceDiscovery()
         allocInfo.second.allocated = false;
     }
 
+    mctpServiceScanner.scan();
+
     this->isWaitingForCPUTimedout = false;
     this->cpuDetectTimer = std::nullopt;
 
