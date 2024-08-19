@@ -222,7 +222,7 @@ std::vector<std::string>
     }
     for (const auto& [serviceName, interfaces] : services)
     {
-        serviceNames.emplace_back(serviceName);
+        serviceNames.emplace_back(getUniqueName(serviceName, yield));
     }
     return serviceNames;
 }
@@ -239,22 +239,24 @@ void MCTPServiceScanner::scan()
 
         try
         {
-            this->signalMatches.clear();
-            auto onHotplugHandler =
-                std::bind(&MCTPServiceScanner::onHotPluggedEid, this,
-                          std::placeholders::_1);
-            this->signalMatches.emplace_back(registerSignalHandler(
-                *connection, onHotplugHandler,
-                "org.freedesktop.DBus.ObjectManager", "InterfacesAdded",
-                "/xyz/openbmc_project/mctp"));
+            if (this->signalMatches.size() == 0)
+            {
+                auto onHotplugHandler =
+                    std::bind(&MCTPServiceScanner::onHotPluggedEid, this,
+                              std::placeholders::_1);
+                this->signalMatches.emplace_back(registerSignalHandler(
+                    *connection, onHotplugHandler,
+                    "org.freedesktop.DBus.ObjectManager", "InterfacesAdded",
+                    "/xyz/openbmc_project/mctp"));
 
-            auto onDeviceRemoveHandler = std::bind(
-                &MCTPServiceScanner::onEidRemoved, this, std::placeholders::_1);
-            this->signalMatches.emplace_back(registerSignalHandler(
-                *connection, onDeviceRemoveHandler,
-                "org.freedesktop.DBus.ObjectManager", "InterfacesRemoved",
-                "/xyz/openbmc_project/mctp"));
-
+                auto onDeviceRemoveHandler =
+                    std::bind(&MCTPServiceScanner::onEidRemoved, this,
+                              std::placeholders::_1);
+                this->signalMatches.emplace_back(registerSignalHandler(
+                    *connection, onDeviceRemoveHandler,
+                    "org.freedesktop.DBus.ObjectManager", "InterfacesRemoved",
+                    "/xyz/openbmc_project/mctp"));
+            }
             // Get all available MCTP service names
             auto mctpServices = getMCTPServices(yield);
             for (const auto& service : mctpServices)
@@ -305,44 +307,10 @@ bool MCTPServiceScanner::isAllowedBus(const std::string& bus,
     auto allowedDestBusesCopy = allowedDestBuses;
     for (const auto& service : allowedDestBusesCopy)
     {
-        if (!service.empty() && service.front() == ':')
-        {
-            // Unique name already
-            continue;
-        }
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             ("Checkig if " + bus + " is " + service).c_str());
-        boost::system::error_code ec;
-        std::string uniqueName = "";
-        auto it = dbusUniqueNameMap.find(service);
-        if (it != dbusUniqueNameMap.end())
-        {
-            uniqueName = it->second;
-        }
-        else
-        {
-            uniqueName = connection->yield_method_call<std::string>(
-                yield, ec, "org.freedesktop.DBus", "/org/freedesktop/DBus",
-                "org.freedesktop.DBus", "GetNameOwner", service.c_str());
-
-            if (ec)
-            {
-                std::string errMsg =
-                    std::string("GetUniqueName unsuccesful for ") + service +
-                    ". " + ec.message();
-                phosphor::logging::log<phosphor::logging::level::WARNING>(
-                    errMsg.c_str());
-                return false;
-            }
-
-            phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                ("Unique name of " + service + " is " + uniqueName +
-                 ". Target " + bus)
-                    .c_str());
-
-            dbusUniqueNameMap.insert_or_assign(service, uniqueName);
-        }
-
+        
+        std::string uniqueName = getUniqueName(service, yield);
         if (uniqueName == bus)
         {
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
@@ -361,6 +329,12 @@ void MCTPServiceScanner::onHotPluggedEid(sdbusplus::message::message& message)
 {
     if (!this->onNewEid && !this->onNewService)
     {
+        return;
+    }
+    
+    if (this->connection->get_unique_name() == message.get_sender())
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>("Signal from same service");
         return;
     }
 
@@ -388,7 +362,7 @@ void MCTPServiceScanner::onHotPluggedEid(sdbusplus::message::message& message)
                         return;
                     }
 
-                    std::string serviceName = message.get_sender();
+                    std::string serviceName = this->getUniqueName(message.get_sender(), yield);
                     if (serviceName.empty())
                     {
                         return;
@@ -406,31 +380,12 @@ void MCTPServiceScanner::onHotPluggedEid(sdbusplus::message::message& message)
                     {
                         phosphor::logging::log<phosphor::logging::level::DEBUG>(
                             ("New service " + serviceName).c_str());
-                        if (serviceName[0] == ':')
-                        {
-                            auto commonNameIt = std::find_if(
-                                dbusUniqueNameMap.begin(),
-                                dbusUniqueNameMap.end(),
-                                [&serviceName](const auto& namePair) {
-                                    return namePair.second == serviceName;
-                                });
-                            if (commonNameIt != dbusUniqueNameMap.end())
-                            {
-                                phosphor::logging::log<
-                                    phosphor::logging::level::DEBUG>(
-                                    ("Found in dbus map " + serviceName)
-                                        .c_str());
-                                serviceName = commonNameIt->first;
-                            }
-                            phosphor::logging::log<
-                                phosphor::logging::level::DEBUG>(
-                                ("Service name changed to " + serviceName)
-                                    .c_str());
-                        }
+                        
                         this->onNewService(serviceName);
                         return;
                     }
-                    if (!this->onNewEid)
+                    
+                    if (!this->onNewEid || endpointIntf == values.end())
                     {
                         return;
                     }
@@ -502,6 +457,14 @@ void MCTPServiceScanner::onEidRemoved(sdbusplus::message::message& message)
         if (baseIntf != interfaces.end())
         {
             std::string serviceName = message.get_sender();
+            if (serviceName.empty() && serviceName.front()  != ':')
+            {
+                auto it = dbusUniqueNameMap.find(serviceName);
+                if (it != dbusUniqueNameMap.end())
+                {
+                    serviceName = it->second;
+                }
+            }
             // An MCTP service is going down.
             if (this->cachedServices.erase(serviceName) > 0)
             {
@@ -694,4 +657,43 @@ size_t MCTPServiceScanner::getAllowedCPUBusses()
     }
 
     return detectedCPUs == 0 ? count : std::min(count, detectedCPUs);
+}
+
+const std::string& MCTPServiceScanner::getUniqueName(const std::string& busName,
+                          boost::asio::yield_context yield)
+{
+    if (!busName.empty() && busName.front() == ':')
+    {
+        return busName;
+    }
+
+    auto it = dbusUniqueNameMap.find(busName);
+    if (it != dbusUniqueNameMap.end())
+    {
+        return it->second;
+    }
+    else
+    {
+        std::string uniqueName = "";
+        boost::system::error_code ec;
+        uniqueName = connection->yield_method_call<std::string>(
+            yield, ec, "org.freedesktop.DBus", "/org/freedesktop/DBus",
+            "org.freedesktop.DBus", "GetNameOwner", busName.c_str());
+
+        if (ec)
+        {
+            std::string errMsg =
+                std::string("GetUniqueName unsuccesful for ") + busName +
+                ". " + ec.message();
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                errMsg.c_str());
+            return busName;
+        }
+
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            ("Unique name of " + busName + " is " + uniqueName).c_str());
+
+        auto newIt = dbusUniqueNameMap.insert_or_assign(busName, uniqueName);
+        return newIt.first->second;
+    }
 }

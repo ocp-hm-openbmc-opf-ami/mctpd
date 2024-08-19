@@ -90,6 +90,8 @@ class MCTPServiceScanner
     std::vector<std::string> getMCTPServices(boost::asio::yield_context yield);
     bool isAllowedBus(const std::string& bus, boost::asio::yield_context yield);
     void getConnectedCPUs();
+    const std::string& getUniqueName(const std::string& busName,
+                              boost::asio::yield_context yield);
     Callback onNewEid;
     EidRemovedCallback onEidRemovedHandler;
     NewServiceCallback onNewService;

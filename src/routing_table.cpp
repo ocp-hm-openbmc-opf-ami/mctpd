@@ -149,16 +149,16 @@ using EntryMap = RoutingTable::EntryMap;
 const std::string& RoutingTable::getServiceName(const mctp_eid_t eid) const
 {
     auto it = entries.find(eid);
-    if (entries.end() != it)
+    if (entries.end() != it && it->second.serviceNames.size() > 0)
     {
-        return it->second.serviceName;
+        return *it->second.serviceNames.begin();
     }
     throw std::out_of_range(
         std::string("Cannot find service hosting the EID:") +
         std::to_string(eid));
 }
 
-const RoutingTable::Entry& RoutingTable::getEntry(const mctp_eid_t eid) const
+RoutingTable::Entry& RoutingTable::getEntry(const mctp_eid_t eid)
 {
     auto it = entries.find(eid);
     if (entries.end() != it)

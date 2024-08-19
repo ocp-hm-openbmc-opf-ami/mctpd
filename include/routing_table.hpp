@@ -20,6 +20,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <variant>
 
 #include "libmctp-cmds.h"
@@ -78,7 +79,7 @@ class RoutingTable
     {
         using MCTPLibData = get_routing_table_entry_with_address;
         inline Entry(mctp_eid_t eid, std::string service, EndPointType type) :
-            serviceName(std::move(service))
+            serviceNames({service})
         {
             routeEntry.routing_info.eid_range_size = 1; // Fixed for now
             routeEntry.routing_info.entry_type = static_cast<uint8_t>(type);
@@ -116,9 +117,17 @@ class RoutingTable
                    type == EndPointType::BridgeOnly ||
                    type == EndPointType::BridgeWithoutEndpoint;
         }
+        inline std::optional<std::string> serviceName() const
+        {
+            if (serviceNames.empty())
+            {
+                return std::nullopt;
+            }
+            return *serviceNames.begin();
+        }
         MCTPLibData routeEntry{};
         // optional
-        std::string serviceName{};
+        std::unordered_set<std::string> serviceNames{};
         bool isUpstream = false;
     };
 
@@ -126,7 +135,7 @@ class RoutingTable
 
     const std::string& getServiceName(const mctp_eid_t eid) const;
     const EntryMap& getAllEntries() const noexcept;
-    const Entry& getEntry(const mctp_eid_t eid) const;
+    Entry& getEntry(const mctp_eid_t eid);
     bool updateEntry(const mctp_eid_t eid, Entry entry);
     bool removeEntry(const mctp_eid_t eid);
     inline bool contains(mctp_eid_t eid)

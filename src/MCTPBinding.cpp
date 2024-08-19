@@ -124,7 +124,14 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
         [this](bridging::MCTPServiceScanner::EndPoint ep, bool isHotplugged) {
             if (routingTable.contains(ep.eid))
             {
-                // Entry detcted from this process itself. Ignore
+                // Routing table already has route to eid. Add a new route.
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    ("Found new route to already existing entry " +
+                     std::to_string(ep.eid) + " . " + ep.service.name)
+                        .c_str());
+                auto& entry = routingTable.getEntry(ep.eid);
+                entry.serviceNames.emplace(std::move(ep.service.name));
+                
                 return;
             }
 
@@ -165,11 +172,24 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
         });
     mctpServiceScanner.setEidRemovedCallback(
         [this](bridging::MCTPServiceScanner::EndPoint ep) {
-            if (this->routingTable.removeEntry(ep.eid))
+            if (this->routingTable.contains(ep.eid))
             {
-                phosphor::logging::log<phosphor::logging::level::INFO>(
-                    (std::to_string(ep.eid) + " removed from routing table")
-                        .c_str());
+                // Delete the associated route from the routing table.
+                auto& entry = this->routingTable.getEntry(ep.eid);
+                if (entry.serviceNames.size() > 1)
+                {
+                    entry.serviceNames.erase(ep.service.name);
+                    phosphor::logging::log<phosphor::logging::level::INFO>(
+                        ("Route removed for eid " + std::to_string(ep.eid))
+                            .c_str());
+                }
+                else
+                {
+                    this->routingTable.removeEntry(ep.eid);
+                    phosphor::logging::log<phosphor::logging::level::INFO>(
+                        (std::to_string(ep.eid) + " removed from routing table")
+                            .c_str());
+                }
             }
             else
             {
@@ -861,10 +881,21 @@ MctpStatus MctpBinding::sendMctpRawPayload(const std::vector<uint8_t>& payload)
                         phosphor::logging::entry("EID=%d", dstEid));
                 }
             };
-            connection->async_method_call(
-                sendCB, entry.serviceName, "/xyz/openbmc_project/mctp",
-                "xyz.openbmc_project.MCTP.Base", "SendMctpRawPayload", payload);
-            status = mctpSuccess;
+            auto dest = entry.serviceName();
+            if (dest)
+            {
+                connection->async_method_call(sendCB, *dest,
+                                              "/xyz/openbmc_project/mctp",
+                                              "xyz.openbmc_project.MCTP.Base",
+                                              "SendMctpRawPayload", payload);
+                status = mctpSuccess;
+            }
+            else
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Error while getting destination service name");
+                status = mctpInternalError;
+            }
         }
     }
     catch (const std::exception& e)
