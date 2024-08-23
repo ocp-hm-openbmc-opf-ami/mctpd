@@ -224,6 +224,7 @@ std::vector<std::string>
     {
         serviceNames.emplace_back(getUniqueName(serviceName, yield));
     }
+    std::sort(serviceNames.begin(), serviceNames.end());
     return serviceNames;
 }
 
