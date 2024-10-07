@@ -91,6 +91,7 @@ class MCTPServiceScanner
   private:
     void onHotPluggedEid(sdbusplus::message::message& message);
     void onEidRemoved(sdbusplus::message::message& message);
+    void onServiceRemoved(std::string serviceName);
     const MCTPService& getMctpServiceDetails(boost::asio::yield_context yield,
                                              const std::string& serviceName);
     void scanForEIDs(const std::string& serviceName,

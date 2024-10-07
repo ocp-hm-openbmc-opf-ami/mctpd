@@ -467,6 +467,52 @@ void MCTPServiceScanner::onHotPluggedEid(sdbusplus::message::message& message)
             (std::string("onHotPluggedEid: ") + e.what()).c_str());
     }
 }
+void MCTPServiceScanner::onServiceRemoved(std::string serviceName)
+{
+    boost::asio::spawn(
+        connection->get_io_context(),
+        [this, serviceName](boost::asio::yield_context yield) mutable {
+            // Give some time for other coroutines processing events from the
+            // stopped services to complete before removing the cached details
+            constexpr auto serviceDelay = std::chrono::milliseconds(60);
+            sleepFor(this->connection->get_io_context(), yield, serviceDelay);
+            if (serviceName.empty() && serviceName.front() != ':')
+             {
+                auto it = dbusUniqueNameMap.find(serviceName);
+                if (it != dbusUniqueNameMap.end())
+                {
+                    serviceName = it->second;
+                }
+            }
+            // An MCTP service is going down.
+            if (this->cachedServices.erase(serviceName) > 0)
+            {
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    (serviceName +
+                     std::string(" removed from cached services"))
+                        .c_str());
+            }
+            if (!serviceName.empty() && serviceName.front() == ':')
+            {
+                // Remove unique name if it is in allow or deny list
+                this->allowedDestBuses.erase(serviceName);
+                this->disallowedDestBuses.erase(serviceName);
+            }
+
+            auto it =
+                std::find_if(dbusUniqueNameMap.begin(), dbusUniqueNameMap.end(),
+                             [serviceName](const auto& keyval) {
+                                 return keyval.first == serviceName ||
+                                        keyval.second == serviceName;
+                             });
+            if (dbusUniqueNameMap.end() != it)
+            {
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    ("Erasing " + serviceName + " from unique map").c_str());
+                dbusUniqueNameMap.erase(it);
+            }
+        });
+}
 
 void MCTPServiceScanner::onEidRemoved(sdbusplus::message::message& message)
 {
@@ -484,35 +530,8 @@ void MCTPServiceScanner::onEidRemoved(sdbusplus::message::message& message)
                                   "xyz.openbmc_project.MCTP.Base");
         if (baseIntf != interfaces.end())
         {
-            std::string serviceName = message.get_sender();
-            // An MCTP service is going down.
-            if (this->cachedServices.erase(serviceName) > 0)
-            {
-                phosphor::logging::log<phosphor::logging::level::INFO>(
-                    (message.get_sender() +
-                     std::string(" removed from cached services"))
-                        .c_str());
-            }
-            if (!serviceName.empty() && serviceName.front() == ':')
-            {
-                // Remove unique name if it is in allow or deny list
-                this->allowedDestBuses.erase(serviceName);
-                this->disallowedDestBuses.erase(serviceName);
-            }
-
-            auto it = std::find_if(
-                dbusUniqueNameMap.begin(),
-                dbusUniqueNameMap.end(), [serviceName](const auto& keyval) {
-                    return keyval.first == serviceName ||
-                           keyval.second == serviceName;
-                });
-            if (dbusUniqueNameMap.end() != it)
-            {
-                phosphor::logging::log<phosphor::logging::level::INFO>(
-                    ("Erasing " + serviceName + " from unique map").c_str());
-                dbusUniqueNameMap.erase(it);
-            }
-
+            onServiceRemoved(message.get_sender());
+            return;
         }
 
         auto endpointIntf = std::find(interfaces.begin(), interfaces.end(),
