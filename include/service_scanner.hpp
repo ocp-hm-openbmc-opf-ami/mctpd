@@ -80,11 +80,12 @@ class MCTPServiceScanner
     {
         // Return how many allowed busses contains the string CPU in it
         size_t count = 0;
-        count = std::count_if(allowedDestBuses.begin(), allowedDestBuses.end(),
-                              [](const std::string& i) {
-                                  return i.find("CPU") != std::string::npos;
-                              });
-        return count;
+        count = std::count_if(
+            allowedDestBuses.begin(), allowedDestBuses.end(),
+            [](const std::string& i) { return i.find("CPU") 
+                                       != std::string::npos; });
+        // It will take some time to update detectedCPUs
+        return detectedCPUs == 0 ? count : std::min(count, detectedCPUs);
     }
     void scan();
 
@@ -99,6 +100,7 @@ class MCTPServiceScanner
 
     std::vector<std::string> getMCTPServices(boost::asio::yield_context yield);
     bool isAllowedBus(const std::string& bus, boost::asio::yield_context yield);
+    void getConnectedCPUs();
     Callback onNewEid;
     EidRemovedCallback onEidRemovedHandler;
     NewServiceCallback onNewService;
@@ -108,6 +110,7 @@ class MCTPServiceScanner
     std::unordered_set<std::string> allowedDestBuses;
     std::unordered_set<std::string> disallowedDestBuses;
     std::unordered_map<std::string, std::string> dbusUniqueNameMap;
+    size_t detectedCPUs = 0;
     WaitCondition busUpdateCond;
 };
 } // namespace bridging

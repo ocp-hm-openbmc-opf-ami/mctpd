@@ -52,6 +52,9 @@ void I3CBinding::triggerDeviceDiscovery()
         allocInfo.second.allocated = false;
     }
 
+    this->isWaitingForCPUTimedout = false;
+    this->cpuDetectTimer = std::nullopt;
+
     boost::asio::spawn(io, [this](boost::asio::yield_context yield) {
         auto lock = regInProgress.lock(yield, regTimeout);
 
@@ -61,11 +64,7 @@ void I3CBinding::triggerDeviceDiscovery()
         if (bindingModeType == mctp_server::BindingModeTypes::Bridge ||
             bindingModeType == mctp_server::BindingModeTypes::BusOwner)
         {
-            for (auto eid : eidTable)
-            {
-                clearRegisteredDevice(eid);
-            }
-            eidTable.clear();
+            clearAllRegisteredEIDs();
             eidPool.clearEIDPool();
         }
 
@@ -82,6 +81,8 @@ void I3CBinding::triggerDeviceDiscovery()
             hw->pollRx();
             endpointDiscoveryFlow();
         }
+        this->isWaitingForCPUTimedout = false;
+        this->cpuDetectTimer = std::nullopt;
     });
 }
 
@@ -740,6 +741,16 @@ void I3CBinding::initializeBinding(boost::asio::yield_context yield)
             std::bind(&I3CBinding::updateRoutingTable, this));
     }
 
+    std::string matchString = sdbusplus::bus::match::rules::type::signal() +
+                              "interface='xyz.openbmc_project.MCTP.Binding."
+                              "PCIe',path='/xyz/openbmc_project/mctp'";
+
+    pcieEnumChangeMatch = std::make_unique<sdbusplus::bus::match::match>(
+        static_cast<sdbusplus::bus::bus&>(*connection), matchString,
+        [this](sdbusplus::message::message&) {
+            this->onPCIeEnumerationChange();
+        });
+
     int status = 0;
     hw->init();
     mctp_binding* binding = hw->binding();
@@ -842,10 +853,13 @@ std::vector<uint8_t> I3CBinding::getOwnPhysicalAddress()
 
 bool I3CBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
 {
+    clearAllRegisteredEIDs();
+
     if (!MctpBinding::setEIDPool(startEID, poolSize))
     {
         return false;
     }
+
     if (this->forwaredEIDPoolToEP)
     {
         boost::asio::spawn(
@@ -969,27 +983,44 @@ void I3CBinding::onEIDPool()
             return;
         }
 
-        mctp_eid_t destEid = getEidRespPtr->eid;
-
-        try
-        {
-            auto& entry = this->routingTable.getEntry(destEid);
-            if (entry.isUpstream == false)
-            {
-                phosphor::logging::log<phosphor::logging::level::INFO>(
-                    "Endpoint already registered");
-                return;
-            }
-        }
-        catch (const std::exception& e)
+        if (getEidRespPtr->eid == MCTP_EID_NULL)
         {
             phosphor::logging::log<phosphor::logging::level::INFO>(
-                ("Continue registration. " + std::string(e.what())).c_str());
+                "Endpoint dont have an EID yet. It will send DicoveryNotify "
+                "again");
+            // Endpoint dont have an EID yet. It will send DicoveryNotify again.
+            return;
         }
+
+        mctp_eid_t destEid = getEidRespPtr->eid;
 
         if (!eidPool.contains(destEid))
         {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                ("EID pool doesnot contains current eid " +
+                 std::to_string(destEid))
+                    .c_str());
+            clearRegisteredDevice(destEid);
             destEid = MCTP_EID_NULL;
+        }
+        else
+        {
+            try
+            {
+                auto& entry = this->routingTable.getEntry(destEid);
+                if (entry.isUpstream == false)
+                {
+                    phosphor::logging::log<phosphor::logging::level::INFO>(
+                        "Endpoint already registered");
+                    clearRegisteredDevice(destEid);
+                }
+            }
+            catch (const std::exception& e)
+            {
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    ("Continue registration. " + std::string(e.what()))
+                        .c_str());
+            }
         }
 
         auto endPoint = registerEndpoint(yield, prvData, destEid);
@@ -998,4 +1029,53 @@ void I3CBinding::onEIDPool()
             eidTable.insert(endPoint.value());
         }
     });
+}
+
+void I3CBinding::onPCIeEnumerationChange()
+{
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "PCIe enumeration changed");
+
+    this->isWaitingForCPUTimedout = false;
+    this->cpuDetectTimer = std::nullopt;
+
+    boost::asio::spawn(
+        this->connection->get_io_context(),
+        [this, &io = this->connection->get_io_context()](
+            boost::asio::yield_context yield) {
+            boost::asio::steady_timer timer(io);
+            // OOBMSM takes 2.5 seconds to refresh the routing table.
+            timer.expires_after(std::chrono::seconds(3));
+            timer.async_wait(yield);
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "Triggering GetRouting table");
+
+            getRoutingTableTimer.cancel();
+            // Wait for routing table update and send SetEID to PFR
+            timer.expires_after(std::chrono::seconds(1));
+            timer.async_wait(yield);
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "Setting EID pool on PCIe enum change");
+
+            if (allocatedPoolSize != 0 && allocatedPoolFirstEID != 0)
+            {
+                for (auto& [busName, allocInfo] : downstreamEIDPools)
+                {
+                    allocInfo.allocated = false;
+                    allocInfo.start = 0;
+                }
+                setDownStreamEIDPools(allocatedPoolSize, allocatedPoolFirstEID);
+            }
+        });
+}
+
+void I3CBinding::clearAllRegisteredEIDs()
+{
+    for (auto eid : eidTable)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("Unregistering " + std::to_string(eid)).c_str());
+        clearRegisteredDevice(eid);
+    }
+    eidTable.clear();
 }

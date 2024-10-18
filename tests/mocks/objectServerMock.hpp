@@ -61,6 +61,15 @@ class Properties
         properties;
 };
 
+class SignalMock
+{
+    public:
+    void signal_send()
+    {
+        
+    }
+};
+
 template <typename... PropertyTypes>
 class dbus_interface_mock
     : public MockType<register_property_mock<PropertyTypes>>...,
@@ -117,6 +126,12 @@ class dbus_interface_mock
     {
         return path;
     }
+
+    SignalMock new_signal(const std::string&)
+    {
+        return SignalMock();
+    }
+
 
     void returnByDefault(const bool expectedReturn)
     {

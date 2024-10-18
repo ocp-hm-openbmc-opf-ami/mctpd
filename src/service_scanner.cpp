@@ -25,6 +25,8 @@
 #include <boost/asio.hpp>
 #include <phosphor-logging/log.hpp>
 #include <unordered_map>
+#include <filesystem>
+#include <regex>
 
 using MCTPServiceScanner = bridging::MCTPServiceScanner;
 template <typename T1, typename T2>
@@ -41,6 +43,8 @@ MCTPServiceScanner::MCTPServiceScanner(
     {
         throw std::invalid_argument("Expects valid asio connection");
     }
+
+    getConnectedCPUs();
 }
 
 static mctp_eid_t
@@ -585,4 +589,36 @@ void MCTPServiceScanner::onEidRemoved(sdbusplus::message::message& message)
         phosphor::logging::log<phosphor::logging::level::ERR>(
             (std::string("onEidRemoved: ") + e.what()).c_str());
     }
+}
+
+//ToDo: bus and PID can change, maybe we can move this to entity manager in future
+
+void MCTPServiceScanner::getConnectedCPUs()
+{
+    size_t cpuCountFromDir = 0;
+    // Looking for the string "1-20a" followed by any 7 characters and then the
+    // character 'f'
+    const std::filesystem::path directoryPath{"/sys/bus/i3c/devices"};
+
+    // CPU file name expression pattern
+    std::regex cpuPattern("1-20a.{7}f");
+
+    // Iterate through the directory - /sys/bus/i3c/devices
+    for (const auto& entry : std::filesystem::directory_iterator(directoryPath))
+    {
+        if (entry.is_regular_file())
+        {
+            std::smatch matches;
+
+            // Convert the filename to string
+            std::string fileName = entry.path().filename().string();
+
+            if (std::regex_search(fileName, matches, cpuPattern))
+            {
+                cpuCountFromDir++;
+            }
+        }
+    }
+    // Set the detected CPUs count
+    this->detectedCPUs = cpuCountFromDir;
 }

@@ -654,9 +654,15 @@ bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,
         }
     }
 
-    // If not matching then respond with ERR_NOT_READY
-    if (cpuBusCnt != cpuEIDCnt)
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        ("Need " + std::to_string(cpuBusCnt) + " CPUs. Found " +
+         std::to_string(cpuEIDCnt))
+            .c_str());
+
+    // If not all CPUs are detected then respond with ERR_NOT_READY
+    if (cpuBusCnt > cpuEIDCnt && !this->isWaitingForCPUTimedout)
     {
+        updateWaitingForCPUTimeout();
         response.resize(errRespSize);
         dest = reinterpret_cast<mctp_ctrl_resp_get_routing_table*>(
             response.data());
@@ -758,4 +764,26 @@ bool MCTPEndpoint::discoveryNotifyCtrlCmd(
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
         "Discovery Notify success");
     return true;
+}
+
+void MCTPEndpoint::updateWaitingForCPUTimeout()
+{
+    const std::chrono::seconds timeout{20};
+    if (!cpuDetectTimer)
+    {
+        cpuDetectTimer =
+            boost::asio::steady_timer(this->connection->get_io_context());
+        cpuDetectTimer->expires_after(timeout);
+        cpuDetectTimer->async_wait([this](boost::system::error_code ec) {
+            if (!ec)
+            {
+                isWaitingForCPUTimedout = true;
+            }
+            else
+            {
+                phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                    (std::string("CPUDetectTimer: ") + ec.message()).c_str());
+            }
+        });
+    }
 }
