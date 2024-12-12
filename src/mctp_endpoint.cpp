@@ -671,6 +671,13 @@ bool MCTPEndpoint::handleGetRoutingTable(const std::vector<uint8_t>& request,
         return true;
     }
 
+    // CPUs are discovered. It is not expected to send incomplete table again
+    this->isWaitingForCPUTimedout = false;
+    if (cpuDetectTimer)
+    {
+        cpuDetectTimer->cancel();
+    }
+
     std::vector<RoutingTableEntry::MCTPLibData> entriesLibFormat;
 
     std::vector<RoutingTableEntry::MCTPLibData> requiredEntriesLibFormat;
