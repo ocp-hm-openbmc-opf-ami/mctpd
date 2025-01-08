@@ -329,7 +329,7 @@ void MCTPEndpoint::setDownStreamEIDPools(uint8_t eidPoolSize, uint8_t firstEID)
             startEID += allocInfo.size;
             remainingPoolSize -= allocInfo.size;
         }
-    });
+    }, {});
 }
 
 bool MCTPEndpoint::handleAllocateEID(std::vector<uint8_t>& request,

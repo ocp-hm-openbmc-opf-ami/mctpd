@@ -802,7 +802,7 @@ void MCTPBridge::sendRoutingTableEntries(
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "RoutingInfoUpdate: Unsuccesful response received");
         }
-    });
+    }, {});
 }
 
 void MCTPBridge::sendNewRoutingTableEntryToAllBridges(

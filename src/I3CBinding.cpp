@@ -83,7 +83,7 @@ void I3CBinding::triggerDeviceDiscovery()
         }
         this->isWaitingForCPUTimedout = false;
         this->cpuDetectTimer = std::nullopt;
-    });
+    }, {});
 }
 
 void I3CBinding::endpointDiscoveryFlow()
@@ -123,7 +123,7 @@ void I3CBinding::endpointDiscoveryFlow()
                 discoverNoftifyDone = true;
             }
         }
-    });
+    }, {});
 }
 
 mctp_server::BindingModeTypes
@@ -390,7 +390,7 @@ void I3CBinding::updateRoutingTable()
 
         getRoutingTableTimer.async_wait(
             std::bind(&I3CBinding::updateRoutingTable, this));
-    });
+    }, {});
 }
 
 void I3CBinding::populateDeviceProperties(
@@ -534,7 +534,7 @@ bool I3CBinding::handleDiscoveryNotify(
                 {
                     eidTable.insert(endPoint.value());
                 }
-            });
+            }, {});
     }
     else
     {
@@ -655,7 +655,7 @@ void I3CBinding::initializeBinding()
 {
     boost::asio::spawn(io, [this](boost::asio::yield_context yield) {
         initializeBinding(yield);
-    });
+    }, {});
 }
 
 void I3CBinding::initializeBinding(boost::asio::yield_context yield)
@@ -881,7 +881,7 @@ bool I3CBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
                     entry.isUpstream = false;
                     this->MctpBinding::routingTable.updateEntry(eid, entry);
                 }
-            });
+            }, {});
     }
     return true;
 }
@@ -1028,7 +1028,7 @@ void I3CBinding::onEIDPool()
         {
             eidTable.insert(endPoint.value());
         }
-    });
+    }, {});
 }
 
 void I3CBinding::onPCIeEnumerationChange()
@@ -1066,7 +1066,7 @@ void I3CBinding::onPCIeEnumerationChange()
                 }
                 setDownStreamEIDPools(allocatedPoolSize, allocatedPoolFirstEID);
             }
-        });
+        }, {});
 }
 
 void I3CBinding::clearAllRegisteredEIDs()

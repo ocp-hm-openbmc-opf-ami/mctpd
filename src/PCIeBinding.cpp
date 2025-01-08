@@ -99,7 +99,7 @@ void PCIeBinding::endpointDiscoveryFlow()
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "Discovery Notify failed");
         }
-    });
+    }, {});
 }
 
 mctp_server::BindingModeTypes
@@ -426,7 +426,7 @@ void PCIeBinding::updateRoutingTable()
         }
         getRoutingTableTimer.async_wait(
             std::bind(&PCIeBinding::updateRoutingTable, this));
-    });
+    }, {});
 }
 
 void PCIeBinding::populateDeviceProperties(

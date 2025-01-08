@@ -489,7 +489,7 @@ void SMBusBridge::scanDevices()
             }
             scanDevices();
         });
-    });
+    }, {});
 }
 
 void SMBusBridge::restoreMuxIdleMode()

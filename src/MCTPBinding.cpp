@@ -822,7 +822,7 @@ bool MctpBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
         eidPool.initializeEidPool(eidRange);
 
         onEIDPool();
-    });
+    }, {});
 
     return true;
 }
@@ -863,7 +863,7 @@ void MctpBinding::onNewService(const std::string& service)
                 phosphor::logging::log<phosphor::logging::level::INFO>(
                     "SetEID pool returned false from service callback");
             }
-        });
+        }, {});
 }
 
 void MctpBinding::onEIDPool()

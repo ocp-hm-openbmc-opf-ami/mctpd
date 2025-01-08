@@ -273,7 +273,7 @@ void MCTPServiceScanner::scan()
     // required.
     if (!allowedDestBuses.empty())
     {
-        boost::asio::spawn(connection->get_io_context(), scanTask);
+        boost::asio::spawn(connection->get_io_context(), scanTask, {});
     }
 }
 
@@ -463,7 +463,8 @@ void MCTPServiceScanner::onHotPluggedEid(sdbusplus::message::message& message)
                          e.what())
                             .c_str());
                 }
-            });
+            },
+            {});
     }
     catch (const std::exception& e)
     {
@@ -515,7 +516,8 @@ void MCTPServiceScanner::onServiceRemoved(std::string serviceName)
                     ("Erasing " + serviceName + " from unique map").c_str());
                 dbusUniqueNameMap.erase(it);
             }
-        });
+        },
+        {});
 }
 
 void MCTPServiceScanner::onEidRemoved(sdbusplus::message::message& message)
@@ -582,7 +584,8 @@ void MCTPServiceScanner::onEidRemoved(sdbusplus::message::message& message)
                          e.what())
                             .c_str());
                 }
-            });
+            },
+            {});
     }
     catch (const std::exception& e)
     {

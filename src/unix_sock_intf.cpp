@@ -208,7 +208,7 @@ void Session::waitForRequest()
                         msg->eid, sendOnlyReq->msgTag, sendOnlyReq->tagOwner,
                         payload);
                 }
-            });
+            }, {});
 
             waitForRequest();
         });

@@ -309,7 +309,7 @@ void SMBusEndpoint::updateRoutingTable()
             smbusDeviceTable = smbusDeviceTableTmp;
         }
         entryHdlCounter++;
-    });
+    }, {});
 
     smbusRoutingTableTimer->expires_after(
         std::chrono::seconds(smbusRoutingInterval));
