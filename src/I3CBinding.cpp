@@ -60,7 +60,25 @@ void I3CBinding::triggerDeviceDiscovery()
 
         phosphor::logging::log<phosphor::logging::level::INFO>(
             "Triggering device discovery");
-
+        mctpI3CFd = -1;
+        size_t retries = 5;
+        while (mctpI3CFd < 0 && retries-- > 0)
+        {
+            mctpI3CFd = hw->getDriverFd(yield);
+            if (mctpI3CFd > 0)
+            {
+                break;
+            }
+            else
+            {
+                boost::asio::steady_timer timer(io);
+                timer.expires_after(std::chrono::seconds(1));
+                timer.async_wait(yield);
+            }
+        }
+        busOwnerAddress = hw->getDeviceAddress();
+        hw->pollRx();
+        
         if (bindingModeType == mctp_server::BindingModeTypes::Bridge ||
             bindingModeType == mctp_server::BindingModeTypes::BusOwner)
         {
@@ -76,9 +94,6 @@ void I3CBinding::triggerDeviceDiscovery()
                 unregisterEndpoint(std::get<0>(routingEntry));
             }
             routingTableResp = {};
-            mctpI3CFd = hw->getDriverFd(yield);
-            busOwnerAddress = hw->getDeviceAddress();
-            hw->pollRx();
             endpointDiscoveryFlow();
         }
         this->isWaitingForCPUTimedout = false;
@@ -520,9 +535,16 @@ bool I3CBinding::handleDiscoveryNotify(
     {
         response.push_back(static_cast<uint8_t>(MCTP_CTRL_CC_SUCCESS));
 
-        // Create a co-routine and register the endpoint
-        boost::asio::spawn(
-            io, [this, destEid](boost::asio::yield_context yield) {
+        if (!this->eidPool.isFreeEIDAvailable())
+        {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "EID pool is empty, no more EIDs available");
+        }
+        else
+        {
+            // Create a co-routine and register the endpoint
+            boost::asio::spawn(io, [this,
+                                    destEid](boost::asio::yield_context yield) {
                 auto lock = regInProgress.lock(yield, regTimeout);
                 mctp_asti3c_pkt_private pktPrv;
                 pktPrv.fd = mctpI3CFd;
@@ -535,6 +557,7 @@ bool I3CBinding::handleDiscoveryNotify(
                     eidTable.insert(endPoint.value());
                 }
             }, {});
+        }
     }
     else
     {
@@ -688,11 +711,6 @@ void I3CBinding::initializeBinding(boost::asio::yield_context yield)
         }
     }
 
-    if (retries == 0)
-    {
-        return;
-    }
-
     if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
     {
         discoveredFlag = I3CBindingServer::DiscoveryFlags::NotApplicable;
@@ -735,11 +753,7 @@ void I3CBinding::initializeBinding(boost::asio::yield_context yield)
             std::make_error_code(std::errc::function_not_supported));
     }
 
-    if (bindingModeType != mctp_server::BindingModeTypes::BusOwner)
-    {
-        getRoutingTableTimer.async_wait(
-            std::bind(&I3CBinding::updateRoutingTable, this));
-    }
+
 
     std::string matchString = sdbusplus::bus::match::rules::type::signal() +
                               "interface='xyz.openbmc_project.MCTP.Binding."
@@ -785,14 +799,7 @@ void I3CBinding::initializeBinding(boost::asio::yield_context yield)
 
     initializeMctp();
 
-    hw->pollRx();
-
-    if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
-    {
-        endpointDiscoveryFlow();
-    }
-
-    else
+    if (bindingModeType != mctp_server::BindingModeTypes::Endpoint)
     {
         // Check if we have a static pool
         if (!requiredEIDPoolSize.has_value())
@@ -804,6 +811,25 @@ void I3CBinding::initializeBinding(boost::asio::yield_context yield)
         "BindingMediumID",
         mctp_server::convertMctpPhysicalMediumIdentifiersToString(
             bindingMediumID));
+    if (retries == 0)
+    {
+        return;
+    }
+
+    if (bindingModeType != mctp_server::BindingModeTypes::BusOwner)
+    {
+        getRoutingTableTimer.async_wait(
+            std::bind(&I3CBinding::updateRoutingTable, this));
+    }
+
+    hw->pollRx();
+
+    if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
+    {
+        endpointDiscoveryFlow();
+    }
+
+
 }
 
 std::optional<std::vector<uint8_t>>

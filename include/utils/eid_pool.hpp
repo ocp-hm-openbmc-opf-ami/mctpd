@@ -20,6 +20,7 @@
 
 #include <set>
 #include <vector>
+#include <algorithm>
 
 namespace mctpd
 {
@@ -31,6 +32,12 @@ class EidPool
     mctp_eid_t getAvailableEidFromPool();
     void clearEIDPool();
     bool contains(mctp_eid_t eid) const;
+
+    constexpr bool isFreeEIDAvailable() const
+    {
+      return std::any_of(eidPool.begin(), eidPool.end(),
+                                 [](const auto& eid) { return eid.second == false; });
+    }
 
   private:
     std::vector<std::pair<mctp_eid_t, bool>> eidPool;

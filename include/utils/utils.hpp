@@ -47,8 +47,8 @@ constexpr const char* interface = "org.freedesktop.DBus.Properties";
 
 template <class T>
 static std::unique_ptr<sdbusplus::bus::match::match>
-     setupPowerMatch(std::shared_ptr<sdbusplus::asio::connection> conn,
-                     const T& bindingPtr, boost::asio::steady_timer& timer)
+    setupPowerMatch(std::shared_ptr<sdbusplus::asio::connection> conn,
+                    const T& bindingPtr, boost::asio::steady_timer& timer)
 {
 
     if (bindingPtr == nullptr || conn == nullptr)
@@ -122,30 +122,66 @@ void setupHostResetMatch(std::shared_ptr<sdbusplus::asio::connection> conn,
     }
 
     static boost::asio::steady_timer timer(conn->get_io_context());
-    std::string matchString =
-        sdbusplus::bus::match::rules::type::signal() +
-        sdbusplus::bus::match::rules::interface(properties::interface) +
-        sdbusplus::bus::match::rules::path(platform_state::path) +
-        sdbusplus::bus::match::rules::argN(0, platform_state::interface);
+    std::string matchString = sdbusplus::bus::match::rules::type::signal() +
+                              sdbusplus::bus::match::rules::sender(
+                                  "xyz.openbmc_project.Host.Misc.Manager");
 
     hostResetMatch = std::make_unique<sdbusplus::bus::match::match>(
         static_cast<sdbusplus::bus::bus&>(*conn), matchString,
         [bindingPtr](sdbusplus::message::message& message) {
-            std::string objectName;
-            boost::container::flat_map<std::string,
-                                       std::variant<bool, std::string>>
-                values;
-            message.read(objectName, values);
-            auto findState = values.find(platform_state::platResetProperty);
-            if (findState == values.end())
+            bool resetState = false;
+            if (message.get_member() == std::string("InterfacesAdded"))
             {
+                std::unordered_map<
+                    std::string,
+                    std::unordered_map<std::string,
+                                       std::variant<std::string, bool>>>
+                    values;
+                sdbusplus::message::object_path objectPath;
+
+                message.read(objectPath, values);
+                
+                if (objectPath != platform_state::path)
+                {
+                    return;
+                }
+                auto it = values.find(platform_state::interface);
+                if (it == values.end())
+                {
+                    return;
+                }
+
+                auto itProperty =
+                    it->second.find(platform_state::platResetProperty);
+                if (itProperty == it->second.end())
+                {
+                    return;
+                }
+                resetState = std::get<bool>(itProperty->second);
+            }
+            else if (message.get_member() == std::string("PropertiesChanged"))
+            {
+                std::string objectName;
+                boost::container::flat_map<std::string,
+                                           std::variant<bool, std::string>>
+                    values;
+                message.read(objectName, values);
+                auto findState = values.find(platform_state::platResetProperty);
+                if (findState == values.end())
+                {
+                    return;
+                }
+                resetState = std::get<bool>(findState->second);
+            }
+            else
+            {
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    "Unknown signal received");
                 return;
             }
 
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
                 "Host Reset. Triggering device discovery");
-
-            bool resetState = std::get<bool>(findState->second);
 
             if (!resetState)
             {
