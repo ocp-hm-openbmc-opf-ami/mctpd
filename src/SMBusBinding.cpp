@@ -68,6 +68,7 @@ SMBusBinding::SMBusBinding(
         if (conf.mode == mctp_server::BindingModeTypes::BusOwner)
         {
             eidPool.initializeEidPool(conf.eidPool);
+            isTopMostBusOwner = !conf.eidPool.empty();
         }
 
         if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)

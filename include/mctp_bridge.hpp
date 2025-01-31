@@ -51,6 +51,7 @@ class MCTPBridge : public MCTPEndpoint
 
   protected:
     mctpd::EidPool eidPool;
+    bool isTopMostBusOwner = false;
     std::optional<uint8_t> requiredEIDPoolSize = std::nullopt;
     mctpd::DeviceWatcher deviceWatcher{};
 

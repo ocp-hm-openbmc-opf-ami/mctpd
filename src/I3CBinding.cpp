@@ -78,12 +78,16 @@ void I3CBinding::triggerDeviceDiscovery()
         }
         busOwnerAddress = hw->getDeviceAddress();
         hw->pollRx();
-        
+
+        if (!isTopMostBusOwner)
+        {
+            eidPool.clearEIDPool();
+        }
+
         if (bindingModeType == mctp_server::BindingModeTypes::Bridge ||
             bindingModeType == mctp_server::BindingModeTypes::BusOwner)
         {
             clearAllRegisteredEIDs();
-            eidPool.clearEIDPool();
         }
 
         if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
@@ -724,6 +728,7 @@ void I3CBinding::initializeBinding(boost::asio::yield_context yield)
         {
             // Static EID pool
             eidPool.initializeEidPool(i3cConf.eidPool);
+            isTopMostBusOwner = !i3cConf.eidPool.empty();
         }
     }
     else
