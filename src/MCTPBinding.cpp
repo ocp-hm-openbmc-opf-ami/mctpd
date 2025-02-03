@@ -704,6 +704,16 @@ MctpStatus MctpBinding::sendMctpRawPayload(const std::vector<uint8_t>& payload)
 
     // Destination EID is in byte 1.
     mctp_eid_t dstEid = payload[1];
+    mctp_eid_t srcEid = payload[2];
+
+    if (!routingTable.contains(srcEid))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("SendMctpRawPayload: Invalid source EID " +
+             std::to_string(srcEid)).c_str());
+        return mctpInternalError;
+    }
+
     MctpStatus status = mctpInternalError;
     try
     {
