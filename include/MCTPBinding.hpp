@@ -65,12 +65,16 @@ class MctpBinding : public MCTPBridge
 
   protected:
     bool supportsSPDMRequester = false;
+    static inline bool secureTelemetryEnable = false;
+    std::unique_ptr<sdbusplus::bus::match::match> secureTelemetryEnableMatch;
     bool rsvBWActive = false;
     mctp_eid_t reservedEID = 0;
     mctpd::MctpTransmissionQueue transmissionQueue;
     WaitCondition regInProgress;
     static inline constexpr std::chrono::milliseconds regTimeout =
         std::chrono::milliseconds(1500);
+    void setupSecureTelemetryEnableMatch();
+    void getSecureTelemetryEnableProperty();
 
     virtual bool reserveBandwidth(boost::asio::yield_context yield,
                                   const mctp_eid_t eid, const uint16_t timeout);
@@ -131,4 +135,14 @@ class MctpBinding : public MCTPBridge
     boost::asio::local::basic_endpoint<boost::asio::local::stream_protocol>
         localSocketEp;
     boost::asio::local::stream_protocol::acceptor acceptor;
+    std::unordered_set<uint8_t> sessionSet;
+    bool checkSession(uint32_t);
+    uint32_t createDeviceId(uint8_t, uint8_t);
+    void encryptPayloadUsingDBus(uint8_t networkId, uint8_t dstEid,
+                                 const std::vector<uint8_t>& inputPayload,
+                                 std::vector<uint8_t>& encryptedPayload);
+    void decryptPayloadUsingDBus(uint8_t networkId, uint8_t dstEid,
+                                 const std::vector<uint8_t>& inputPayload,
+                                 std::vector<uint8_t>& decryptedPayload);
+    uint8_t networkId;
 };

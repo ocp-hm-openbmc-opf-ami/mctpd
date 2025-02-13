@@ -112,10 +112,9 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                          const std::string& objPath, const Configuration& conf,
                          boost::asio::io_context& ioc,
                          const mctp_server::BindingTypes bindingType) :
-    MCTPBridge(conn, ioc, objServer),
-    regInProgress(ioc), bindingID(bindingType),
-    localSocketEp(unix_ipc::unix_path::getSockPath()),
-    acceptor(ioc, localSocketEp)
+    MCTPBridge(conn, ioc, objServer), regInProgress(ioc),
+    bindingID(bindingType), localSocketEp(unix_ipc::unix_path::getSockPath()),
+    acceptor(ioc, localSocketEp), networkId(conf.networkId)
 
 {
     objServer->add_manager(objPath);
@@ -210,6 +209,9 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
             mctp_server::convertBindingModeTypesToString(bindingModeType));
 
         registerProperty(mctpInterface, "NetworkID", conf.networkId);
+
+        setupSecureTelemetryEnableMatch();
+        getSecureTelemetryEnableProperty();
 
         /*
          * msgTag and tagOwner are not currently used, but can't be removed
@@ -318,6 +320,22 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                 return static_cast<int>(this->sendMctpRawPayload(data));
             });
 
+        mctpInterface->register_method(
+            "InitiateHandshake", [this](const uint32_t deviceEid) {
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    (" deviceEid: " + std::to_string(deviceEid)).c_str());
+
+                auto it = this->sessionSet.find(deviceEid);
+                if (it != this->sessionSet.end())
+                {
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "EID already exists.");
+                    this->sessionSet.erase(it);
+                }
+
+                this->sessionSet.insert(deviceEid);
+            });
+
         if (mctpInterface->initialize() == false ||
             uuidIntface->initialize() == false)
         {
@@ -332,6 +350,91 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
             phosphor::logging::entry("Exception:", e.what()));
         throw;
     }
+}
+
+void MctpBinding::setupSecureTelemetryEnableMatch()
+{
+    if (secureTelemetryEnableMatch)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Unable to setup SecureTelemetryEnable match");
+        return;
+    }
+
+    std::string matchString =
+        sdbusplus::bus::match::rules::type::signal() +
+        sdbusplus::bus::match::rules::interface(
+            "org.freedesktop.DBus.Properties") +
+        sdbusplus::bus::match::rules::path("/xyz/openbmc_project/secure/pfr") +
+        sdbusplus::bus::match::rules::member("PropertiesChanged") +
+        sdbusplus::bus::match::rules::argN(
+            0, "xyz.openbmc_project.PFR.Attributes");
+    try
+    {
+        secureTelemetryEnableMatch =
+            std::make_unique<sdbusplus::bus::match::match>(
+                static_cast<sdbusplus::bus::bus&>(*connection), matchString,
+                [this](sdbusplus::message::message& message) {
+                    std::string interfaceName;
+                    std::map<std::string, std::variant<bool, std::string>>
+                        changedProperties;
+                    std::vector<std::string> invalidatedProperties;
+
+                    message.read(interfaceName, changedProperties,
+                                 invalidatedProperties);
+
+                    auto findProperty =
+                        changedProperties.find("SecureTelemetryEnable");
+                    if (findProperty == changedProperties.end())
+                    {
+                        return;
+                    }
+
+                    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                        "SecureTelemetryEnable property changed");
+
+                    bool secureTelemetryEnable =
+                        std::get<bool>(findProperty->second);
+
+                    // Update the variable in mctpd
+                    MctpBinding::secureTelemetryEnable = secureTelemetryEnable;
+
+                    phosphor::logging::log<phosphor::logging::level::INFO>(
+                        ("SecureTelemetryEnable is now " +
+                         std::to_string(secureTelemetryEnable))
+                            .c_str());
+                });
+    }
+
+    catch (const std::exception& e)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Failed to setup SecureTelemetryEnable match",
+            phosphor::logging::entry("ERROR=%s", e.what()));
+    }
+}
+
+void MctpBinding::getSecureTelemetryEnableProperty()
+{
+    connection->async_method_call(
+        [this](boost::system::error_code ec,
+               const std::variant<bool>& propertyValue) {
+            if (ec)
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Failed to get SecureTelemetryEnable property");
+                return;
+            }
+
+            secureTelemetryEnable = std::get<bool>(propertyValue);
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                ("SecureTelemetryEnable property value: " +
+                 std::to_string(secureTelemetryEnable))
+                    .c_str());
+        },
+        "xyz.openbmc_project.Secure.PFR.Manager",
+        "/xyz/openbmc_project/secure/pfr", "org.freedesktop.DBus.Properties",
+        "Get", "xyz.openbmc_project.PFR.Attributes", "SecureTelemetryEnable");
 }
 
 /*
@@ -377,6 +480,29 @@ void MctpBinding::rxMessage(uint8_t srcEid, void* data, void* msg, size_t len,
         if (binding.handleCtrlResp(msg, len))
         {
             return;
+        }
+    }
+
+    //  Decryption should be considered only if message is encrypted
+    uint32_t deviceId = binding.createDeviceId(srcEid, binding.networkId);
+    auto useDbus = binding.checkSession(deviceId);
+    std::vector<uint8_t> decryptedPayload;
+    if (secureTelemetryEnable && useDbus &&
+        msgType == MCTP_MESSAGE_TYPE_SECUREDMSG)
+    {
+        binding.decryptPayloadUsingDBus(binding.networkId, srcEid, response,
+                                        decryptedPayload);
+        if (decryptedPayload.empty())
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Decryption failed for EID=%d",
+                phosphor::logging::entry("EID=%d", srcEid));
+            return;
+        }
+        else
+        {
+            response = std::move(
+                decryptedPayload); // Update the response with decrypted data
         }
     }
 
@@ -709,8 +835,8 @@ MctpStatus MctpBinding::sendMctpRawPayload(const std::vector<uint8_t>& payload)
     if (!routingTable.contains(srcEid))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            ("SendMctpRawPayload: Invalid source EID " +
-             std::to_string(srcEid)).c_str());
+            ("SendMctpRawPayload: Invalid source EID " + std::to_string(srcEid))
+                .c_str());
         return mctpInternalError;
     }
 
@@ -825,14 +951,16 @@ bool MctpBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
          std::to_string(poolSize))
             .c_str());
 
-    boost::asio::spawn(io, [this, eidRange](boost::asio::yield_context yield) {
-        auto lock = regInProgress.lock(yield, regTimeout);
+    boost::asio::spawn(io,
+                       [this, eidRange](boost::asio::yield_context yield) {
+                           auto lock = regInProgress.lock(yield, regTimeout);
 
-        eidPool.clearEIDPool();
-        eidPool.initializeEidPool(eidRange);
+                           eidPool.clearEIDPool();
+                           eidPool.initializeEidPool(eidRange);
 
-        onEIDPool();
-    }, {});
+                           onEIDPool();
+                       },
+                       {});
 
     return true;
 }
@@ -873,7 +1001,8 @@ void MctpBinding::onNewService(const std::string& service)
                 phosphor::logging::log<phosphor::logging::level::INFO>(
                     "SetEID pool returned false from service callback");
             }
-        }, {});
+        },
+        {});
 }
 
 void MctpBinding::onEIDPool()
@@ -883,6 +1012,82 @@ void MctpBinding::onEIDPool()
 MctpBinding& MctpBinding::getPtr()
 {
     return *this;
+}
+
+bool MctpBinding::checkSession(uint32_t deviceId)
+{
+    return sessionSet.find(deviceId) != sessionSet.end();
+}
+
+uint32_t MctpBinding::createDeviceId(uint8_t mctpEid, uint8_t networkId)
+{
+    return (static_cast<uint32_t>(networkId) << 8) | mctpEid;
+}
+
+void MctpBinding::encryptPayloadUsingDBus(
+    uint8_t networkId, uint8_t dstEid, const std::vector<uint8_t>& inputPayload,
+    std::vector<uint8_t>& encryptedPayload)
+{
+    std::string objectPath = "/com/intel/spdmd_secure_session/device/" +
+                             std::to_string(networkId) + "/" +
+                             std::to_string(dstEid);
+    std::string serviceName = "com.intel.spdmd.secure.session";
+    std::string interfaceName = "com.intel.spdmd_secure_session.spdm_device";
+    std::string methodName = "EncryptMessagePayload";
+
+    auto msg =
+        connection->new_method_call(serviceName.c_str(), objectPath.c_str(),
+                                    interfaceName.c_str(), methodName.c_str());
+    msg.append(inputPayload);
+
+    try
+    {
+        auto reply = connection->call(msg);
+        reply.read(encryptedPayload);
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "Encryption successful.");
+    }
+    catch (const std::exception& e)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("Failed to encrypt payload via D-Bus for Device ID: " +
+             std::to_string((networkId << 8) | dstEid) + ", ERROR=" + e.what())
+                .c_str());
+        encryptedPayload.clear();
+    }
+}
+
+void MctpBinding::decryptPayloadUsingDBus(
+    uint8_t networkId, uint8_t dstEid, const std::vector<uint8_t>& inputPayload,
+    std::vector<uint8_t>& decryptedPayload)
+{
+    std::string objectPath = "/com/intel/spdmd_secure_session/device/" +
+                             std::to_string(networkId) + "/" +
+                             std::to_string(dstEid);
+    std::string serviceName = "com.intel.spdmd.secure.session";
+    std::string interfaceName = "com.intel.spdmd_secure_session.spdm_device";
+    std::string methodName = "DecryptMessagePayload";
+
+    auto msg =
+        connection->new_method_call(serviceName.c_str(), objectPath.c_str(),
+                                    interfaceName.c_str(), methodName.c_str());
+    msg.append(inputPayload);
+
+    try
+    {
+        auto reply = connection->call(msg);
+        reply.read(decryptedPayload);
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "Decryption successful.");
+    }
+    catch (const std::exception& e)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("Failed to decrypt payload via D-Bus for Device ID: " +
+             std::to_string((networkId << 8) | dstEid) + ", ERROR=" + e.what())
+                .c_str());
+        decryptedPayload.clear();
+    }
 }
 
 void MctpBinding::acceptConnections()
@@ -925,10 +1130,10 @@ std::pair<std::error_code, std::vector<uint8_t>>
         return std::make_pair(std::make_error_code(std::errc::invalid_argument),
                               std::vector<uint8_t>{});
     }
-
+    uint8_t msgType = payload[0]; // Always the first byte
     if (payload.size() > 0)
     {
-        uint8_t msgType = payload[0]; // Always the first byte
+
         if (msgType == MCTP_MESSAGE_TYPE_MCTP_CTRL)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
@@ -945,6 +1150,33 @@ std::pair<std::error_code, std::vector<uint8_t>>
         return std::make_pair(std::make_error_code(std::errc::invalid_argument),
                               std::vector<uint8_t>{});
     }
+
+    std::vector<uint8_t> encryptedPayload;
+    uint32_t deviceId = createDeviceId(dstEid, networkId);
+    auto useDbus = checkSession(deviceId);
+
+    if (secureTelemetryEnable && useDbus &&
+        msgType != MCTP_MESSAGE_TYPE_MCTP_CTRL &&
+        msgType != MCTP_MESSAGE_TYPE_SECUREDMSG &&
+        msgType != MCTP_MESSAGE_TYPE_SPDM)
+    {
+        encryptPayloadUsingDBus(networkId, dstEid, payload, encryptedPayload);
+        if (encryptedPayload.empty())
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Encryption failed");
+            return std::make_pair(
+                std::make_error_code(std::errc::connection_aborted),
+                std::vector<uint8_t>{});
+        }
+        else
+        {
+            payload =
+                std::move(encryptedPayload); // Use encrypted payload only if
+                                             // encryption was successful
+        }
+    }
+
     boost::system::error_code ec;
     auto message = transmissionQueue.transmit(mctp, dstEid, std::move(payload),
                                               std::move(pvtData).value(), io);
@@ -972,6 +1204,7 @@ std::pair<std::error_code, std::vector<uint8_t>>
             std::make_error_code(std::errc::no_message_available),
             std::vector<uint8_t>{});
     }
+
     return std::make_pair(std::error_code(),
                           std::move(message->response).value());
 }
@@ -980,10 +1213,10 @@ int MctpBinding::sendMctpMessagePayload(uint8_t dstEid, uint8_t msgTag,
                                         bool tagOwner,
                                         std::vector<uint8_t> payload)
 {
-
+    uint8_t msgType = payload[0]; // Always the first byte
     if (payload.size() > 0)
     {
-        uint8_t msgType = payload[0]; // Always the first byte
+
         if (msgType == MCTP_MESSAGE_TYPE_MCTP_CTRL)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
@@ -1008,6 +1241,31 @@ int MctpBinding::sendMctpMessagePayload(uint8_t dstEid, uint8_t msgTag,
             "SendMctpMessagePayload: Invalid destination EID");
         return static_cast<int>(mctpInternalError);
     }
+
+    std::vector<uint8_t> encryptedPayload;
+    uint32_t deviceId = createDeviceId(dstEid, networkId);
+    auto useDbus = checkSession(deviceId);
+
+    if (secureTelemetryEnable && useDbus &&
+        msgType != MCTP_MESSAGE_TYPE_MCTP_CTRL &&
+        msgType != MCTP_MESSAGE_TYPE_SECUREDMSG &&
+        msgType != MCTP_MESSAGE_TYPE_SPDM)
+    {
+        encryptPayloadUsingDBus(networkId, dstEid, payload, encryptedPayload);
+        if (encryptedPayload.empty())
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Encryption failed");
+            return static_cast<int>(mctpInternalError);
+        }
+        else
+        {
+            payload =
+                std::move(encryptedPayload); // Use encrypted payload only if
+                                             // encryption was successful
+        }
+    }
+
     if (mctp_message_tx(mctp, dstEid, payload.data(), payload.size(), tagOwner,
                         msgTag, pvtData->data()) < 0)
     {
