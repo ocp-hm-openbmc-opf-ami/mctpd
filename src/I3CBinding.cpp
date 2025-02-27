@@ -82,12 +82,12 @@ void I3CBinding::triggerDeviceDiscovery()
         if (!isTopMostBusOwner)
         {
             eidPool.clearEIDPool();
-        }
 
-        if (bindingModeType == mctp_server::BindingModeTypes::Bridge ||
-            bindingModeType == mctp_server::BindingModeTypes::BusOwner)
-        {
-            clearAllRegisteredEIDs();
+            if (bindingModeType == mctp_server::BindingModeTypes::Bridge ||
+                bindingModeType == mctp_server::BindingModeTypes::BusOwner)
+            {
+                clearAllRegisteredEIDs();
+            }
         }
 
         if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
