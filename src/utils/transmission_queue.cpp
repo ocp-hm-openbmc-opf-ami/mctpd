@@ -17,6 +17,7 @@
 #include "utils/transmission_queue.hpp"
 
 #include <phosphor-logging/log.hpp>
+#include <boost/asio/post.hpp>
 
 using mctpd::MctpTransmissionQueue;
 
@@ -119,7 +120,7 @@ bool MctpTransmissionQueue::receive(struct mctp* mctp, mctp_eid_t srcEid,
 
     // Now that another tag is available, try to transmit any queued messages
     message->timer.cancel();
-    ioc.post([this, mctp, srcEid] {
+    boost::asio::post(ioc, [this, mctp, srcEid] {
         endpoints[srcEid].transmitQueuedMessages(mctp, srcEid);
     });
     return true;

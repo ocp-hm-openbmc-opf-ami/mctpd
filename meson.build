@@ -17,6 +17,7 @@ cmake = import('cmake')
 add_project_arguments(
     '-Wno-pedantic',
     '-DBOOST_DISABLE_ASSERTS',
+    '-DBOOST_ASIO_NO_DEPRECATED',
     language: 'cpp',
 )
 

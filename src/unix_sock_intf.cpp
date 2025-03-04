@@ -110,7 +110,7 @@ void Session::writeSocket(const std::vector<uint8_t>& response)
                        boost::asio::buffer(response.data(), response.size()));
 }
 
-using It = boost::asio::buffers_iterator<boost::asio::const_buffers_1>;
+using It = boost::asio::buffers_iterator<boost::asio::const_buffer>;
 std::pair<It, bool> isCompleteRequest(It begin, It end)
 {
 
