@@ -93,7 +93,7 @@ void PCIeBinding::endpointDiscoveryFlow()
         std::vector<uint8_t>(pktPrvPtr, pktPrvPtr + sizeof pktPrv);
     changeDiscoveredFlag(pcie_binding::DiscoveryFlags::Undiscovered);
 
-    boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
+    (void)boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
         if (!discoveryNotifyCtrlCmd(yield, prvData, MCTP_EID_NULL))
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -401,7 +401,7 @@ void PCIeBinding::updateRoutingTable()
     std::vector<uint8_t> prvData = std::vector<uint8_t>(
         pktPrvPtr, pktPrvPtr + sizeof(mctp_astpcie_pkt_private));
 
-    boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
+    (void)boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
         std::vector<routingTableEntry_t> routingTableTmp;
         std::vector<calledBridgeEntry_t> calledBridges;
 

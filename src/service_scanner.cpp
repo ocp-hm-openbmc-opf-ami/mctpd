@@ -273,7 +273,7 @@ void MCTPServiceScanner::scan()
     // required.
     if (!allowedDestBuses.empty())
     {
-        boost::asio::spawn(connection->get_io_context(), scanTask, {});
+        (void)boost::asio::spawn(connection->get_io_context(), scanTask, {});
     }
 }
 
@@ -367,7 +367,7 @@ void MCTPServiceScanner::onHotPluggedEid(sdbusplus::message::message& message)
 
     try
     {
-        boost::asio::spawn(
+        (void)boost::asio::spawn(
             connection->get_io_context(),
             [this, message](boost::asio::yield_context yield) mutable {
                 try
@@ -474,7 +474,7 @@ void MCTPServiceScanner::onHotPluggedEid(sdbusplus::message::message& message)
 }
 void MCTPServiceScanner::onServiceRemoved(std::string serviceName)
 {
-    boost::asio::spawn(
+    (void)boost::asio::spawn(
         connection->get_io_context(),
         [this, serviceName](boost::asio::yield_context yield) mutable {
             // Give some time for other coroutines processing events from the
@@ -548,7 +548,7 @@ void MCTPServiceScanner::onEidRemoved(sdbusplus::message::message& message)
         }
         EndPoint ep;
         ep.eid = getEIDFromPath(object_path);
-        boost::asio::spawn(
+        (void)boost::asio::spawn(
             connection->get_io_context(),
             [this, ep, message](boost::asio::yield_context yield) mutable {
                 try

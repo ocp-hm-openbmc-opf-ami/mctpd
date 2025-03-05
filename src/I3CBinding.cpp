@@ -55,7 +55,7 @@ void I3CBinding::triggerDeviceDiscovery()
     this->isWaitingForCPUTimedout = false;
     this->cpuDetectTimer = std::nullopt;
 
-    boost::asio::spawn(io, [this](boost::asio::yield_context yield) {
+    (void)boost::asio::spawn(io, [this](boost::asio::yield_context yield) {
         auto lock = regInProgress.lock(yield, regTimeout);
 
         phosphor::logging::log<phosphor::logging::level::INFO>(
@@ -121,7 +121,7 @@ void I3CBinding::endpointDiscoveryFlow()
         return;
     }
 
-    boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
+    (void)boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
         auto lock = regInProgress.lock(yield, regTimeout);
         bool discoverNoftifyDone = false;
         constexpr const uint8_t maxRetryCount = 3;
@@ -388,7 +388,7 @@ void I3CBinding::updateRoutingTable()
     std::vector<uint8_t> prvData =
         std::vector<uint8_t>(pktPrvPtr, pktPrvPtr + sizeof(pktPrv));
 
-    boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
+    (void)boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
         std::vector<routingTableEntry_t> routingTableTmp;
         std::vector<calledBridgeEntry_t> calledBridges;
 
@@ -547,7 +547,7 @@ bool I3CBinding::handleDiscoveryNotify(
         else
         {
             // Create a co-routine and register the endpoint
-            boost::asio::spawn(io, [this,
+            (void)boost::asio::spawn(io, [this,
                                     destEid](boost::asio::yield_context yield) {
                 auto lock = regInProgress.lock(yield, regTimeout);
                 mctp_asti3c_pkt_private pktPrv;
@@ -680,7 +680,7 @@ bool I3CBinding::handleRoutingInfoUpdate(
 
 void I3CBinding::initializeBinding()
 {
-    boost::asio::spawn(io, [this](boost::asio::yield_context yield) {
+    (void)boost::asio::spawn(io, [this](boost::asio::yield_context yield) {
         initializeBinding(yield);
     }, {});
 }
@@ -893,7 +893,7 @@ bool I3CBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
 
     if (this->forwaredEIDPoolToEP)
     {
-        boost::asio::spawn(
+        (void)boost::asio::spawn(
             this->connection->get_io_context(),
             [this, startEID, poolSize](boost::asio::yield_context yield) {
                 if (!this->forwardEIDPool(yield, startEID, poolSize))
@@ -985,7 +985,7 @@ void I3CBinding::onEIDPool()
         return;
     }
 
-    boost::asio::spawn(io, [this](boost::asio::yield_context yield) {
+    (void)boost::asio::spawn(io, [this](boost::asio::yield_context yield) {
         auto lock = regInProgress.lock(yield, regTimeout);
 
         mctp_asti3c_pkt_private pktPrv;
@@ -1070,7 +1070,7 @@ void I3CBinding::onPCIeEnumerationChange()
     this->isWaitingForCPUTimedout = false;
     this->cpuDetectTimer = std::nullopt;
 
-    boost::asio::spawn(
+    (void)boost::asio::spawn(
         this->connection->get_io_context(),
         [this, &io = this->connection->get_io_context()](
             boost::asio::yield_context yield) {

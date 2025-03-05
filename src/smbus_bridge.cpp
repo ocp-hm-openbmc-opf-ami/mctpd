@@ -460,7 +460,7 @@ void SMBusBridge::scanDevices()
 {
     phosphor::logging::log<phosphor::logging::level::DEBUG>("Scanning devices");
 
-    boost::asio::spawn(io, [this](boost::asio::yield_context yield) {
+    (void)boost::asio::spawn(io, [this](boost::asio::yield_context yield) {
         if (!rsvBWActive)
         {
             deviceWatcher.deviceDiscoveryInit();

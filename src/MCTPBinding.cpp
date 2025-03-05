@@ -951,7 +951,7 @@ bool MctpBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
          std::to_string(poolSize))
             .c_str());
 
-    boost::asio::spawn(io,
+    (void)boost::asio::spawn(io,
                        [this, eidRange](boost::asio::yield_context yield) {
                            auto lock = regInProgress.lock(yield, regTimeout);
 
@@ -979,7 +979,7 @@ void MctpBinding::onNewService(const std::string& service)
         return;
     }
 
-    boost::asio::spawn(
+    (void)boost::asio::spawn(
         this->connection->get_io_context(),
         [this, service](boost::asio::yield_context yield) {
             constexpr std::chrono::milliseconds dbusDelay(200);

@@ -39,7 +39,7 @@ struct AsyncTestBase
         std::is_invocable<Functor, boost::asio::yield_context>::value>
         schedule(Functor&& func)
     {
-        boost::asio::spawn(ioc, func, {});
+        (void)boost::asio::spawn(ioc, func, {});
     }
 
     // Specialization for 'normal' invocables

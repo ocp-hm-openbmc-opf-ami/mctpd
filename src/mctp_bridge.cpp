@@ -768,7 +768,7 @@ void MCTPBridge::sendRoutingTableEntries(
     std::optional<std::vector<uint8_t>> bindingPrivateData,
     const mctp_eid_t eid)
 {
-    boost::asio::spawn(io, [entries = entries, eid, bindingPrivateData,
+    (void)boost::asio::spawn(io, [entries = entries, eid, bindingPrivateData,
                         this](boost::asio::yield_context yield) mutable {
         std::vector<uint8_t> req = formatRoutingInfoUpdateCommand(entries);
         std::vector<uint8_t> resp;

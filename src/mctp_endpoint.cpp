@@ -265,7 +265,7 @@ bool MCTPEndpoint::passEIDPoolTo(boost::asio::yield_context yield,
 
 void MCTPEndpoint::setDownStreamEIDPools(uint8_t eidPoolSize, uint8_t firstEID)
 {
-    boost::asio::spawn(io, [this, eidPoolSize,
+    (void)boost::asio::spawn(io, [this, eidPoolSize,
                             firstEID](boost::asio::yield_context yield) {
         uint8_t remainingPoolSize = eidPoolSize;
         uint8_t startEID = firstEID;

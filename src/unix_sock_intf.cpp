@@ -161,7 +161,7 @@ void Session::waitForRequest()
             boost::asio::buffer_copy(boost::asio::buffer(reqBuf),
                                      this->buffer.data(), length);
             buffer.consume(length);
-            boost::asio::spawn(io, [reqBuf = std::move(reqBuf),
+            (void)boost::asio::spawn(io, [reqBuf = std::move(reqBuf),
                                     this](boost::asio::yield_context yield) {
                 auto msg = reinterpret_cast<const unix_protocol::Message*>(
                     reqBuf.data());

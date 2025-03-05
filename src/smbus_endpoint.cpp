@@ -249,7 +249,7 @@ void SMBusEndpoint::updateRoutingTable()
     std::vector<uint8_t> prvData = std::vector<uint8_t>(
         pktPrvPtr, pktPrvPtr + sizeof(mctp_smbus_pkt_private));
 
-    boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
+    (void)boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
         std::vector<uint8_t> getRoutingTableEntryResp = {};
         std::vector<DeviceTableEntry_t> smbusDeviceTableTmp;
         uint8_t entryHandle = 0x00;
