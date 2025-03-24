@@ -31,7 +31,7 @@ namespace aspeed
 class PCIeMonitor : public hw::DeviceMonitor
 {
     static constexpr const char* astUdevPath =
-        "/sys/devices/platform/ahb/ahb:apb/1e6e8000.mctp/misc/aspeed-mctp";
+        "/sys/bus/platform/devices/1e6e8000.mctp/misc/aspeed-mctp";
 
   public:
     PCIeMonitor(boost::asio::io_context& ioc);

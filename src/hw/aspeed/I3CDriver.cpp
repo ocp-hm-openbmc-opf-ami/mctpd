@@ -52,8 +52,7 @@ bool I3CDriver::rescanI3CBus(boost::asio::yield_context yield)
     if (search != i3cBusMap.end())
     {
         std::string busName = search->second;
-        std::string deviceDirPath =
-            "/sys/devices/platform/ahb/ahb:apb/ahb:apb:bus@1e7a0000/" + busName;
+        std::string deviceDirPath = "/sys/bus/platform/devices/" + busName;
         std::string rescanFilePath;
         std::fstream rescanFile;
 
