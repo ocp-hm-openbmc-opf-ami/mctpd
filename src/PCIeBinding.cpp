@@ -662,6 +662,9 @@ bool PCIeBinding::handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
         mctpInterface->set_property("Eid", ownEid);
     }
     pciePrivate->routing = PCIE_ROUTE_BY_ID;
+
+    routingTableResp.push_back(std::make_tuple(
+        destEid, busOwnerBdf, MCTP_ROUTING_ENTRY_ENDPOINT, destEid, 1));
     return true;
 }
 
