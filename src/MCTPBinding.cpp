@@ -321,19 +321,29 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
             });
 
         mctpInterface->register_method(
-            "InitiateHandshake", [this](const uint32_t deviceEid) {
+            "InitiateHandshake",
+            [this](const uint32_t deviceEid, const bool connState) {
                 phosphor::logging::log<phosphor::logging::level::INFO>(
                     (" deviceEid: " + std::to_string(deviceEid)).c_str());
 
-                auto it = this->sessionSet.find(deviceEid);
-                if (it != this->sessionSet.end())
+                if (connState)
                 {
-                    phosphor::logging::log<phosphor::logging::level::ERR>(
-                        "EID already exists.");
-                    this->sessionSet.erase(it);
+                    // Insert the deviceEid if connState is true
+                    this->sessionSet.insert(deviceEid);
                 }
-
-                this->sessionSet.insert(deviceEid);
+                else
+                {
+                    // Remove the deviceEid if connState is false
+                    auto it = this->sessionSet.find(deviceEid);
+                    if (it != this->sessionSet.end())
+                    {
+                        phosphor::logging::log<phosphor::logging::level::INFO>(
+                            ("Removing EID from sessionSet - " +
+                             std::to_string(deviceEid))
+                                .c_str());
+                        this->sessionSet.erase(it);
+                    }
+                }
             });
 
         if (mctpInterface->initialize() == false ||
@@ -951,16 +961,17 @@ bool MctpBinding::setEIDPool(const uint8_t startEID, const uint8_t poolSize)
          std::to_string(poolSize))
             .c_str());
 
-    (void)boost::asio::spawn(io,
-                       [this, eidRange](boost::asio::yield_context yield) {
-                           auto lock = regInProgress.lock(yield, regTimeout);
+    (void)boost::asio::spawn(
+        io,
+        [this, eidRange](boost::asio::yield_context yield) {
+            auto lock = regInProgress.lock(yield, regTimeout);
 
-                           eidPool.clearEIDPool();
-                           eidPool.initializeEidPool(eidRange);
+            eidPool.clearEIDPool();
+            eidPool.initializeEidPool(eidRange);
 
-                           onEIDPool();
-                       },
-                       {});
+            onEIDPool();
+        },
+        {});
 
     return true;
 }
