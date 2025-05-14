@@ -1054,9 +1054,24 @@ void MctpBinding::encryptPayloadUsingDBus(
     try
     {
         auto reply = connection->call(msg);
-        reply.read(encryptedPayload);
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
-            "Encryption successful.");
+        std::tuple<int, std::vector<uint8_t>> response;
+        reply.read(response);
+
+        auto [status, payload] = response;
+        encryptedPayload = std::move(payload);
+
+        if (status >= 0)
+        {
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "Encryption successful.");
+        }
+        else
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                ("Encryption failed with error code: " + std::to_string(status))
+                    .c_str());
+            encryptedPayload.clear();
+        }
     }
     catch (const std::exception& e)
     {
@@ -1087,9 +1102,24 @@ void MctpBinding::decryptPayloadUsingDBus(
     try
     {
         auto reply = connection->call(msg);
-        reply.read(decryptedPayload);
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
-            "Decryption successful.");
+        std::tuple<int, std::vector<uint8_t>> response;
+        reply.read(response);
+
+        auto [status, payload] = response;
+        decryptedPayload = std::move(payload);
+
+        if (status >= 0)
+        {
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "Decryption successful.");
+        }
+        else
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                ("Decryption failed with error code: " + std::to_string(status))
+                    .c_str());
+            decryptedPayload.clear();
+        }
     }
     catch (const std::exception& e)
     {
