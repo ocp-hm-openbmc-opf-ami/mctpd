@@ -391,6 +391,8 @@ void I3CBinding::updateRoutingTable()
     (void)boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
         std::vector<routingTableEntry_t> routingTableTmp;
         std::vector<calledBridgeEntry_t> calledBridges;
+        std::unordered_set<mctp_eid_t> newEIDs;
+        std::vector<routingTableEntry_t> uniqueEIDs;
 
         auto lock = regInProgress.lock(yield, regTimeout);
         readRoutingTable(routingTableTmp, calledBridges, prvData, yield,
@@ -401,10 +403,25 @@ void I3CBinding::updateRoutingTable()
             processBridgeEntries(routingTableTmp, calledBridges, yield);
         }
 
-        if (routingTableTmp != routingTableResp)
+        // Entry type is expected to be same in all entries
+        for(auto& routingEntry : routingTableTmp)
+        {
+            auto curEid = std::get<0>(routingEntry);
+            if(curEid == 0)
+            {
+                continue;
+            }
+            if(newEIDs.find(curEid) == newEIDs.end())
+            {
+                newEIDs.insert(curEid);
+                uniqueEIDs.push_back(routingEntry);
+            }
+        }
+
+        if (uniqueEIDs != routingTableResp)
         {
             processRoutingTableChanges(routingTableTmp, yield, prvData);
-            routingTableResp = routingTableTmp;
+            routingTableResp = uniqueEIDs;
         }
 
         getRoutingTableTimer.async_wait(
@@ -442,11 +459,17 @@ void I3CBinding::processRoutingTableChanges(
      */
     // processRoutingTableChanges will be called only if routing table changed.
     // Unregister old EIDs and register new ones
-    for (auto& routingEntry : routingTableResp)
+    for (auto& [eid, type, addr] : routingTableResp)
     {
-        unregisterEndpoint(std::get<0>(routingEntry));
+        if(std::find_if(
+            newTable.begin(), newTable.end(),
+            [&eid](const auto& entry){
+                return std::get<0>(entry) == eid;
+		}) == newTable.end())
+        {
+            unregisterEndpoint(eid);
+        }
     }
-    routingTableResp.clear();
 
     /* find new endpoints, in case entry is in the newly read
      * routing table but not present in the routing table stored as
