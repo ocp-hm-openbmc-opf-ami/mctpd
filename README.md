@@ -11,6 +11,18 @@ a bus owner or by querying routing table from bus owner). This also provides
 mechanisms(D-Bus methods) for upper layer applications to transmit and receive
 MCTP packets.
 
+## Dependencies
+
+- Boost
+- nlohmann-json
+- sdbusplus
+- phosphor-dbus-interfaces
+- phosphor-logging
+- libmctp
+- CLI11
+- i2c
+- udev
+
 ## MCTP Over SMBus support(As MCTP bus owner)
 
 Supports
