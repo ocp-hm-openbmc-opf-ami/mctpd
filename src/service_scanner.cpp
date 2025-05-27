@@ -333,7 +333,7 @@ bool MCTPServiceScanner::isAllowedBus(const std::string& bus,
                     ". " + ec.message();
                 phosphor::logging::log<phosphor::logging::level::WARNING>(
                     errMsg.c_str());
-                return false;
+                continue;
             }
 
             phosphor::logging::log<phosphor::logging::level::DEBUG>(

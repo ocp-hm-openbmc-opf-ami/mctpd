@@ -72,7 +72,7 @@ class MctpBinding : public MCTPBridge
     mctpd::MctpTransmissionQueue transmissionQueue;
     WaitCondition regInProgress;
     static inline constexpr std::chrono::milliseconds regTimeout =
-        std::chrono::milliseconds(1500);
+        std::chrono::seconds(60);
     void setupSecureTelemetryEnableMatch();
     void getSecureTelemetryEnableProperty();
 
