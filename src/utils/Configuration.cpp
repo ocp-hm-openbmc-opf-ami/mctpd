@@ -37,6 +37,8 @@ using ConfigurationMap = std::unordered_map<std::string, ConfigurationField>;
 
 static const std::string mctpTypeName =
     "xyz.openbmc_project.Configuration.MctpConfiguration";
+static const std::string eidPoolDistIntf =
+    "xyz.openbmc_project.Configuration.MctpConfiguration.EIDPoolDistribution";
 
 static const std::string boardPathNamespace =
     "/xyz/openbmc_project/inventory/system/board";
@@ -484,12 +486,13 @@ static std::optional<PcieConfiguration> getPcieConfiguration(const T& map)
 
 static ConfigurationMap
     getConfigurationMap(std::shared_ptr<sdbusplus::asio::connection> conn,
-                        const std::string& configurationPath)
+                        const std::string& configurationPath,
+                        const std::string& interface)
 {
     auto method_call = conn->new_method_call(
         "xyz.openbmc_project.EntityManager", configurationPath.c_str(),
         "org.freedesktop.DBus.Properties", "GetAll");
-    method_call.append(mctpTypeName);
+    method_call.append(interface);
 
     // Note: This is a blocking call.
     // However, there is nothing to do until the configuration is retrieved.
@@ -499,22 +502,26 @@ static ConfigurationMap
     return map;
 }
 
-static ConfigurationMap getEIDPoolConfigurationMap(
-    std::shared_ptr<sdbusplus::asio::connection> conn,
-    const std::string& configurationPath)
+static void
+    updateI3CHPMConfiguration(std::shared_ptr<sdbusplus::asio::connection> conn,
+                              const std::string& objPath,
+                              ConfigurationMap& i3cMap)
 {
-    auto method_call = conn->new_method_call(
-        "xyz.openbmc_project.EntityManager", configurationPath.c_str(),
-        "org.freedesktop.DBus.Properties", "GetAll");
-    method_call.append("xyz.openbmc_project.Configuration.MctpConfiguration."
-                       "EIDPoolDistribution");
+    // Parameters for the CPU index is present in a different DBus object with
+    // _Params appended at the end
+    auto paramPath = objPath + "_Params";
+    // Assuming max number of CPU is 8. Last character is HPM index
+    size_t hpmIdx = *objPath.rbegin() - '0';
 
-    // Note: This is a blocking call.
-    // However, there is nothing to do until the configuration is retrieved.
-    auto reply = conn->call(method_call);
-    ConfigurationMap map;
-    reply.read(map);
-    return map;
+    ConfigurationMap hpmConfig = getConfigurationMap(
+        conn, paramPath, "xyz.openbmc_project.Configuration.MctpParameters");
+
+    i3cMap["DefaultEID"] =
+        std::get<std::vector<uint64_t>>(hpmConfig["DefaultEID"])[hpmIdx];
+    i3cMap["ProvisionalIdMask"] =
+        std::get<std::vector<uint64_t>>(hpmConfig["ProvisionalIdMask"])[hpmIdx];
+    i3cMap["RequiredEIDPoolFromBO"] = std::get<std::vector<uint64_t>>(
+        hpmConfig["RequiredEIDPoolFromBO"])[hpmIdx];
 }
 
 static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
@@ -533,7 +540,7 @@ static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
     ConfigurationMap map;
     try
     {
-        map = getConfigurationMap(conn, objectPath);
+        map = getConfigurationMap(conn, objectPath, mctpTypeName);
     }
     catch (const std::exception& e)
     {
@@ -556,6 +563,9 @@ static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
     }
 
     std::unique_ptr<Configuration> configuration;
+
+    bool hpmObject = std::get<bool>(map["IsHPM"]);
+
     if (bindingType == "MctpSMBus")
     {
         if (auto optConfig = getSMBusConfiguration(map))
@@ -575,6 +585,12 @@ static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
 
     else if (bindingType == "MctpI3C")
     {
+        if (hpmObject)
+        {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "HPM configuration detected");
+            updateI3CHPMConfiguration(conn, objectPath, map);
+        }
         if (auto optConfig = getI3CConfiguration(map))
         {
             configuration =
@@ -592,9 +608,21 @@ static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
     ConfigurationMap eidPoolDistribution;
     if (configuration->requiredEIDPoolSizeFromBO > 0)
     {
+        auto eidPoolObjPath = objectPath;
+        std::string eidPoolIntf = "xyz.openbmc_project.Configuration."
+                                  "MctpConfiguration.EIDPoolDistribution";
+        if (hpmObject)
+        {
+            eidPoolObjPath = objectPath + "_Params";
+            eidPoolIntf =
+                std::string("xyz.openbmc_project.Configuration.MctpParameters."
+                            "EIDPoolDistribution") +
+                *objectPath.rbegin();
+        }
         try
         {
-            eidPoolDistribution = getEIDPoolConfigurationMap(conn, objectPath);
+            eidPoolDistribution =
+                getConfigurationMap(conn, eidPoolObjPath, eidPoolIntf);
 
             for (auto& [busName, requiredPool] : eidPoolDistribution)
             {
@@ -606,7 +634,9 @@ static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
         catch (const std::exception& e)
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Error retrieving EID Pool distributions");
+                (std::string("Error retrieving EID Pool distributions. ") +
+                 e.what())
+                    .c_str());
             return std::nullopt;
         }
     }
