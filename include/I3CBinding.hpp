@@ -87,7 +87,7 @@ class I3CBinding : public MctpBinding
     uint8_t busOwnerAddress = 0;
     uint8_t bus = 0;
     std::shared_ptr<dbus_interface> i3cInterface;
-    I3CBindingServer::DiscoveryFlags discoveredFlag{};
+    I3CBindingServer::DiscoveryFlags discoveredFlag;
     std::chrono::seconds getRoutingInterval;
     boost::asio::steady_timer getRoutingTableTimer;
     I3CConfiguration i3cConf{};
@@ -96,6 +96,7 @@ class I3CBinding : public MctpBinding
     bool blockDiscoveryNotify = false;
     std::string mctpBaseObjPath{};
     std::unique_ptr<sdbusplus::bus::match::match> pcieEnumChangeMatch{};
+    std::unique_ptr<sdbusplus::bus::match::match> eidChangeMatch{};
     
     std::vector<uint8_t>
         getPhysicalAddress(const std::vector<uint8_t>& bindingPrivate) override;
@@ -140,4 +141,6 @@ class I3CBinding : public MctpBinding
     bool forwardEIDPool(boost::asio::yield_context& yield,
                         const uint8_t startEID, const uint8_t poolSize);
     void onPCIeEnumerationChange();
+    void onEIDChange(sdbusplus::message::message& msg);
+    mctp_eid_t getSharedEID(boost::asio::yield_context& yield);
 };

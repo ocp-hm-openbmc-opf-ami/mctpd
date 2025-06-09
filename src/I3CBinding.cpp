@@ -17,6 +17,7 @@
 #include "I3CBinding.hpp"
 
 #include "utils/utils.hpp"
+#include "utils/dbus_helper.hpp"
 
 #include <phosphor-logging/log.hpp>
 
@@ -33,7 +34,9 @@ I3CBinding::I3CBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                        std::unique_ptr<hw::I3CDriver>&& hwParam) :
     MctpBinding(conn, objServer, objectPath, conf, ioc,
                 mctp_server::BindingTypes::MctpOverI3c),
-    hw{std::move(hwParam)}, getRoutingInterval(conf.getRoutingInterval),
+    hw{std::move(hwParam)},
+    discoveredFlag(I3CBindingServer::DiscoveryFlags::NotApplicable),
+    getRoutingInterval(conf.getRoutingInterval),
     getRoutingTableTimer(ioc, getRoutingInterval), i3cConf(conf),
     forwaredEIDPoolToEP(conf.forwaredEIDPoolToEP),
     blockDiscoveryNotify(conf.blockDiscoveryNotify), mctpBaseObjPath(objectPath)
@@ -717,6 +720,49 @@ void I3CBinding::initializeBinding(boost::asio::yield_context yield)
 
     setupHostResetMatch(connection, this);
 
+    int status = 0;
+    hw->init();
+    mctp_binding* binding = hw->binding();
+    if (binding == nullptr)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Error in MCTP I3C binding init");
+        throw std::system_error(
+            std::make_error_code(std::errc::not_enough_memory));
+    }
+
+    status = mctp_register_bus_dynamic_eid(mctp, binding);
+    if (status < 0)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Bus registration of binding failed");
+        throw std::system_error(
+            std::make_error_code(static_cast<std::errc>(-status)));
+    }
+
+    if (is_eid_valid(i3cConf.defaultEid))
+    {
+        mctp_dynamic_eid_set(binding, i3cConf.defaultEid);
+    }
+
+    mctp_set_rx_all(mctp, &MctpBinding::rxMessage,
+                    static_cast<MctpBinding*>(this));
+    mctp_set_rx_raw(mctp, &MctpBinding::onRawMessage);
+    mctp_set_rx_ctrl(mctp, &MctpBinding::handleMCTPControlRequests,
+                     static_cast<MctpBinding*>(this));
+    mctp_binding_set_tx_enabled(binding, true);
+    if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
+    {
+        discoveredFlag = I3CBindingServer::DiscoveryFlags::NotApplicable;
+    }
+
+    using namespace sdbusplus::bus::match::rules;
+    std::string eidChangeMatchString = propertiesChanged(
+        "/xyz/openbmc_project/mctp", "xyz.openbmc_project.MCTP.Base");
+    eidChangeMatch = std::make_unique<sdbusplus::bus::match::match>(
+        static_cast<sdbusplus::bus::bus&>(*connection), eidChangeMatchString,
+        [this](sdbusplus::message::message& msg) { this->onEIDChange(msg); });
+
     uint8_t retries = 20;
     while (retries > 0)
     {
@@ -740,7 +786,6 @@ void I3CBinding::initializeBinding(boost::asio::yield_context yield)
 
     if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
     {
-        discoveredFlag = I3CBindingServer::DiscoveryFlags::NotApplicable;
         if (i3cConf.requiredEIDPoolSize > 0)
         {
             // EID pool will be assigned through a Topmost busowner
@@ -793,38 +838,6 @@ void I3CBinding::initializeBinding(boost::asio::yield_context yield)
             this->onPCIeEnumerationChange();
         });
 
-    int status = 0;
-    hw->init();
-    mctp_binding* binding = hw->binding();
-    if (binding == nullptr)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Error in MCTP I3C binding init");
-        throw std::system_error(
-            std::make_error_code(std::errc::not_enough_memory));
-    }
-
-    status = mctp_register_bus_dynamic_eid(mctp, binding);
-    if (is_eid_valid(i3cConf.defaultEid))
-    {
-        mctp_dynamic_eid_set(binding, i3cConf.defaultEid);
-    }
-
-    if (status < 0)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Bus registration of binding failed");
-        throw std::system_error(
-            std::make_error_code(static_cast<std::errc>(-status)));
-    }
-
-    mctp_set_rx_all(mctp, &MctpBinding::rxMessage,
-                    static_cast<MctpBinding*>(this));
-    mctp_set_rx_raw(mctp, &MctpBinding::onRawMessage);
-    mctp_set_rx_ctrl(mctp, &MctpBinding::handleMCTPControlRequests,
-                     static_cast<MctpBinding*>(this));
-    mctp_binding_set_tx_enabled(binding, true);
-
     initializeMctp();
 
     if (bindingModeType != mctp_server::BindingModeTypes::Endpoint)
@@ -854,10 +867,22 @@ void I3CBinding::initializeBinding(boost::asio::yield_context yield)
 
     if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
     {
+        // Try getting shared EID from other MCTP services. If not available
+        // then this will be picked up with DBus signals
+        auto sharedEID = getSharedEID(yield);
+        if (sharedEID == MCTP_EID_NULL)
+        {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "Shared EID not assigned");
+        }
+        else
+        {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                ("Shared EID assigned " + std::to_string(sharedEID)).c_str());
+            mctp_dynamic_eid_set(binding, sharedEID);
+        }
         endpointDiscoveryFlow();
     }
-
-
 }
 
 std::optional<std::vector<uint8_t>>
@@ -1132,4 +1157,133 @@ void I3CBinding::clearAllRegisteredEIDs()
         clearRegisteredDevice(eid);
     }
     eidTable.clear();
+}
+
+void I3CBinding::onEIDChange(sdbusplus::message::message& msg)
+{
+    // Ignore if BMC is already discovered
+    if (discoveredFlag == I3CBindingServer::DiscoveryFlags::Discovered||
+        this->connection->get_unique_name() == msg.get_sender())
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "onEIDChange: Ignoring signal because BMC is already discovered or sender matches own unique name");
+        return;
+    }
+
+    std::string interfaceName;
+    std::unordered_map<std::string, std::variant<uint8_t, std::string>>
+        changedProperties;
+    std::vector<std::string> invalidatedProperties;
+
+    msg.read(interfaceName);
+    msg.read(changedProperties);
+    msg.read(invalidatedProperties);
+
+    auto it = changedProperties.find("Eid");
+    if (it == changedProperties.end())
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "onEIDChange: 'Eid' property not found in changedProperties");
+        return;
+    }
+
+    mctp_eid_t newEid = std::get<uint8_t>(it->second);
+    if (newEid == MCTP_EID_NULL)
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "onEIDChange: newEid is MCTP_EID_NULL");
+        return;
+    }
+
+    // Check if shared eid changed in same network
+    auto methodCall = this->connection->new_method_call(
+        msg.get_sender(), mctpBaseObjPath.c_str(),
+        "org.freedesktop.DBus.Properties", "Get");
+    methodCall.append("xyz.openbmc_project.MCTP.Base", "NetworkID");
+    auto reply = this->connection->call(methodCall);
+    std::variant<uint8_t> networkID;
+    reply.read(networkID);
+    if (std::get<uint8_t>(networkID) != this->networkId)
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "onEIDChange: NetworkID does not match");
+        return;
+    }
+    
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        ("Setting EID to shared eid " + std::to_string(newEid) + " from " +
+         msg.get_sender())
+            .c_str());
+    mctp_dynamic_eid_set(hw->binding(), newEid);
+    i3cConf.defaultEid = newEid;
+    if (this->bindingModeType == mctp_server::BindingModeTypes::BusOwner)
+    {
+        this->ownEid = newEid;
+    }
+    else
+    {
+        if (mctpI3CFd > 0)
+        {
+            this->endpointDiscoveryFlow();
+        }
+    }
+}
+
+mctp_eid_t I3CBinding::getSharedEID(boost::asio::yield_context& yield)
+{
+    boost::system::error_code ec;
+
+    std::vector<std::string> interfaces = {"xyz.openbmc_project.MCTP.Base"};
+    std::unordered_map<std::string, std::vector<std::string>> services;
+
+    auto getObjects = connection->yield_method_call<decltype(services)>(
+        yield, ec, "xyz.openbmc_project.ObjectMapper",
+        "/xyz/openbmc_project/object_mapper",
+        "xyz.openbmc_project.ObjectMapper", "GetObject",
+        "/xyz/openbmc_project/mctp", interfaces);
+    if (ec)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Error getting mctp services for shared eid");
+        return MCTP_EID_NULL;
+    }
+    for (const auto& [service, intfs] : getObjects)
+    {
+        mctp_eid_t eidFromService = readPropertyValue<uint8_t>(
+            yield, *connection, service, "/xyz/openbmc_project/mctp",
+            interfaces[0], "Eid");
+        if (eidFromService == MCTP_EID_NULL)
+        {
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                ("EID from service " + service + " is NULL").c_str());
+            continue;
+        }
+        uint8_t networkIDFromService = 0;
+        try
+        {
+            networkIDFromService = readPropertyValue<uint8_t>(
+                yield, *connection, service, "/xyz/openbmc_project/mctp",
+                interfaces[0], "NetworkID");
+        }
+        catch (const std::exception& e)
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                ("Error reading network id from service " + service + " " +
+                 std::string(e.what()))
+                    .c_str());
+            continue;
+        }
+        if (this->networkId != networkIDFromService)
+        {
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                ("Network ID from service " + service +
+                 " is not same as I3C binding")
+                    .c_str());
+            continue;
+        }
+        return eidFromService;
+    }
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "No shared EID found");
+    return MCTP_EID_NULL;
 }

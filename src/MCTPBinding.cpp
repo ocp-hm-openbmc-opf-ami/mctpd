@@ -113,8 +113,9 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                          boost::asio::io_context& ioc,
                          const mctp_server::BindingTypes bindingType) :
     MCTPBridge(conn, ioc, objServer), regInProgress(ioc),
-    bindingID(bindingType), localSocketEp(unix_ipc::unix_path::getSockPath()),
-    acceptor(ioc, localSocketEp), networkId(conf.networkId)
+    networkId(conf.networkId), bindingID(bindingType),
+    localSocketEp(unix_ipc::unix_path::getSockPath()),
+    acceptor(ioc, localSocketEp)
 
 {
     objServer->add_manager(objPath);

@@ -71,6 +71,7 @@ class MctpBinding : public MCTPBridge
     mctp_eid_t reservedEID = 0;
     mctpd::MctpTransmissionQueue transmissionQueue;
     WaitCondition regInProgress;
+    uint8_t networkId = 0;
     static inline constexpr std::chrono::milliseconds regTimeout =
         std::chrono::seconds(60);
     void setupSecureTelemetryEnableMatch();
@@ -144,5 +145,4 @@ class MctpBinding : public MCTPBridge
     void decryptPayloadUsingDBus(uint8_t networkId, uint8_t dstEid,
                                  const std::vector<uint8_t>& inputPayload,
                                  std::vector<uint8_t>& decryptedPayload);
-    uint8_t networkId;
 };
