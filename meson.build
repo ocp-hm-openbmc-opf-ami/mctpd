@@ -150,7 +150,8 @@ src_files = [
     'src/smbus_device.cpp',
     'src/smbus_endpoint.cpp',
     'src/SMBusBinding.cpp',
-    'src/unix_sock_intf.cpp', 
+    'src/unix_sock_intf.cpp',
+    'src/unix_sock_client.cpp',
 ]
 
 exe_options = ['warning_level=3']

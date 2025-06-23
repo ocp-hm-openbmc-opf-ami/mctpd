@@ -118,6 +118,7 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
     acceptor(ioc, localSocketEp)
 
 {
+    initializeSocketComm();
     objServer->add_manager(objPath);
     mctpServiceScanner.setAllowedBuses(conf.allowedBuses.begin(),
                                        conf.allowedBuses.end());
@@ -326,25 +327,7 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
             [this](const uint32_t deviceEid, const bool connState) {
                 phosphor::logging::log<phosphor::logging::level::INFO>(
                     (" deviceEid: " + std::to_string(deviceEid)).c_str());
-
-                if (connState)
-                {
-                    // Insert the deviceEid if connState is true
-                    this->sessionSet.insert(deviceEid);
-                }
-                else
-                {
-                    // Remove the deviceEid if connState is false
-                    auto it = this->sessionSet.find(deviceEid);
-                    if (it != this->sessionSet.end())
-                    {
-                        phosphor::logging::log<phosphor::logging::level::INFO>(
-                            ("Removing EID from sessionSet - " +
-                             std::to_string(deviceEid))
-                                .c_str());
-                        this->sessionSet.erase(it);
-                    }
-                }
+                updateSessionInfo(connState, deviceEid);
             });
 
         if (mctpInterface->initialize() == false ||
@@ -360,6 +343,58 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
             "MCTP Interface initialization failed.",
             phosphor::logging::entry("Exception:", e.what()));
         throw;
+    }
+}
+
+void MctpBinding::updateSessionInfo(bool connState, uint32_t deviceEid)
+{
+    uint32_t eid = deviceEid & 0xFF;
+    if (connState)
+    {
+        if (useSocketComm)
+        {
+            auto itsocket = this->socketSessionMap.find(eid);
+            if (itsocket == this->socketSessionMap.end())
+            {
+                auto socketInterface = std::make_unique<SocketInterface>(
+                    this->connection->get_io_context(), deviceEid);
+                this->socketSessionMap.insert(
+                    {eid, std::move(socketInterface)});
+            }
+        }
+        else
+        {
+            // Insert the deviceEid if connState is true
+            this->sessionSet.insert(deviceEid);
+        }
+    }
+    else
+    {
+        // Remove the deviceEid if connState is false
+        if (useSocketComm)
+        {
+            auto itsocket = this->socketSessionMap.find(eid);
+            if (itsocket != this->socketSessionMap.end())
+            {
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    ("Removing EID from socket sessionMap - " +
+                     std::to_string(eid))
+                        .c_str());
+                this->socketSessionMap.erase(itsocket);
+            }
+        }
+        else
+        {
+            auto it = this->sessionSet.find(deviceEid);
+            if (it != this->sessionSet.end())
+            {
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    ("Removing EID from sessionSet - " +
+                     std::to_string(deviceEid))
+                        .c_str());
+                this->sessionSet.erase(it);
+            }
+        }
     }
 }
 
@@ -422,6 +457,23 @@ void MctpBinding::setupSecureTelemetryEnableMatch()
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Failed to setup SecureTelemetryEnable match",
             phosphor::logging::entry("ERROR=%s", e.what()));
+    }
+}
+
+void MctpBinding::initializeSocketComm()
+{
+    const char* env = std::getenv("MCTP_SOCKET_COMM");
+    if (env && std::string(env) == "1")
+    {
+        useSocketComm = true;
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "MCTPD - socket communication enabled.");
+    }
+    else
+    {
+        useSocketComm = false;
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "MCTPD - socket communication disabled.");
     }
 }
 
@@ -493,27 +545,74 @@ void MctpBinding::rxMessage(uint8_t srcEid, void* data, void* msg, size_t len,
             return;
         }
     }
-
-    //  Decryption should be considered only if message is encrypted
-    uint32_t deviceId = binding.createDeviceId(srcEid, binding.networkId);
-    auto useDbus = binding.checkSession(deviceId);
     std::vector<uint8_t> decryptedPayload;
-    if (secureTelemetryEnable && useDbus &&
-        msgType == MCTP_MESSAGE_TYPE_SECUREDMSG)
+    if (secureTelemetryEnable && msgType == MCTP_MESSAGE_TYPE_SECUREDMSG)
     {
-        binding.decryptPayloadUsingDBus(binding.networkId, srcEid, response,
-                                        decryptedPayload);
-        if (decryptedPayload.empty())
+        if (useSocketComm)
         {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Decryption failed for EID=%d",
-                phosphor::logging::entry("EID=%d", srcEid));
-            return;
+            auto useSocket = binding.checkSocketSession(srcEid);
+            if (useSocket)
+            {
+                auto& session = useSocket.value().get();
+                auto decryptResult = binding.syncSessionMessage(
+                    session, response,
+                    unix_ipc::unix_protocol::OpCode::decrypt);
+                if (!decryptResult.first)
+                {
+                    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                        "Decrypted payload received successfully.");
+                    decryptedPayload = std::move(decryptResult.second);
+                    if (decryptedPayload.empty())
+                    {
+                        phosphor::logging::log<phosphor::logging::level::ERR>(
+                            "Decryption failed for EID=%d",
+                            phosphor::logging::entry("EID=%d", srcEid));
+                        return;
+                    }
+                    else
+                    {
+                        response =
+                            std::move(decryptedPayload); // Update the response
+                                                         // with decrypted data
+                    }
+                }
+                else
+                {
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        ("socket error while receiving decrypt packet: " +
+                         decryptResult.first.message())
+                            .c_str());
+                    if (decryptResult.first == boost::asio::error::eof)
+                    {
+                        binding.socketSessionMap.erase(srcEid);
+                    }
+                }
+            }
         }
         else
         {
-            response = std::move(
-                decryptedPayload); // Update the response with decrypted data
+            //  Decryption should be considered only if message is encrypted
+            uint32_t deviceId =
+                binding.createDbusDeviceId(srcEid, binding.networkId);
+            auto useDbus = binding.checkDbusSession(deviceId);
+            if (useDbus)
+            {
+                binding.decryptPayloadUsingDBus(binding.networkId, srcEid,
+                                                response, decryptedPayload);
+                if (decryptedPayload.empty())
+                {
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "Decryption failed for EID=%d",
+                        phosphor::logging::entry("EID=%d", srcEid));
+                    return;
+                }
+                else
+                {
+                    response =
+                        std::move(decryptedPayload); // Update the response
+                                                     // with decrypted data
+                }
+            }
         }
     }
 
@@ -1026,14 +1125,27 @@ MctpBinding& MctpBinding::getPtr()
     return *this;
 }
 
-bool MctpBinding::checkSession(uint32_t deviceId)
+bool MctpBinding::checkDbusSession(uint32_t deviceId)
 {
     return sessionSet.find(deviceId) != sessionSet.end();
 }
 
-uint32_t MctpBinding::createDeviceId(uint8_t mctpEid, uint8_t networkId)
+uint32_t MctpBinding::createDbusDeviceId(uint8_t mctpEid, uint8_t networkId)
 {
     return (static_cast<uint32_t>(networkId) << 8) | mctpEid;
+}
+
+std::optional<std::reference_wrapper<SocketInterface>>
+    MctpBinding::checkSocketSession(uint8_t dstEid)
+{
+    auto it = socketSessionMap.find(dstEid);
+    if (it != socketSessionMap.end())
+    {
+        // Return a reference to the SocketInterface object
+        return std::optional<std::reference_wrapper<SocketInterface>>(
+            *it->second);
+    }
+    return std::nullopt;
 }
 
 void MctpBinding::encryptPayloadUsingDBus(
@@ -1155,6 +1267,70 @@ void MctpBinding::acceptConnections()
         });
 }
 
+// This function fills the header of a socket message with the given opcode and
+// payload length.
+void fillHeader(unix_ipc::unix_protocol::OpCode opCode, size_t payloadLen,
+                std::vector<uint8_t>& socketMessage)
+{
+    unix_ipc::unix_protocol::Message header;
+    header.opCode = opCode;
+    header.len = htole16(static_cast<uint16_t>(payloadLen + sizeof(header)));
+    const uint8_t* headerPtr = reinterpret_cast<const uint8_t*>(&header);
+    socketMessage.insert(socketMessage.end(), headerPtr,
+                         headerPtr + sizeof(header));
+}
+
+/**
+ * Processes a session message asynchronously.
+ * This function prepares a message by filling its header based on the given
+ * opcode and payload size, then sends it asynchronously using the provided
+ * session. It waits for and processes the response asynchronously.
+ *
+ */
+
+std::pair<boost::system::error_code, std::vector<uint8_t>>
+    MctpBinding::processSessionMessage(SocketInterface& session,
+                                       std::vector<uint8_t>& messagePayload,
+                                       boost::asio::yield_context yield,
+                                       unix_ipc::unix_protocol::OpCode opcode)
+{
+    std::vector<uint8_t> socketMessage;
+    fillHeader(opcode, messagePayload.size(), socketMessage);
+    socketMessage.insert(socketMessage.end(), messagePayload.begin(),
+                         messagePayload.end());
+    session.writeSocketAsync(socketMessage, socketMessage.size(), yield);
+
+    auto receiveResult = session.startReceiving(yield);
+
+    return receiveResult;
+}
+
+/**
+ * Processes a session message synchronously.
+ * Similar to the asynchronous version, this function prepares a message with
+ * the appropriate header and payload, but sends and receives the message
+ * synchronously using the provided session.
+ *
+ */
+
+std::pair<boost::system::error_code, std::vector<uint8_t>>
+    MctpBinding::syncSessionMessage(SocketInterface& session,
+                                    const std::vector<uint8_t>& messagePayload,
+                                    unix_ipc::unix_protocol::OpCode opcode)
+{
+
+    std::vector<uint8_t> socketMessage;
+    fillHeader(opcode, messagePayload.size(), socketMessage);
+    socketMessage.insert(socketMessage.end(), messagePayload.begin(),
+                         messagePayload.end());
+
+    session.writeSocket(socketMessage, socketMessage.size());
+
+    auto receiveResult = session.receiveCompleteMessage();
+
+    return receiveResult;
+}
+
 std::pair<std::error_code, std::vector<uint8_t>>
     MctpBinding::sendReceiveMctpMessagePayload(boost::asio::yield_context yield,
                                                uint8_t dstEid,
@@ -1194,31 +1370,73 @@ std::pair<std::error_code, std::vector<uint8_t>>
     }
 
     std::vector<uint8_t> encryptedPayload;
-    uint32_t deviceId = createDeviceId(dstEid, networkId);
-    auto useDbus = checkSession(deviceId);
-
-    if (secureTelemetryEnable && useDbus &&
-        msgType != MCTP_MESSAGE_TYPE_MCTP_CTRL &&
+    if (secureTelemetryEnable && msgType != MCTP_MESSAGE_TYPE_MCTP_CTRL &&
         msgType != MCTP_MESSAGE_TYPE_SECUREDMSG &&
         msgType != MCTP_MESSAGE_TYPE_SPDM)
     {
-        encryptPayloadUsingDBus(networkId, dstEid, payload, encryptedPayload);
-        if (encryptedPayload.empty())
+        if (useSocketComm)
         {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Encryption failed");
-            return std::make_pair(
-                std::make_error_code(std::errc::connection_aborted),
-                std::vector<uint8_t>{});
+            auto useSocket = checkSocketSession(dstEid);
+            if (useSocket)
+            {
+                auto& session = useSocket.value().get();
+                auto encryptResult = syncSessionMessage(
+                    session, payload, unix_ipc::unix_protocol::OpCode::encrypt);
+                if (!encryptResult.first)
+                {
+                    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                        "Encrypted payload received successfully.");
+
+                    encryptedPayload = std::move(encryptResult.second);
+                    if (encryptedPayload.empty())
+                    {
+                        phosphor::logging::log<phosphor::logging::level::ERR>(
+                            "Encryption failed");
+                        return std::make_pair(
+                            std::make_error_code(std::errc::connection_aborted),
+                            std::vector<uint8_t>{});
+                    }
+                    else
+                    {
+                        payload = std::move(encryptedPayload);
+                    }
+                }
+                else
+                {
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        ("socket error while receiving encrypt packet:" +
+                         encryptResult.first.message())
+                            .c_str());
+                    if (encryptResult.first == boost::asio::error::eof)
+                    {
+                        socketSessionMap.erase(dstEid);
+                    }
+                }
+            }
         }
         else
         {
-            payload =
-                std::move(encryptedPayload); // Use encrypted payload only if
-                                             // encryption was successful
+            uint32_t deviceId = createDbusDeviceId(dstEid, networkId);
+            auto useDbus = checkDbusSession(deviceId);
+            if (useDbus)
+            {
+                encryptPayloadUsingDBus(networkId, dstEid, payload,
+                                        encryptedPayload);
+                if (encryptedPayload.empty())
+                {
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "Encryption failed");
+                    return std::make_pair(
+                        std::make_error_code(std::errc::connection_aborted),
+                        std::vector<uint8_t>{});
+                }
+                else
+                {
+                    payload = std::move(encryptedPayload);
+                }
+            }
         }
     }
-
     boost::system::error_code ec;
     auto message = transmissionQueue.transmit(mctp, dstEid, std::move(payload),
                                               std::move(pvtData).value(), io);
@@ -1285,26 +1503,68 @@ int MctpBinding::sendMctpMessagePayload(uint8_t dstEid, uint8_t msgTag,
     }
 
     std::vector<uint8_t> encryptedPayload;
-    uint32_t deviceId = createDeviceId(dstEid, networkId);
-    auto useDbus = checkSession(deviceId);
-
-    if (secureTelemetryEnable && useDbus &&
-        msgType != MCTP_MESSAGE_TYPE_MCTP_CTRL &&
+    if (secureTelemetryEnable && msgType != MCTP_MESSAGE_TYPE_MCTP_CTRL &&
         msgType != MCTP_MESSAGE_TYPE_SECUREDMSG &&
         msgType != MCTP_MESSAGE_TYPE_SPDM)
     {
-        encryptPayloadUsingDBus(networkId, dstEid, payload, encryptedPayload);
-        if (encryptedPayload.empty())
+        if (useSocketComm)
         {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Encryption failed");
-            return static_cast<int>(mctpInternalError);
+            auto useSocket = checkSocketSession(dstEid);
+            if (useSocket)
+            {
+                auto& session = useSocket.value().get();
+                auto encryptResult = syncSessionMessage(
+                    session, payload, unix_ipc::unix_protocol::OpCode::encrypt);
+                if (!encryptResult.first)
+                {
+
+                    encryptedPayload = std::move(encryptResult.second);
+                    if (encryptedPayload.empty())
+                    {
+                        phosphor::logging::log<phosphor::logging::level::ERR>(
+                            "Encryption failed");
+                        return static_cast<int>(mctpInternalError);
+                    }
+                    else
+                    {
+                        payload = std::move(encryptedPayload);
+                    }
+                }
+                else
+                {
+                    // TO DO :- Handle encryption failure...
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        ("socket error while receiving encrypt packet:" +
+                         encryptResult.first.message())
+                            .c_str());
+                    if (encryptResult.first == boost::asio::error::eof)
+                    {
+                        socketSessionMap.erase(dstEid);
+                    }
+                }
+            }
         }
         else
         {
-            payload =
-                std::move(encryptedPayload); // Use encrypted payload only if
-                                             // encryption was successful
+
+            uint32_t deviceId = createDbusDeviceId(dstEid, networkId);
+            auto useDbus = checkDbusSession(deviceId);
+
+            if (useDbus)
+            {
+                encryptPayloadUsingDBus(networkId, dstEid, payload,
+                                        encryptedPayload);
+                if (encryptedPayload.empty())
+                {
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "Encryption failed");
+                    return static_cast<int>(mctpInternalError);
+                }
+                else
+                {
+                    payload = std::move(encryptedPayload);
+                }
+            }
         }
     }
 
@@ -1313,5 +1573,6 @@ int MctpBinding::sendMctpMessagePayload(uint8_t dstEid, uint8_t msgTag,
     {
         return static_cast<int>(mctpInternalError);
     }
+
     return static_cast<int>(mctpSuccess);
 }

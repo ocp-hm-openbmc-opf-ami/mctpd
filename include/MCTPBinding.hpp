@@ -18,6 +18,8 @@
 
 #include "mctp_bridge.hpp"
 #include "service_scanner.hpp"
+#include "unix_sock_client.hpp"
+#include "unix_sock_intf.hpp"
 #include "utils/Configuration.hpp"
 #include "utils/transmission_queue.hpp"
 #include "utils/types.hpp"
@@ -66,6 +68,9 @@ class MctpBinding : public MCTPBridge
   protected:
     bool supportsSPDMRequester = false;
     static inline bool secureTelemetryEnable = false;
+    // To Do: useSocketComm flag to be set as true when the mctpd socket
+    // communication is enabled. Default D-Bus communication is enabled.
+    static inline bool useSocketComm = false;
     std::unique_ptr<sdbusplus::bus::match::match> secureTelemetryEnableMatch;
     bool rsvBWActive = false;
     mctp_eid_t reservedEID = 0;
@@ -129,6 +134,7 @@ class MctpBinding : public MCTPBridge
     unsigned long socketConnCount;
     mctp_server::BindingTypes bindingID{};
 
+    void initializeSocketComm();
     void createUuid();
     MctpStatus sendMctpRawPayload(const std::vector<uint8_t>& data);
     MctpBinding& getPtr();
@@ -137,12 +143,25 @@ class MctpBinding : public MCTPBridge
         localSocketEp;
     boost::asio::local::stream_protocol::acceptor acceptor;
     std::unordered_set<uint8_t> sessionSet;
-    bool checkSession(uint32_t);
-    uint32_t createDeviceId(uint8_t, uint8_t);
+    bool checkDbusSession(uint32_t);
+    uint32_t createDbusDeviceId(uint8_t, uint8_t);
     void encryptPayloadUsingDBus(uint8_t networkId, uint8_t dstEid,
                                  const std::vector<uint8_t>& inputPayload,
                                  std::vector<uint8_t>& encryptedPayload);
     void decryptPayloadUsingDBus(uint8_t networkId, uint8_t dstEid,
                                  const std::vector<uint8_t>& inputPayload,
                                  std::vector<uint8_t>& decryptedPayload);
+    std::map<uint8_t, std::unique_ptr<SocketInterface>> socketSessionMap;
+    void updateSessionInfo(bool connState, uint32_t deviceEid);
+    std::optional<std::reference_wrapper<SocketInterface>>
+        checkSocketSession(uint8_t eid);
+    std::pair<boost::system::error_code, std::vector<uint8_t>>
+        processSessionMessage(SocketInterface& session,
+                              std::vector<uint8_t>& messagePayload,
+                              boost::asio::yield_context yield,
+                              unix_ipc::unix_protocol::OpCode opcode);
+    std::pair<boost::system::error_code, std::vector<uint8_t>>
+        syncSessionMessage(SocketInterface& session,
+                           const std::vector<uint8_t>& messagePayload,
+                           unix_ipc::unix_protocol::OpCode opcode);
 };

@@ -38,7 +38,9 @@ enum class OpCode : uint8_t
     sendReceive,
     sendOnly,
     broadCastResponse,
-    directedResponse
+    directedResponse,
+    encrypt,
+    decrypt
 };
 
 struct SendReceiveRequest
