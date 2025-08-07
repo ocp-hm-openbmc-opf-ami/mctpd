@@ -110,7 +110,7 @@ class PCIeBinding : public MctpBinding,
                           uint16_t physAddr, long entryIndex = 0);
     uint16_t getRoutingEntryPhysAddr(
         const std::vector<uint8_t>& getRoutingTableEntryResp,
-        size_t entryOffset);
+        size_t entryOffset, uint8_t eid);
     bool isEntryInRoutingTable(get_routing_table_entry* routingEntry,
                                const std::vector<routingTableEntry_t>& rt);
     bool isEndOfGetRoutingTableResp(uint8_t entryHandle,

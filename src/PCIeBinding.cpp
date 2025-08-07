@@ -122,8 +122,21 @@ mctp_server::BindingModeTypes
 }
 
 uint16_t PCIeBinding::getRoutingEntryPhysAddr(
-    const std::vector<uint8_t>& getRoutingTableEntryResp, size_t entryOffset)
+    const std::vector<uint8_t>& getRoutingTableEntryResp, size_t entryOffset,
+    uint8_t eid)
 {
+    // Check for 3-byte phys_address_size
+    if (getRoutingTableEntryResp[entryOffset - 1] != sizeof(uint16_t))
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("PCIeBinding: Adjusting entryOffset due to unexpected "
+             "phys_address_size (3 byte), eid: " +
+             std::to_string(eid))
+                .c_str());
+        // For 3-byte address, skip the first byte (port), use next 2 bytes as
+        // BDF
+        entryOffset += 1;
+    }
     return be16toh(static_cast<uint16_t>(
         static_cast<uint16_t>(getRoutingTableEntryResp[entryOffset]) |
         (static_cast<uint16_t>(getRoutingTableEntryResp[entryOffset + 1])
@@ -275,7 +288,8 @@ void PCIeBinding::readRoutingTable(
                 continue;
             }
             uint16_t entryPhysAddr =
-                getRoutingEntryPhysAddr(getRoutingTableEntryResp, entryOffset);
+                getRoutingEntryPhysAddr(getRoutingTableEntryResp, entryOffset,
+                                        routingTableEntry->starting_eid);
             entryOffset += routingTableEntry->phys_address_size;
 
             if (eid == busOwnerEid &&
