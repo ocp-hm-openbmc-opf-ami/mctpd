@@ -82,15 +82,16 @@ void I3CBinding::triggerDeviceDiscovery()
         busOwnerAddress = hw->getDeviceAddress();
         hw->pollRx();
 
+        if (bindingModeType == mctp_server::BindingModeTypes::Bridge ||
+            bindingModeType == mctp_server::BindingModeTypes::BusOwner)
+        {
+
+            clearAllRegisteredEIDs();
+        }
         if (!isTopMostBusOwner)
         {
-            eidPool.clearEIDPool();
 
-            if (bindingModeType == mctp_server::BindingModeTypes::Bridge ||
-                bindingModeType == mctp_server::BindingModeTypes::BusOwner)
-            {
-                clearAllRegisteredEIDs();
-            }
+            eidPool.clearEIDPool();
         }
 
         if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
