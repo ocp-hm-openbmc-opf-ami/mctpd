@@ -373,8 +373,14 @@ void I3CBinding::processBridgeEntries(
     rt = rtCopy;
 }
 
-void I3CBinding::updateRoutingTable()
+void I3CBinding::updateRoutingTable(boost::system::error_code ec)
 {
+    if (ec == boost::asio::error::operation_aborted)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "Get routing table timer cancelled");
+        return;
+    }
     struct mctp_asti3c_pkt_private pktPrv;
     getRoutingTableTimer.expires_after(getRoutingInterval);
 
@@ -383,8 +389,8 @@ void I3CBinding::updateRoutingTable()
     {
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "Get Routing Table failed, undiscovered");
-        getRoutingTableTimer.async_wait(
-            std::bind(&I3CBinding::updateRoutingTable, this));
+        auto callback = std::bind_front(&I3CBinding::updateRoutingTable, this);
+        getRoutingTableTimer.async_wait(std::move(callback));
         return;
     }
     pktPrv.fd = mctpI3CFd;
@@ -428,8 +434,8 @@ void I3CBinding::updateRoutingTable()
             routingTableResp = uniqueEIDs;
         }
 
-        getRoutingTableTimer.async_wait(
-            std::bind(&I3CBinding::updateRoutingTable, this));
+        auto callback = std::bind_front(&I3CBinding::updateRoutingTable, this);
+        getRoutingTableTimer.async_wait(std::move(callback));
     }, {});
 }
 
@@ -701,6 +707,7 @@ bool I3CBinding::handleRoutingInfoUpdate(
     // Invoking GetRouting table Control cmd to check any new Eid is available
     // Return Success
     getRoutingTableTimer.cancel();
+    updateRoutingTable();
     auto resp = castVectorToStruct<mctp_ctrl_resp_completion_code>(response);
     return encode_cc_only_response(MCTP_CTRL_CC_SUCCESS, resp);
 }
@@ -858,12 +865,6 @@ void I3CBinding::initializeBinding(boost::asio::yield_context yield)
         return;
     }
 
-    if (bindingModeType != mctp_server::BindingModeTypes::BusOwner)
-    {
-        getRoutingTableTimer.async_wait(
-            std::bind(&I3CBinding::updateRoutingTable, this));
-    }
-
     hw->pollRx();
 
     if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
@@ -907,9 +908,8 @@ void I3CBinding::changeDiscoveredFlag(I3CBindingServer::DiscoveryFlags flag)
 
     if (I3CBindingServer::DiscoveryFlags::Discovered == flag)
     {
-        constexpr const uint8_t waitForEidPoolDelaySeconds = 5;
-        getRoutingTableTimer.expires_after(
-            std::chrono::seconds{waitForEidPoolDelaySeconds});
+        getRoutingTableTimer.cancel();
+        updateRoutingTable();
     }
 }
 
@@ -1131,6 +1131,7 @@ void I3CBinding::onPCIeEnumerationChange()
                 "Triggering GetRouting table");
 
             getRoutingTableTimer.cancel();
+            updateRoutingTable();
             // Wait for routing table update and send SetEID to PFR
             timer.expires_after(std::chrono::seconds(1));
             timer.async_wait(yield);

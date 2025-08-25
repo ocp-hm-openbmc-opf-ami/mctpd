@@ -103,7 +103,8 @@ class I3CBinding : public MctpBinding
     uint8_t getTransportId() override;
     std::vector<uint8_t> getOwnPhysicalAddress() override;
     void endpointDiscoveryFlow();
-    void updateRoutingTable();
+    void updateRoutingTable(
+        boost::system::error_code ec = boost::system::error_code());
     void processRoutingTableChanges(
         const std::vector<routingTableEntry_t>& newTable,
         boost::asio::yield_context& yield, const std::vector<uint8_t>& prvData);
