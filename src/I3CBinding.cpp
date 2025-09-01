@@ -276,7 +276,12 @@ void I3CBinding::readRoutingTable(
             auto routingTableEntry = reinterpret_cast<get_routing_table_entry*>(
                 getRoutingTableEntryResp.data() + entryOffset);
 
-            if (routingTableEntry->starting_eid == ownEid)
+            bool isInEIDPool =
+                (routingTableEntry->starting_eid >= allocatedPoolFirstEID &&
+                 (routingTableEntry->starting_eid <
+                  (allocatedPoolFirstEID + allocatedPoolSize)));
+
+            if (routingTableEntry->starting_eid == ownEid || isInEIDPool)
             {
                 entryOffset += (sizeof(get_routing_table_entry)) +
                                routingTableEntry->phys_address_size;
