@@ -21,13 +21,13 @@ Supports
 
 ### Assumptions
 1. Bus Owners to have a statically allocated pool of EIDs
-2. SMBus ARP Master is out of scope for this document
+2. SMBus ARP Controller is out of scope for this document
 3. PLDM, Intel Vendor Defined Messages and other MCTP Message Types are out of
    scope
 
 ### Device Discovery
 BMC takes statically configurations(EID pool, bus path etc..) exposed by
-`entity-manager` or by JSON file. BMC scans those buses for MCTP capable devices
+`entity-manager`. BMC scans those buses for MCTP capable devices
 and executes the bus owner responsibilities of EID assignment and device
 capability discovery.
 

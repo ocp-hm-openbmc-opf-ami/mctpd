@@ -91,4 +91,17 @@ mctp_eid_t EidPool::getAvailableEidFromPool()
         std::make_error_code(std::errc::address_not_available));
 }
 
+void EidPool::clearEIDPool()
+{
+    eidPool.clear();
+}
+
+bool EidPool::contains(mctp_eid_t eid) const
+{
+    auto it =
+        std::find_if(eidPool.begin(), eidPool.end(),
+                     [eid](auto eidStatus) { return eidStatus.first == eid; });
+    return it != eidPool.end();
+}
+
 } // namespace mctpd

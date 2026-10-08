@@ -142,9 +142,13 @@ TEST_F(MctpdBaseTest, BaseIfPropertyTest)
         .Times(1)
         .WillRepeatedly(Return(true));
 
+    EXPECT_CALL(*mctpInterface, register_method(StrEq("SendMctpRawPayload")))
+        .Times(1)
+        .WillRepeatedly(Return(true));
+
     EXPECT_CALL(
         *smbusInterface,
-        register_property(StrEq("ArpMasterSupport"), An<bool>(),
+        register_property(StrEq("ArpControllerSupport"), An<bool>(),
                           Eq(sdbusplus::asio::PropertyPermission::readOnly)))
         .Times(1)
         .WillRepeatedly(Return(true));
@@ -158,7 +162,7 @@ TEST_F(MctpdBaseTest, BaseIfPropertyTest)
 
     EXPECT_CALL(
         *smbusInterface,
-        register_property(StrEq("BmcSlaveAddress"), An<uint8_t>(),
+        register_property(StrEq("BmcTargetAddress"), An<uint8_t>(),
                           Eq(sdbusplus::asio::PropertyPermission::readOnly)))
         .Times(1)
         .WillRepeatedly(Return(true));
